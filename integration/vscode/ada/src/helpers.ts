@@ -190,13 +190,8 @@ type ObjDirResponse = {
 };
 
 export async function getProjectFile(client: LanguageClient): Promise<string> {
-    const config: string | undefined = vscode.workspace.getConfiguration('ada').get('projectFile');
-    if (config != undefined && config != '') {
-        return config;
-    } else {
-        const result: ProjectFileResponse = await client.sendRequest('$/glsProjectFile');
-        return result.projectFile;
-    }
+    const result: ProjectFileResponse = await client.sendRequest('$/glsProjectFile');
+    return result.projectFile;
 }
 
 export async function getObjectDir(client: LanguageClient): Promise<string> {

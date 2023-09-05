@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as cp from 'child_process';
 import { XMLParser } from 'fast-xml-parser';
 import { ContextClients } from './clients';
 import { getProjectFile, getObjectDir } from './helpers';
@@ -29,7 +30,7 @@ type Unit = {
 
 type TestUnit = {
     '@_target_file': string;
-    tested: [Tested] | Tested;
+    tested: [Tested] | Tested | undefined;
 };
 
 type Tested = {
@@ -39,6 +40,8 @@ type Tested = {
 };
 
 type TestCase = {
+    '@_line': string;
+    '@_name': string;
     test: Test;
 };
 
@@ -49,9 +52,11 @@ type Test = {
     '@_name': string;
 };
 
-/*
-    The Main function to initialize the test view
-*/
+/**
+ * The Main function to initialize the test view
+ * @param context - the extension contexts
+ * @param clients - the language clients
+ */
 export async function initializeTestView(
     context: vscode.ExtensionContext,
     clients: ContextClients
@@ -73,55 +78,31 @@ export async function initializeTestView(
         await discoverTests(controller, gnattestPath);
     }
 }
-/*
-    Run Profile and other options configuration for the Test Controller
-*/
+
+/**
+ * Run Profile and other options configuration for the Test Controller
+ * @param controller - the test controller
+ * @param projectFile - the full path to the project file
+ * @param gnattestPath - the full path to the gnattest folder
+ */
 function startTestRun(
     controller: vscode.TestController,
     projectFile: string,
     gnattestPath: string
 ) {
-    // terminal ID to seperate between each run
-    let terminal_id = 0;
     // the controller's Run Handler
     const runHandler = (request: vscode.TestRunRequest) => {
+        const run = controller.createTestRun(request, undefined, false);
         if (request.include == undefined) {
             // The Run All tests request
-            const run = controller.createTestRun(request, undefined, false);
             const tests = gatherChildTestItems(controller.items);
-            const terminal_name = 'Test_terminal_' + terminal_id.toString();
             // Run all tests handler
-            handleRunAll(tests, run, terminal_name, gnattestPath);
-            terminal_id++;
-            // Parse the results when the terminal is closed
-            vscode.window.onDidCloseTerminal(async (terminal) => {
-                if (terminal.name == terminal_name) {
-                    const file = await readResultFile(path.join(gnattestPath, 'result.txt'));
-                    if (file != undefined) {
-                        parseResults(tests, run, file);
-                    }
-                    run.end();
-                }
-            });
+            handleRunAll(tests, run, gnattestPath);
         } else {
             // specifique tests run request
-            const run = controller.createTestRun(request, undefined, false);
             const tests = gatherChildTestItems(request.include);
-            // create a temporary terminal to execute the command lines then close it.
-            const terminalName = 'Test_terminal_' + terminal_id.toString();
             // test unit run handler
-            handleUnitRun(tests, run, terminalName, gnattestPath);
-            terminal_id++;
-            // Parse the results when the terminal is closed
-            vscode.window.onDidCloseTerminal(async (terminal) => {
-                if (terminal.name == terminalName) {
-                    const file = await readResultFile(path.join(gnattestPath, 'result.txt'));
-                    if (file != undefined) {
-                        parseResults(tests, run, file);
-                    }
-                    run.end();
-                }
-            });
+            handleUnitRun(tests, run, gnattestPath);
         }
     };
 
@@ -134,9 +115,7 @@ function startTestRun(
     );
     // Tests Configuration Handler to Generates Tests for a Project.
     testRunProfile.configureHandler = () => {
-        const terminal = vscode.window.createTerminal('Test Terminal');
-        terminal.sendText('gnattest -P ' + projectFile);
-        terminal.sendText('exit');
+        generateTests(projectFile);
     };
     // Refresh Button to re discover the tests on the project.
     controller.refreshHandler = async () => {
@@ -147,68 +126,166 @@ function startTestRun(
     };
 }
 
-/*
-    Run all tests handler
-*/
-export function handleRunAll(
-    tests: vscode.TestItem[],
-    run: vscode.TestRun,
-    terminalName: string,
-    gnattestPath: string
-) {
-    tests.forEach((item) => {
-        run.appendOutput(`Running ${item.id}\r\n`);
-        run.started(item);
-    });
-    // create a temporary terminal to execute the command lines then close it.
-    const ext: string = process.platform == 'win32' ? '.exe' : '';
-    const terminal = vscode.window.createTerminal(terminalName);
-    terminal.sendText('gprbuild -P ' + path.join(gnattestPath, 'harness', 'test_driver.gpr'));
-    terminal.sendText(
-        path.join(gnattestPath, 'harness', 'test_runner' + ext) +
-            ' > ' +
-            path.join(gnattestPath, 'result.txt')
-    );
-    terminal.sendText('exit');
+/**
+ * Run all tests request handler
+ * @param tests - test items to run
+ * @param run - the current run context
+ * @param gnattestPath - the full path to gnattest folder
+ */
+export function handleRunAll(tests: vscode.TestItem[], run: vscode.TestRun, gnattestPath: string) {
+    run.appendOutput('Build Tests \r\n');
+    try {
+        tests.forEach((item) => {
+            run.started(item);
+        });
+        buildTests(gnattestPath);
+    } catch (e) {
+        const message = e as Error;
+        run.appendOutput('Compilation Failed \r\n');
+        run.appendOutput(message.message);
+        tests.forEach((item) => {
+            run.errored(item, new vscode.TestMessage(message.message));
+        });
+        run.end();
+        return;
+    }
+    run.appendOutput(`Running All Tests \r\n`);
+    try {
+        runTests(gnattestPath);
+    } catch (e) {
+        run.appendOutput('Test Running Failed \r\n');
+        run.end();
+        return;
+    }
+
+    const file = readResultFile(path.join(gnattestPath, 'result.txt'));
+    if (file != undefined) {
+        parseResults(tests, run, file);
+    }
+    run.end();
 }
 
-/*
-    test unit/case run handler
-*/
-function handleUnitRun(
-    tests: vscode.TestItem[],
-    run: vscode.TestRun,
-    terminalName: string,
-    gnattestPath: string
-) {
-    const terminal = vscode.window.createTerminal(terminalName);
-    const ext: string = process.platform == 'win32' ? '.exe' : '';
-    // clean the previous results
-    terminal.sendText('> ' + path.join(gnattestPath, 'result.txt'));
-    // run every test case seperatly and append the results
-    for (const test of tests) {
-        run.appendOutput(`Running ${test.id}\r\n`);
-        run.started(test);
-        const parent = getParentTestSourceName(test);
-        const p: integer | undefined = test.parent?.range?.start.line;
-        const line: integer = p ? p + 1 : 0;
-        terminal.sendText('gprbuild -P ' + path.join(gnattestPath, 'harness', 'test_driver.gpr'));
-        terminal.sendText(
-            path.join(gnattestPath, 'harness', 'test_runner' + ext) +
-                ' --routines=' +
-                parent.id +
-                ':' +
-                line.toString() +
-                ' >> ' +
-                path.join(gnattestPath, 'result.txt')
-        );
+/**
+ * Test unit/case run request handler
+ * @param tests - test items to run
+ * @param run - the current run context
+ * @param gnattestPath - the full path to gnattest folder
+ */
+function handleUnitRun(tests: vscode.TestItem[], run: vscode.TestRun, gnattestPath: string) {
+    run.appendOutput('Build Tests \r\n');
+    try {
+        tests.forEach((item) => {
+            run.started(item);
+        });
+        buildTests(gnattestPath);
+    } catch (e) {
+        const message = e as Error;
+        run.appendOutput('Compilation Failed \r\n');
+        tests.forEach((item) => {
+            run.errored(item, new vscode.TestMessage(message.message));
+        });
+        run.end();
+        return;
     }
-    terminal.sendText('exit');
+
+    try {
+        cleanResults(gnattestPath);
+    } catch {
+        run.appendOutput('No results to clean\r\n');
+    }
+
+    tests.forEach((item) => {
+        try {
+            run.appendOutput(`Running ${item.id}\r\n`);
+            runTestCase(gnattestPath, item);
+        } catch (e) {
+            run.appendOutput('Running ${item.id} Failed \r\n');
+        }
+    });
+
+    const file = readResultFile(path.join(gnattestPath, 'result.txt'));
+    if (file != undefined) {
+        parseResults(tests, run, file);
+    }
+    run.end();
+}
+
+/**
+ * Generate the gnattest tests in the background
+ * @param projectPath - the full path to project file
+ * @returns the stdout from the execution
+ */
+export function generateTests(projectPath: string) {
+    return cp.execSync('gnattest -P ' + projectPath, { timeout: 60000 });
+}
+
+/**
+ * Build the tests in the background
+ * @param gnattestPath - the full path to the gnattest folder
+ * @returns the stdout from the execution
+ */
+export function buildTests(gnattestPath: string) {
+    return cp.execSync('gprbuild -P ' + path.join(gnattestPath, 'harness', 'test_driver.gpr'), {
+        timeout: 60000,
+    });
+}
+
+/**
+ * Run All the tests in the background
+ * @param gnattestPath - the full path to the gnattest folder
+ * @returns the stdout from the execution
+ */
+export function runTests(gnattestPath: string) {
+    const ext: string = process.platform == 'win32' ? '.exe' : '';
+    return cp.execSync(
+        path.join(gnattestPath, 'harness', 'test_runner' + ext) +
+            ' > ' +
+            path.join(gnattestPath, 'result.txt'),
+        { timeout: 60000 }
+    );
+}
+
+/**
+ * Run a single test case in the background
+ * @param gnattestPath - the full path to the gnattest folder
+ * @param test - the test case to run
+ * @returns the stdout from the execution
+ */
+export function runTestCase(gnattestPath: string, test: vscode.TestItem) {
+    const ext: string = process.platform == 'win32' ? '.exe' : '';
+    const parent = getParentTestSourceName(test);
+    const p: integer | undefined = test.parent?.parent?.range?.start.line;
+    const line: integer = p ? p + 1 : 0;
+    return cp.execSync(
+        path.join(gnattestPath, 'harness', 'test_runner' + ext) +
+            ' --routines=' +
+            parent.id +
+            ':' +
+            line.toString() +
+            ' >> ' +
+            path.join(gnattestPath, 'result.txt'),
+        { timeout: 60000 }
+    );
+}
+
+/**
+ * Clean the previous run results
+ * @param gnattestPath - the full path to the gnattest folder
+ * @returns the stdout from the execution
+ */
+function cleanResults(gnattestPath: string) {
+    return cp.execSync(' > ' + path.join(gnattestPath, 'result.txt'), { timeout: 60000 });
 }
 
 /*
     Resolves Tests to run for a selected test item in the Explorer
 */
+
+/**
+ * Resolves Tests to run for a selected test item in the Explorer
+ * @param collection - the test items selected in the Explorer
+ * @returns tests to run
+ */
 export function gatherChildTestItems(
     collection: vscode.TestItemCollection | readonly vscode.TestItem[]
 ): vscode.TestItem[] {
@@ -223,10 +300,12 @@ export function gatherChildTestItems(
     return items;
 }
 
-/*
-    Gets the Source file name for a test item
-    Needed for the --routines switch
-*/
+/**
+ * Gets the Specification file name for a test item
+ * Needed for the --routines switch
+ * @param item - a test item
+ * @returns - the spec file related test item
+ */
 export function getParentTestSourceName(item: vscode.TestItem) {
     let parent: vscode.TestItem = item;
     if (item.parent != undefined) {
@@ -235,15 +314,15 @@ export function getParentTestSourceName(item: vscode.TestItem) {
     return parent;
 }
 
-/*
-    Return the test_runner output stored in the result.txt file
-*/
-export async function readResultFile(resultPath: string) {
-    if (vscode.workspace.workspaceFolders !== undefined) {
-        if (pathExists(resultPath)) {
-            const file = await vscode.workspace.fs.readFile(vscode.Uri.file(resultPath));
-            return file.toString();
-        }
+/**
+ * Return the test_runner output stored in the result.txt file
+ * @param resultPath - the full path to the result file
+ * @returns the file content
+ */
+export function readResultFile(resultPath: string) {
+    if (pathExists(resultPath)) {
+        const file = fs.readFileSync(resultPath);
+        return file.toString();
     }
     return undefined;
 }
@@ -253,9 +332,13 @@ enum Test_State {
     FAILED = 'FAILED',
 }
 
-/*
-    Parses the result of the file 'result.txt'
-*/
+/**
+ * Parses the result of the file 'result.txt'
+ * @param tests - the tests running
+ * @param run - the run profile
+ * @param file - the tests results
+ * @returns parsing state , True if succeded
+ */
 export function parseResults(
     tests: vscode.TestItem[],
     run: vscode.TestRun | undefined,
@@ -275,7 +358,6 @@ export function parseResults(
                 const check_line = matchs[i].match(test_src.label + ':' + test_line.toString());
                 // update the state of the test
                 if (check_line != null && run != undefined) {
-                    run.appendOutput(`Completed ${e.id}\r\n`);
                     const mm: string = matchs[i].substring(matchs[i].length - 6, matchs[i].length);
                     if (mm == Test_State.PASSED) {
                         run.passed(e);
@@ -285,32 +367,33 @@ export function parseResults(
                 }
             }
         }
+        run?.appendOutput(`Run Completed \r\n`);
         return true;
     }
     return false;
 }
 
-/*
-    Return the tests structure stored in gnattest.xml file
-*/
+/**
+ * Read the gnattest.xml file
+ * @param harnessPath - the full path to the harness folder
+ * @returns the content of the gnattest.xml file
+ */
 export async function readXMLfile(harnessPath: string): Promise<string | undefined> {
-    if (vscode.workspace.workspaceFolders !== undefined) {
-        const mainPath = vscode.workspace.workspaceFolders[0].uri.path;
-        const fullHarnessPath = path.join(mainPath, harnessPath);
-        let file;
-        if (pathExists(fullHarnessPath)) {
-            file = await vscode.workspace.fs.readFile(
-                vscode.Uri.file(path.join(fullHarnessPath, 'gnattest.xml'))
-            );
-        }
+    if (pathExists(harnessPath)) {
+        const file = await vscode.workspace.fs.readFile(
+            vscode.Uri.file(path.join(harnessPath, 'gnattest.xml'))
+        );
         return file?.toString().replace(/>\s+</g, '><').trim();
     }
     return undefined;
 }
 
-/*
-    Discover tests by parsing the xml input
-*/
+/**
+ * Discover tests by parsing the xml input
+ * @param controller - the test controller
+ * @param gnattestPath - the full path to the gnattest folder
+ * @returns the tests tree structure
+ */
 export async function discoverTests(controller: vscode.TestController, gnattestPath: string) {
     if (vscode.workspace.workspaceFolders !== undefined) {
         const mainPath = vscode.workspace.workspaceFolders[0].uri.path;
@@ -336,9 +419,12 @@ export async function discoverTests(controller: vscode.TestController, gnattestP
     return undefined;
 }
 
-/*
-    Creating nested test items to visuliaze in the view
-*/
+/**
+ * Creating nested test items to visuliaze in the view
+ * @param unit - a test unit
+ * @param controller - the test controller
+ * @param mainPath - the full path of the current workspace
+ */
 function addUnitTestItems(unit: Unit, controller: vscode.TestController, mainPath: string) {
     const srcFile = unit['@_source_file'];
     const srcPath = findFile(srcFile, mainPath);
@@ -347,18 +433,24 @@ function addUnitTestItems(unit: Unit, controller: vscode.TestController, mainPat
     const tested = unit.test_unit.tested;
     if (tested instanceof Array) {
         for (const t of tested) {
-            addChildCases(controller, testUnit, t, mainPath);
+            addChildBlocks(controller, testUnit, t, mainPath);
         }
-    } else {
-        addChildCases(controller, testUnit, tested, mainPath);
+        controller.items.add(testUnit);
+    } else if (tested) {
+        addChildBlocks(controller, testUnit, tested, mainPath);
+        controller.items.add(testUnit);
     }
-    controller.items.add(testUnit);
+    return;
 }
 
-/*
-    Adding Test Cases to a Test Unit Item
-*/
-function addChildCases(
+/**
+ * Adding Tested blocks to a Test Unit Item
+ * @param controller - the test controller
+ * @param parentUnit - the parent unit of the test
+ * @param tested - a Tested item
+ * @param mainPath - the full path of the current workspace
+ */
+function addChildBlocks(
     controller: vscode.TestController,
     parentUnit: vscode.TestItem,
     tested: Tested,
@@ -373,18 +465,46 @@ function addChildCases(
     item.range = range;
     if (tested.test_case instanceof Array) {
         for (const e of tested.test_case) {
-            addChildTests(controller, item, e, mainPath);
+            addChildCase(controller, item, e, mainPath);
         }
     } else {
-        addChildTests(controller, item, tested.test_case, mainPath);
+        addChildCase(controller, item, tested.test_case, mainPath);
     }
     parentUnit.children.add(item);
 }
 
-/*
-    Adding Test Childs to a Test Case Item
-*/
-function addChildTests(
+/**
+ * Creating nested test items to visuliaze in the view
+ * @param unit - a test unit
+ * @param controller - the test controller
+ * @param mainPath - the full path of the current workspace
+ */
+function addChildCase(
+    controller: vscode.TestController,
+    parentNode: vscode.TestItem,
+    testCase: TestCase,
+    mainPath: string
+) {
+    const parentID = parentNode.id;
+    const caseName = testCase['@_name'];
+    const caseRange = new vscode.Range(
+        new vscode.Position(parseInt(testCase['@_line']) - 1, 1),
+        new vscode.Position(parseInt(testCase['@_line']) - 1, 1)
+    );
+    const caseItem = controller.createTestItem(parentID + caseName, caseName, parentNode.uri);
+    caseItem.range = caseRange;
+    addChildTest(controller, caseItem, testCase, mainPath);
+    parentNode.children.add(caseItem);
+}
+
+/**
+ * Adding Test Child to a Test Case Item
+ * @param controller - the test controller
+ * @param parentCase - the parent test node
+ * @param testCase - a test case
+ * @param mainPath - the full path of the current workspace
+ */
+function addChildTest(
     controller: vscode.TestController,
     parentCase: vscode.TestItem,
     testCase: TestCase,
@@ -404,9 +524,12 @@ function addChildTests(
     parentCase.children.add(itemChild);
 }
 
-/*
-    looks for a specifique file in the workspace
-*/
+/**
+ * looks for a specifique file in the workspace
+ * @param name - the file name
+ * @param directory - directory of the search
+ * @returns the path of the file if found
+ */
 function findFile(name: string, directory: string): string {
     const files = fs.readdirSync(directory);
     for (const file of files) {
@@ -423,9 +546,11 @@ function findFile(name: string, directory: string): string {
     return '';
 }
 
-/*
-    Checking if a path/file exists
-*/
+/**
+ * Checking if a path/file exists
+ * @param p - the path/file to check
+ * @returns boolean
+ */
 export function pathExists(p: string): boolean {
     try {
         fs.accessSync(p);
