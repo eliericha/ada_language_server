@@ -808,79 +808,74 @@ class BuildAndRunExecution extends vscode.CustomExecution {
                 onDidWrite: writeEmitter.event,
                 onDidClose: closeEmitter.event,
                 open() {
-                    vscode.tasks
-                        .fetchTasks({ type: 'ada' })
-                        .then(
-                            (adaTasks) => {
-                                assert(definition.configuration.buildTask);
-                                assert(definition.configuration.runTask);
+                    vscode.tasks.fetchTasks({ type: 'ada' }).then(
+                        (adaTasks) => {
+                            assert(definition.configuration.buildTask);
+                            assert(definition.configuration.runTask);
 
-                                /**
-                                 * Find the tasks that match the task names
-                                 * specified in buildTask and runTask, prioritizing
-                                 * Workspace tasks.
-                                 */
-                                adaTasks.sort((a, b) => {
-                                    if (isFromWorkspace(a) && !isFromWorkspace(b)) {
-                                        return -1;
-                                    } else if (!isFromWorkspace(a) && isFromWorkspace(b)) {
-                                        return 1;
-                                    } else {
-                                        return a.name.localeCompare(b.name);
-                                    }
+                            /**
+                             * Find the tasks that match the task names
+                             * specified in buildTask and runTask, prioritizing
+                             * Workspace tasks.
+                             */
+                            adaTasks.sort((a, b) => {
+                                if (isFromWorkspace(a) && !isFromWorkspace(b)) {
+                                    return -1;
+                                } else if (!isFromWorkspace(a) && isFromWorkspace(b)) {
+                                    return 1;
+                                } else {
+                                    return a.name.localeCompare(b.name);
+                                }
+                            });
+                            /**
+                             * Task names contributed by the extension don't
+                             * have the task type prefix while tasks coming from
+                             * the workspace typically do since VS Code includes
+                             * the type prefix when converting an automatic
+                             * extension task into a configurable workspace
+                             * task. getConventionalTaskLabel() takes care of
+                             * that fact.
+                             */
+                            function findTaskByName(taskName: string): vscode.Task {
+                                const task = adaTasks.find((v) => {
+                                    return taskName == getConventionalTaskLabel(v);
                                 });
-                                /**
-                                 * Task names contributed by the extension don't
-                                 * have the task type prefix while tasks coming from
-                                 * the workspace typically do since VS Code includes
-                                 * the type prefix when converting an automatic
-                                 * extension task into a configurable workspace
-                                 * task. getConventionalTaskLabel() takes care of
-                                 * that fact.
-                                 */
-                                function findTaskByName(taskName: string): vscode.Task {
-                                    const task = adaTasks.find((v) => {
-                                        return taskName == getConventionalTaskLabel(v);
-                                    });
-                                    if (task) {
-                                        return task;
-                                    } else {
-                                        const msg = `Could not find a task named: ${taskName}`;
-                                        throw new Error(msg);
-                                    }
-                                }
-                                const buildMainTask = findTaskByName(
-                                    definition.configuration.buildTask
-                                );
-                                const runMainTask = findTaskByName(
-                                    definition.configuration.runTask
-                                );
-
-                                const tasks = [buildMainTask, runMainTask];
-                                const p = runTaskSequence(tasks, writeEmitter);
-
-                                return p;
-                            },
-                            () => {
-                                writeEmitter.fire('Failed to get list of tasks\r\n');
-                                closeEmitter.fire(1);
-                            }
-                        )
-                        .then(
-                            (status) => {
-                                closeEmitter.fire(status);
-                            },
-                            (reason) => {
-                                try {
-                                    if (reason instanceof Error) {
-                                        void vscode.window.showErrorMessage(reason.message);
-                                        writeEmitter.fire(reason.message + '\r\n');
-                                    }
-                                } finally {
-                                    closeEmitter.fire(2);
+                                if (task) {
+                                    return task;
+                                } else {
+                                    const msg = `Could not find a task named: ${taskName}`;
+                                    throw new Error(msg);
                                 }
                             }
-                        );
+                            const buildMainTask = findTaskByName(
+                                definition.configuration.buildTask
+                            );
+                            const runMainTask = findTaskByName(definition.configuration.runTask);
+
+                            const tasks = [buildMainTask, runMainTask];
+                            const p = runTaskSequence(tasks, writeEmitter);
+
+                            return p.then(
+                                (status) => {
+                                    closeEmitter.fire(status);
+                                },
+                                (reason) => {
+                                    try {
+                                        if (reason instanceof Error) {
+                                            void vscode.window.showErrorMessage(reason.message);
+                                            writeEmitter.fire(reason.message + '\r\n');
+                                        }
+                                    } finally {
+                                        closeEmitter.fire(2);
+                                    }
+                                }
+                            );
+                        },
+                        () => {
+                            writeEmitter.fire('Failed to get list of tasks\r\n');
+                            closeEmitter.fire(1);
+                        }
+                    );
                 },
                 close() {
                     //
