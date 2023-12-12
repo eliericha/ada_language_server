@@ -9,6 +9,7 @@ import { getOrAskForProgram } from './debugConfigProvider';
 import { adaExtState, mainOutputChannel } from './extension';
 import { getProjectFileRelPath } from './helpers';
 import { CustomTaskDefinition, getEnclosingSymbol } from './taskProviders';
+import { downloadALS } from './clients';
 
 export function registerCommands(context: vscode.ExtensionContext, clients: ExtensionState) {
     context.subscriptions.push(vscode.commands.registerCommand('ada.otherFile', otherFileHandler));
@@ -35,6 +36,12 @@ export function registerCommands(context: vscode.ExtensionContext, clients: Exte
 
     context.subscriptions.push(
         vscode.commands.registerCommand('ada.runMainAsk', () => runMainAsk())
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('ada.downloadALS', async () => {
+            await downloadALS(context);
+        })
     );
 
     // This is a hidden command that gets called in the default debug
