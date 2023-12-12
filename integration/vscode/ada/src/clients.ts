@@ -3,15 +3,14 @@ import * as vscode from 'vscode';
 import { LanguageClient, LanguageClientOptions, ServerOptions } from 'vscode-languageclient/node';
 import { logger } from './extension';
 import { logErrorAndThrow, setCustomEnvironment } from './helpers';
-import assert from 'assert';
 
-import { FollowOptions, https } from 'follow-redirects';
-
-import * as process from 'process';
-import { basename, join } from 'path';
+import fetch from 'node-fetch';
 import { tmpdir } from 'os';
-import { parse } from 'url';
-import { RequestOptions } from 'https';
+import { join } from 'path';
+import * as process from 'process';
+
+import { AbortController } from 'abort-controller';
+import { pipeline } from 'stream';
 
 export function createClient(
     context: vscode.ExtensionContext,
@@ -118,126 +117,113 @@ export async function downloadALS(context: vscode.ExtensionContext) {
             title: 'Downloading Ada Language Server',
         },
         (progress, token) => {
-            return new Promise<string>((resolve) => {
-                let urlOS: string;
-                switch (process.platform) {
-                    case 'linux':
-                        urlOS = 'Linux';
-                        break;
-
-                    case 'darwin':
-                        urlOS = 'macOS';
-                        break;
-                    case 'win32':
-                    case 'cygwin':
-                        urlOS = 'Windows';
-                        break;
-
-                    default:
-                        throw Error(`Unsupported platform: ${process.platform}`);
-                        break;
-                }
-
-                let urlArch: string;
-                switch (process.arch) {
-                    case 'x64':
-                        urlArch = 'amd64';
-                        break;
-
-                    case 'arm64':
-                        urlArch = 'aarch64';
-                        break;
-
-                    default:
-                        throw Error(`Unsupported architecture: ${process.arch}`);
-                        break;
-                }
-
-                /**
-                 * First let's figure out the version number of the latest release
-                 */
-                const urlBase = `https://github.com/AdaCore/ada_language_server`;
-                let resolvedUrl: string | null = null;
-                const rq = https.request(`${urlBase}/releases/latest`, (response) => {
-                    resolvedUrl = response.responseUrl;
-                    response.resume();
-                    const version = basename(resolvedUrl);
-                    let totalSize: number;
-                    // eslint-disable-next-line max-len
-                    const url = `${urlBase}/releases/download/${version}/als-${version}-${urlOS}_${urlArch}.zip`;
-                    const targetBasename = basename(url);
-                    const targetPath = join(tmpdir(), targetBasename);
-                    logger.debug(`Downloading ALS from ${url} to ${targetPath}`);
-                    const targetWriteStream = createWriteStream(targetPath);
-
-                    const options: RequestOptions & FollowOptions<RequestOptions> = parse(url);
-                    options.maxRedirects = 1;
-                    const rq = https
-                        .request(options)
-                        .on('response', (response) => {
-                            if (response.statusCode !== 200) {
-                                assert(response.statusCode);
-                                const msg =
-                                    'Ada Language Server download failed with status code ' +
-                                    response.statusCode?.toString();
-                                resolve(msg);
-                                throw Error(msg);
-                            }
-
-                            if (response.headers['content-length']) {
-                                totalSize = +response.headers['content-length'];
-                                progress.report({ increment: 0 });
-                            }
-
-                            response
-                                .on('data', (chunk) => {
-                                    if ('length' in chunk) {
-                                        // eslint-disable-next-line max-len
-                                        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-                                        const length = +chunk.length;
-                                        progress.report({
-                                            increment: (length / totalSize) * 100,
-                                        });
-                                    }
-                                })
-                                .pipe(targetWriteStream)
-                                .on('error', (err) => {
-                                    const result = `Error: ${err.message}`;
-                                    unlinkSync(alsPath);
-                                    resolve(result);
-                                });
-                        })
-                        .on('error', (err) => {
-                            const result = `Error: ${err.message}`;
-                            resolve(result);
-                        });
-
-                    token.onCancellationRequested(() => {
-                        rq.destroy();
-                        resolve('Cancelled');
-                    });
-
-                    targetWriteStream.on('error', (err) => {
-                        const result = `Error: ${err.message}`;
-                        unlinkSync(alsPath);
-                        resolve(result);
-                    });
-
-                    targetWriteStream.on('finish', () => {
-                        progress.report({ increment: 100 });
-                        targetWriteStream.close();
-                        resolve('Finished');
-                    });
-
-                    rq.end();
-                });
-                rq.on('error', (err) => {
-                    resolve(`Error: ${err.message}`);
-                });
-                rq.end();
-            });
+            return doDownloadALS(token, progress);
         }
     );
 
     void vscode.window.showInformationMessage(`Result was: ${result}`);
+}
+
+async function doDownloadALS(
+    token: vscode.CancellationToken,
+    progress: vscode.Progress<{ message?: string | undefined; increment?: number | undefined }>
+): Promise<string> {
+    let urlOS: string;
+    switch (process.platform) {
+        case 'linux':
+            urlOS = 'Linux';
+            break;
+
+        case 'darwin':
+            urlOS = 'macOS';
+            break;
+        case 'win32':
+        case 'cygwin':
+            urlOS = 'Windows';
+            break;
+
+        default:
+            throw Error(`Unsupported platform: ${process.platform}`);
+            break;
+    }
+
+    let urlArch: string;
+    switch (process.arch) {
+        case 'x64':
+            urlArch = 'amd64';
+            break;
+
+        case 'arm64':
+            urlArch = 'aarch64';
+            break;
+
+        default:
+            throw Error(`Unsupported architecture: ${process.arch}`);
+            break;
+    }
+
+    /**
+     * First let's figure out the version number of the latest release
+     */
+    const urlBase = `https://github.com/AdaCore/ada_language_server`;
+    const githubLatestReleaseUrl =
+        'https://api.github.com/repos/AdaCore/ada_language_server/releases/latest';
+
+    interface Asset {
+        name: string;
+        browser_download_url: string;
+    }
+    interface Release {
+        name: string;
+        assets: Asset[];
+    }
+
+    const abortController = new AbortController();
+    const timeout = setTimeout(() => {
+        abortController.abort();
+    }, 5000);
+    let release;
+    try {
+        const response = await fetch(githubLatestReleaseUrl, {
+            signal: abortController.signal,
+        });
+        if (!response.ok) {
+            throw new Error(`Could not fetch release: ${response.statusText}`);
+        }
+
+        release = (await response.json()) as Release;
+    } finally {
+        clearTimeout(timeout);
+    }
+
+    const asset = release.assets.find((a) => a.name.includes(`${urlOS}_${urlArch}`));
+
+    if (asset) {
+        const abort = new AbortController();
+        token.onCancellationRequested(() => abort.abort());
+        const response = await fetch(asset.browser_download_url, {
+            signal: abort.signal,
+        });
+        if (!response.ok) {
+            throw new Error(response.statusText);
+        }
+        const size = Number(response.headers.get('content-length'));
+        response.body?.on('data', (data: Buffer) => {
+            progress.report({ increment: (data.length / size) * 100 });
+        });
+        const targetPath = join(tmpdir(), asset.name);
+        const outStream = createWriteStream(targetPath);
+        if (response.body) {
+            try {
+                pipeline(response.body, outStream);
+            } catch (err) {
+                unlinkSync(targetPath);
+                throw err;
+            }
+        }
+
+        return 'Success';
+    } else {
+        return 'Error';
+    }
 }
