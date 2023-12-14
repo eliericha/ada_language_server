@@ -47,7 +47,7 @@ project LSP_Server is
 
    for Object_Dir use "../.obj/server";
    for Main use ("lsp-ada_driver.adb");
-   for Languages use ("Ada", "C++");
+   for Languages use ("Ada");
 
    package Compiler is
       for Default_Switches ("Ada") use
