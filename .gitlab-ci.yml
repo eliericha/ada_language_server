@@ -1,5 +1,9 @@
+variables:
+  ANOD_CACHE_REL_PATH: /tmp/anod-cache
+
 stages:
-  - build_and_test
+  - build
+  - test
   - check
   - run_downstream_ci
 
@@ -24,11 +28,18 @@ issue-check:
 
 # Build and test with ANOD
 # TODO: add a build and test based on Alire in parallel to this.
-build_and_test:
+build_als:
   services:
     - image:systemgtk
     - cpu:8
-  stage: build_and_test
+  stage: build
+  cache:
+    policy: pull-push
+    unprotect: false
+    untracked: false
+    when: always
+    paths:
+      - "$ANOD_CACHE_REL_PATH"
   interruptible: true
   rules:
     - if: $CI_PIPELINE_SOURCE == 'push'
@@ -38,8 +49,14 @@ build_and_test:
   script:
     - !reference [.basic-setup]
 
+    # If the cache exists, copy components from there
+    - \[ -d "$ANOD_CACHE_REL_PATH" ] && anod-copy-components "$ANOD_CACHE_REL_PATH" "$ANOD_DEFAULT_SANDBOX_DIR" || echo "Anod cache dir $ANOD_CACHE_REL_PATH doesn't exist"
+
     - echo -e "\e[0Ksection_start:`date +%s`:build_als[collapsed=true]\r\e[0Kanod build als"
     - anod build als $ACI_TRACK_QUALIFIER
+    # Print the version of the built ALS
+    - ALS_BUILD_SPACE_PATH=$(anod info als --json $ACI_TRACK_QUALIFIER | python -c "import json; import sys; print(json.load(sys.stdin)['working-dir'])")
+    - $ALS_BUILD_SPACE_PATH/install/bin/ada_language_server --version
     - echo -e "\e[0Ksection_end:`date +%s`:build_als\r\e[0K"
 
     - echo -e "\e[0Ksection_start:`date +%s`:build_vscode[collapsed=true]\r\e[0Kanod build vscode-extension"
@@ -49,6 +66,40 @@ build_and_test:
     - anod build vscode-extension $ACI_TRACK_QUALIFIER --minimal --latest
     - echo -e "\e[0Ksection_end:`date +%s`:build_vscode\r\e[0K"
 
+    # Push components to the cache
+    - anod-copy-components --standalone-export "$ANOD_DEFAULT_SANDBOX_DIR" "$ANOD_CACHE_REL_PATH"
+
+test_als:
+  services:
+    - image:systemgtk
+    - cpu:8
+  stage: test
+  cache:
+    policy: pull-push
+    unprotect: false
+    untracked: false
+    when: always
+    paths:
+      - "$ANOD_CACHE_REL_PATH"
+  interruptible: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == 'push'
+      when: never
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+    - if: $CI_PIPELINE_SOURCE == 'pipeline'
+  script:
+    - !reference [.basic-setup]
+
+    - \[ -d "$ANOD_CACHE_REL_PATH" ] && anod-copy-components "$ANOD_CACHE_REL_PATH" "$ANOD_DEFAULT_SANDBOX_DIR" || echo "Anod cache dir $ANOD_CACHE_REL_PATH doesn't exist"
+
+    # Install cached component
+    # - anod install als $ACI_TRACK_QUALIFIER
+    - (cd $ANOD_DEFAULT_SANDBOX_DIR && anod tune --minimal --plan /tmp/plans)
+
+    # Log which ALS version is being tested
+    # - ALS_BUILD_SPACE_PATH=$(anod info als --json $ACI_TRACK_QUALIFIER | python -c "import json; import sys; print(json.load(sys.stdin)['working-dir'])")
+    # - $ALS_BUILD_SPACE_PATH/install/bin/ada_language_server --version
+
     - echo -e "\e[0Ksection_start:`date +%s`:test_als[collapsed=true]\r\e[0Kanod test als"
     # Run ALS tests
     - anod test als $ACI_TRACK_QUALIFIER
@@ -57,6 +108,54 @@ build_and_test:
     - ALS_BUILD_SPACE_NAME=`anod eval als --primitive test build_space_name $ACI_TRACK_QUALIFIER | tr -d "'"`
     - ALS_BUILD_SPACE=$ANOD_DEFAULT_SANDBOX_DIR/x86_64-linux/$ALS_BUILD_SPACE_NAME
     - echo -e "\e[0Ksection_end:`date +%s`:test_als\r\e[0K"
+
+    # Process the als test report
+    - e3-testsuite-report
+      --failure-exit-code 1
+      --xunit-output $CI_PROJECT_DIR/als_xunit_output.xml
+      $ALS_BUILD_SPACE/results/new/ || FAILED=true
+
+    # Include Anod logs
+    - cp -r $ANOD_DEFAULT_SANDBOX_DIR/log $CI_PROJECT_DIR/anod-logs
+    - echo -e "\e[0Ksection_end:`date +%s`:prepare_artifacts\r\e[0K"
+
+    - if [ ! -z ${FAILED+x} ]; then cat $CI_PROJECT_DIR/als_xunit_output.xml; fi
+
+    - if [ ! -z ${FAILED+x} ]; then echo "There was at least one testcase failure" && exit 1; fi
+
+  artifacts:
+    when: always #  Upload on errors too
+    reports:
+      junit: [als_xunit_output.xml]
+    paths:
+      - anod-logs/
+
+test_vscode:
+  services:
+    - image:systemgtk
+    - cpu:8
+  stage: test
+  cache:
+    policy: pull-push
+    unprotect: false
+    untracked: false
+    when: always
+    paths:
+      - "$ANOD_CACHE_REL_PATH"
+  interruptible: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == 'push'
+      when: never
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+    - if: $CI_PIPELINE_SOURCE == 'pipeline'
+  script:
+    - !reference [.basic-setup]
+
+    - \[ -d "$ANOD_CACHE_REL_PATH" ] && anod-copy-components "$ANOD_CACHE_REL_PATH" "$ANOD_DEFAULT_SANDBOX_DIR" || echo "Anod cache dir $ANOD_CACHE_REL_PATH doesn't exist"
+
+    # Install cached component
+    # - anod install vscode-extension $ACI_TRACK_QUALIFIER
+    - (cd $ANOD_DEFAULT_SANDBOX_DIR && anod tune --minimal --plan /tmp/plans)
 
     - echo -e "\e[0Ksection_start:`date +%s`:test_vscode[collapsed=true]\r\e[0Kanod test vscode-extension"
     # Run VSCode tests
@@ -69,11 +168,6 @@ build_and_test:
     # the end of the job to avoid changing Anod checkouts halfway through the
     # job and triggering useless rebuilds.
     - echo -e "\e[0Ksection_start:`date +%s`:prepare_artifacts[collapsed=true]\r\e[0KPrepare job artifacts"
-    # Process the als test report
-    - e3-testsuite-report
-      --failure-exit-code 1
-      --xunit-output $CI_PROJECT_DIR/als_xunit_output.xml
-      $ALS_BUILD_SPACE/results/new/ || FAILED=true
     # Process the vscode-extension test report
     - e3-testsuite-report
       --failure-exit-code 1
@@ -83,7 +177,6 @@ build_and_test:
     - cp -r $ANOD_DEFAULT_SANDBOX_DIR/log $CI_PROJECT_DIR/anod-logs
     - echo -e "\e[0Ksection_end:`date +%s`:prepare_artifacts\r\e[0K"
 
-    - if [ ! -z ${FAILED+x} ]; then cat $CI_PROJECT_DIR/als_xunit_output.xml; fi
     - if [ ! -z ${FAILED+x} ]; then cat $CI_PROJECT_DIR/vscode_xunit_output.xml; fi
 
     - if [ ! -z ${FAILED+x} ]; then echo "There was at least one testcase failure" && exit 1; fi
@@ -91,7 +184,7 @@ build_and_test:
   artifacts:
     when: always #  Upload on errors too
     reports:
-      junit: [als_xunit_output.xml, vscode_xunit_output.xml]
+      junit: [vscode_xunit_output.xml]
     paths:
       - anod-logs/
 
