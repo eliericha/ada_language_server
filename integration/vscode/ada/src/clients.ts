@@ -9,8 +9,9 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import * as process from 'process';
 
-import { AbortController } from 'abort-controller';
 import { pipeline } from 'stream';
+import { AbortSignal } from 'node-fetch/externals';
+import { promisify } from 'util';
 
 export function createClient(
     context: vscode.ExtensionContext,
@@ -105,7 +106,10 @@ export function getDefaultALSPath(context: vscode.ExtensionContext): string {
 }
 
 export async function downloadALS(context: vscode.ExtensionContext) {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const alsPath = getDefaultALSPath(context);
+
+    context.globalStorageUri;
 
     // if (existsSync(alsPath)) {
     //     return;
@@ -117,7 +121,15 @@ export async function downloadALS(context: vscode.ExtensionContext) {
             title: 'Downloading Ada Language Server',
         },
         (progress, token) => {
-            return doDownloadALS(token, progress);
+            try {
+                return doDownloadALS(token, progress);
+            } catch (error) {
+                if (token.isCancellationRequested) {
+                    return Promise.resolve(null);
+                } else {
+                    throw error;
+                }
+            }
         }
     );
 
@@ -165,7 +177,7 @@ async function doDownloadALS(
     /**
      * First let's figure out the version number of the latest release
      */
-    const urlBase = `https://github.com/AdaCore/ada_language_server`;
+    // const urlBase = `https://github.com/AdaCore/ada_language_server`;
     const githubLatestReleaseUrl =
         'https://api.github.com/repos/AdaCore/ada_language_server/releases/latest';
 
@@ -184,8 +196,9 @@ async function doDownloadALS(
     }, 5000);
     let release;
     try {
+        logger.debug('Querying GitHub API for latest version', githubLatestReleaseUrl);
         const response = await fetch(githubLatestReleaseUrl, {
-            signal: abortController.signal,
+            signal: abortController.signal as AbortSignal,
         });
         if (!response.ok) {
             throw new Error(`Could not fetch release: ${response.statusText}`);
@@ -202,7 +215,7 @@ async function doDownloadALS(
         const abort = new AbortController();
         token.onCancellationRequested(() => abort.abort());
         const response = await fetch(asset.browser_download_url, {
-            signal: abort.signal,
+            signal: abort.signal as AbortSignal,
         });
         if (!response.ok) {
             throw new Error(response.statusText);
@@ -215,9 +228,9 @@ async function doDownloadALS(
         const outStream = createWriteStream(targetPath);
         if (response.body) {
             try {
-                pipeline(response.body, outStream);
+                await promisify(pipeline)(response.body, outStream);
             } catch (err) {
-                unlinkSync(targetPath);
+                if (existsSync(targetPath)) unlinkSync(targetPath);
                 throw err;
             }
         }

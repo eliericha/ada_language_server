@@ -6,7 +6,7 @@ import { Disposable } from 'vscode-jsonrpc';
 import { ExecuteCommandRequest } from 'vscode-languageclient';
 import { ExtensionState } from './ExtensionState';
 import { getOrAskForProgram } from './debugConfigProvider';
-import { adaExtState, mainOutputChannel } from './extension';
+import { adaExtState, logger, mainOutputChannel } from './extension';
 import { getProjectFileRelPath } from './helpers';
 import { CustomTaskDefinition, getEnclosingSymbol } from './taskProviders';
 import { downloadALS } from './clients';
@@ -40,7 +40,12 @@ export function registerCommands(context: vscode.ExtensionContext, clients: Exte
 
     context.subscriptions.push(
         vscode.commands.registerCommand('ada.downloadALS', async () => {
-            await downloadALS(context);
+            try {
+                await downloadALS(context);
+            } catch (error) {
+                logger.error(error);
+                throw error;
+            }
         })
     );
 
