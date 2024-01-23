@@ -1,14 +1,38 @@
 import assert from 'assert';
-import * as vscode from 'vscode';
 import { spawnSync } from 'child_process';
-import { suite, test } from 'mocha';
 import { existsSync, opendirSync, renameSync } from 'fs';
+import { suite, test } from 'mocha';
 import path, { basename, dirname } from 'path';
+import * as vscode from 'vscode';
 import { SemanticTokensParams, SemanticTokensRequest, integer } from 'vscode-languageclient';
 import { adaExtState } from '../../../src/extension';
-import { assertEqualToFileContent, update, activate } from '../utils';
+import { activate, assertEqualToFileContent, update } from '../utils';
 
-let adaFilePaths: string[] = [];
+const filePaths: string[] = [];
+
+const highlightingTestRoot = getDocUri('src/highlighting').fsPath;
+
+function walk(dir: string) {
+    const openDir = opendirSync(dir);
+    try {
+        let child;
+        while ((child = openDir.readSync()) != null) {
+            const childPath = path.join(dir, child.name);
+            if (child.isDirectory()) {
+                walk(childPath);
+            } else if (child.isFile()) {
+                if (child.name.match(/\.(ad[bs]|gpr)$/)) {
+                    filePaths.push(childPath);
+                }
+            }
+        }
+    } finally {
+        openDir.closeSync();
+    }
+}
+
+walk(highlightingTestRoot);
+assert.notStrictEqual(filePaths, []);
 
 suite('Highlighting', function () {
     this.beforeAll(async function () {
@@ -19,53 +43,27 @@ suite('Highlighting', function () {
         await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
     });
 
-    test('file paths recovered', function () {
-        const highlightingTestRoot = getDocUri('src/highlighting').fsPath;
-        adaFilePaths = [];
+    for (const absPath of filePaths) {
+        const lang: Language = absPath.endsWith('.gpr') ? 'gpr' : 'ada';
+        const testName = `${basename(dirname(absPath))}/${basename(absPath)}`;
+        const absFileUri = vscode.Uri.file(absPath);
 
-        function walk(dir: string) {
-            const openDir = opendirSync(dir);
-            try {
-                let child;
-                while ((child = openDir.readSync()) != null) {
-                    const childPath = path.join(dir, child.name);
-                    if (child.isDirectory()) {
-                        walk(childPath);
-                    } else if (child.isFile()) {
-                        if (child.name.match(/\.ad[bs]$/)) {
-                            adaFilePaths.push(childPath);
-                        }
-                    }
-                }
-            } finally {
-                openDir.closeSync();
-            }
-        }
+        suite(testName, function () {
+            test('syntax.main', function () {
+                testSyntaxHighlighting(absPath, 'syntaxes', lang);
+            });
 
-        walk(highlightingTestRoot);
-        assert.notStrictEqual(adaFilePaths, []);
-    });
+            test('syntax.advanced', function () {
+                testSyntaxHighlighting(absPath, 'advanced', lang);
+            });
 
-    this.afterAll(function () {
-        for (const absPath of adaFilePaths) {
-            const testName = `${basename(dirname(absPath))}/${basename(absPath)}`;
-            const absFileUri = vscode.Uri.file(absPath);
-
-            suite(testName, function () {
-                test('syntax.main', function () {
-                    testSyntaxHighlighting(absPath, 'syntaxes');
-                });
-
-                test('syntax.advanced', function () {
-                    testSyntaxHighlighting(absPath, 'advanced');
-                });
-
+            if (lang == 'ada') {
                 test('semantic', async function () {
                     await testSemanticHighlighting(absFileUri);
                 });
-            });
-        }
-    });
+            }
+        });
+    }
 });
 
 /**
@@ -199,7 +197,9 @@ const extensionRootPath = path.resolve(__dirname, '../../../../');
  * 'syntaxes' grammar is the one currently in use in the package.json, while the
  * 'advanced' one is an experimental alternative that is not used in production.
  */
-type Syntaxes = 'syntaxes' | 'advanced';
+type Syntax_Dirs = 'syntaxes' | 'advanced';
+
+type Language = 'ada' | 'gpr';
 
 /**
  * This function runs a syntax highlighting test on the given Ada source file
@@ -208,10 +208,11 @@ type Syntaxes = 'syntaxes' | 'advanced';
  * file (aka a snapshot) and reports differences wrt that reference.
  *
  * @param absFilePath - an Ada source file to apply syntax highlighting to
- * @param syntax - the selected TextMate grammar to use for the test
+ * @param syntaxDir - the selected TextMate grammar to use for the test
  */
-function testSyntaxHighlighting(absFilePath: string, syntax: Syntaxes) {
-    const syntaxPath = path.join(extensionRootPath, syntax, 'ada.tmLanguage.json');
+function testSyntaxHighlighting(absFilePath: string, syntaxDir: Syntax_Dirs, lang: Language) {
+    const syntaxPath = path.join(extensionRootPath, syntaxDir, `${lang}.tmLanguage.json`);
+    const scope = `source.${lang}`;
 
     const basename = path.basename(absFilePath);
     const workDirPath = path.dirname(absFilePath);
@@ -223,7 +224,7 @@ function testSyntaxHighlighting(absFilePath: string, syntax: Syntaxes) {
      * .snap.<syntax-name> file to .snap and rename it back after.
      */
     const workSnapPath = path.join(workDirPath, `${basename}.snap`);
-    const refSnapPath = `${workSnapPath}.${syntax}`;
+    const refSnapPath = `${workSnapPath}.${syntaxDir}`;
 
     try {
         if (existsSync(refSnapPath)) {
@@ -257,7 +258,7 @@ function testSyntaxHighlighting(absFilePath: string, syntax: Syntaxes) {
             '-g',
             syntaxPath,
             '-s',
-            'source.ada',
+            scope,
             absFilePath,
         ];
 

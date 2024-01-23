@@ -12,4 +12,13 @@ project HTTP_Cyclone extends "Ada_Drivers_Library/examples/shared/common/common.
 
    package Compiler renames STM32F769_Discovery_SFP.Compiler;
 
+   case Var1 is
+      when "val1" =>
+         null;
+      when "val2" =>
+         case Var2 is
+            when "val3" => null;
+            when "val4" => null;
+         end case;
+   end case;
 end HTTP_Cyclone;
