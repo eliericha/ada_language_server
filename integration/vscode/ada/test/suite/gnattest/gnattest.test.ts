@@ -15,6 +15,7 @@ import {
     when,
 } from 'ts-mockito';
 import { TestController, TestItem, TestItemCollection, TestMessage, TestRun } from 'vscode';
+import { adaExtState } from '../../../src/extension';
 import {
     collectLeafItems,
     collectLeafsFromCollection,
@@ -31,12 +32,14 @@ import { activate } from '../utils';
 suite('GNATtest Integration Tests', function () {
     this.beforeAll(async () => {
         const state = await activate();
-        const cmd = ['gnattest', '-P', await state.getProjectFile()];
+        const cmd = ['gnattest', '-P', await adaExtState.getProjectFile()];
         const cp = spawnSync(cmd[0], cmd.slice(1));
-        if (cp.status != 0) {
+        if (cp.error) {
+            assert.fail(`Failed to spawn '${cmd.join(' ')}' :\n${cp.error}`);
+        } else if (cp.status != 0) {
             assert.fail(
                 `'${cmd.join(' ')}' had status code ${cp.status} and output:\n
-                ${cp.stdout.toLocaleString()}\n${cp.stderr.toLocaleString()}`
+                ${cp.stdout?.toLocaleString()}\n${cp.stderr?.toLocaleString()}`
             );
         }
     });

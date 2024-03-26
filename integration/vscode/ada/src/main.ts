@@ -1,4 +1,4 @@
-import { globalVar, initialize } from "./lib";
+import { globalVar, initialize } from './lib';
 
 initialize();
 console.info(`globalVar = ${globalVar}`);

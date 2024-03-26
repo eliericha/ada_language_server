@@ -1,7 +1,11 @@
 import { defineConfig } from '@vscode/test-cli';
 import { mkdtempSync } from 'fs';
 import * as os from 'os';
-import { join } from 'path';
+import path, { join, resolve } from 'path';
+import { fileURLToPath } from 'url';
+
+// const __filename = fileURLToPath(import.meta.url); // get the resolved path to the file
+// const __dirname = path.dirname(__filename); // get the name of the directory
 
 let baseMochaOptions = {
     ui: 'tdd',
@@ -48,7 +52,7 @@ export default defineConfig(
         // It also allows multiple testsuites to run concurrently with each VS
         // Code instance using a different User data directory. This can happen
         // when tests are launched from the VS Code UI.
-        const tmpdir = mkdtempSync(`${os.tmpdir()}/vsc-ada-test-`);
+        const tmpdir = mkdtempSync(join(os.tmpdir(), 'vsc-ada-test-'));
 
         // Create a mocha options objects by copying the base one
         let mochaOptions = { ...baseMochaOptions };
@@ -65,11 +69,12 @@ export default defineConfig(
 
         return {
             label: `Ada extension testsuite: ${suiteName}`,
+            // files: resolve(__dirname, 'out', 'test', 'suite', suiteName, '**', '*.test.js'),
             files: `out/test/suite/${suiteName}/**/*.test.js`,
             workspaceFolder: `./test/workspaces/${suiteName}`,
             mocha: mochaOptions,
             env: {
-               // ...process.env,
+                // ...process.env,
                 // When working remotely on Linux, it is necessary to have "Xvfb
                 // :99" running in the background, and this env variable set for
                 // the VS Code instances spawned for testing.
@@ -78,7 +83,7 @@ export default defineConfig(
                 // windows visible, but we consider this a minor use case for
                 // now. A workaround is to remove this line.
                 DISPLAY: ':99',
-               //  ALS: String.raw`C:\Users\itmgr\ancr\wave\x86_64-windows64\als\install\bin\ada_language_server.exe`,
+                ALS: String.raw`C:\Users\itmgr\ancr\wave\x86_64-windows64\als\install\bin\ada_language_server.exe`,
             },
             launchArgs: [
                 // It's important to use the --user-data-dir=<path> form. The

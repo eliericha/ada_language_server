@@ -880,7 +880,6 @@
         "esbuild-base": "esbuild ./src/extension.ts --bundle --outfile=out/src/extension.js --external:vscode --format=cjs --platform=node",
         "compile": "node ./node_modules/typescript/bin/tsc",
         "watch": "node ./node_modules/typescript/bin/tsc -watch",
-        "pretest": "npm run compile",
         "lint": "eslint \"./src/**/*.{js,ts,tsx}\" \"./test/**/*.{js,ts,tsx}\" --quiet --fix",
         "cilint": "eslint \"./src/**/*.{js,ts,tsx}\" \"./test/**/*.{js,ts,tsx}\"",
         "test": "vscode-test",
