@@ -1,10 +1,7 @@
 import assert from 'assert';
 import { existsSync, readFileSync, writeFileSync } from 'fs';
-import { Glob, GlobOptionsWithFileTypesUnset } from 'glob';
-import Mocha, { MochaOptions } from 'mocha';
-import path from 'path';
-import { env } from 'process';
 import * as vscode from 'vscode';
+import { ExtensionState } from '../../src/ExtensionState';
 
 /**
  * This function compares some actual output to an expected referenced stored in
@@ -52,11 +49,15 @@ export function update(): boolean {
  * This function queries the VS Code API for the Ada extension and waits until
  * it is activated.
  */
-export async function activate(): Promise<void> {
+export async function activate(): Promise<ExtensionState> {
     const ext = vscode.extensions.getExtension('AdaCore.ada');
-    if (ext !== undefined) {
-        if (!ext.isActive) {
-            await ext.activate();
-        }
-    }
+    assert(ext);
+    /**
+     * Previously this code returned when ext.isActive was true. This is not
+     * enough because it doesn't indicate if any errors occured during
+     * activation. Instead, returning the result of the activate() method (could
+     * be an extension API but is in this case void) does report activation
+     * errors as a promise rejection.
+     */
+    return ext.activate();
 }

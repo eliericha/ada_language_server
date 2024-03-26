@@ -69,6 +69,7 @@ export default defineConfig(
             workspaceFolder: `./test/workspaces/${suiteName}`,
             mocha: mochaOptions,
             env: {
+               // ...process.env,
                 // When working remotely on Linux, it is necessary to have "Xvfb
                 // :99" running in the background, and this env variable set for
                 // the VS Code instances spawned for testing.
@@ -77,6 +78,7 @@ export default defineConfig(
                 // windows visible, but we consider this a minor use case for
                 // now. A workaround is to remove this line.
                 DISPLAY: ':99',
+               //  ALS: String.raw`C:\Users\itmgr\ancr\wave\x86_64-windows64\als\install\bin\ada_language_server.exe`,
             },
             launchArgs: [
                 // It's important to use the --user-data-dir=<path> form. The

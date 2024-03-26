@@ -106,19 +106,22 @@ class VSCodeOutputChannelTransport extends Transport {
     }
 }
 
-export async function activate(context: vscode.ExtensionContext): Promise<void> {
+export async function activate(context: vscode.ExtensionContext): Promise<ExtensionState> {
     setUpLogging(context);
 
     logger.info('Starting Ada extension');
 
+    let res;
     try {
-        await activateExtension(context);
+        res = await activateExtension(context);
     } catch (error) {
         logger.error('Error while starting Ada extension. ', error);
         throw error;
     }
 
     logger.info('Finished starting Ada extension');
+
+    return res;
 }
 
 async function activateExtension(context: vscode.ExtensionContext) {
@@ -136,9 +139,17 @@ async function activateExtension(context: vscode.ExtensionContext) {
         logger.debug('No custom environment variables set in %s', TERMINAL_ENV_SETTING_NAME);
     }
 
+    void vscode.window.showInformationMessage('At 1');
+
     // Create the Ada and GPR clients.
     adaExtState = new ExtensionState(context);
     context.subscriptions.push(adaExtState);
+
+    void vscode.window.showInformationMessage('At 2');
+
+    await new Promise((resolve) => {
+        setTimeout(resolve, 10000);
+    });
 
     // Subscribe to the didChangeConfiguration event
     context.subscriptions.push(
@@ -165,6 +176,8 @@ async function activateExtension(context: vscode.ExtensionContext) {
      * This can display a dialog to the User so don't wait on the result.
      */
     void vscode.commands.executeCommand('ada.addMissingDirsToWorkspace', true);
+
+    return adaExtState;
 }
 
 function setUpLogging(context: vscode.ExtensionContext) {

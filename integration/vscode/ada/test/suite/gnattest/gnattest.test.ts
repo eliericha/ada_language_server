@@ -15,7 +15,6 @@ import {
     when,
 } from 'ts-mockito';
 import { TestController, TestItem, TestItemCollection, TestMessage, TestRun } from 'vscode';
-import { adaExtState } from '../../../src/extension';
 import {
     collectLeafItems,
     collectLeafsFromCollection,
@@ -31,8 +30,8 @@ import { activate } from '../utils';
 
 suite('GNATtest Integration Tests', function () {
     this.beforeAll(async () => {
-        await activate();
-        const cmd = ['gnattest', '-P', await adaExtState.getProjectFile()];
+        const state = await activate();
+        const cmd = ['gnattest', '-P', await state.getProjectFile()];
         const cp = spawnSync(cmd[0], cmd.slice(1));
         if (cp.status != 0) {
             assert.fail(

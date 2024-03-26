@@ -1,8 +1,10 @@
+/* eslint-disable @typescript-eslint/restrict-template-expressions */
 import { existsSync } from 'fs';
 import * as vscode from 'vscode';
 import { LanguageClient, LanguageClientOptions, ServerOptions } from 'vscode-languageclient/node';
 import { logger } from './extension';
 import { logErrorAndThrow, setTerminalEnvironment } from './helpers';
+import assert from 'assert';
 
 export function createClient(
     context: vscode.ExtensionContext,
@@ -16,8 +18,13 @@ export function createClient(
     // If the ALS environment variable is specified, use it as the path of the
     // server executable.
     if (process.env.ALS) {
-        serverExecPath = process.env.ALS;
+        serverExecPath = process.env.ALS.trim();
         if (!existsSync(serverExecPath)) {
+            // eslint-disable-next-line max-len
+            const p = String.raw`C:\Users\itmgr\ancr\wave\x86_64-windows64\als\install\bin\ada_language_server.exe`;
+            console.warn(`exists ${p} = ${existsSync(p)}`);
+            console.warn(` p = ALS ? ${p == serverExecPath}`);
+            assert.equal(p, serverExecPath);
             logErrorAndThrow(
                 `The Ada language server given in the ALS environment ` +
                     `variable does not exist: ${serverExecPath}`,
