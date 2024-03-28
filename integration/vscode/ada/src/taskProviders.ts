@@ -103,6 +103,10 @@ const adaTaskKinds = [
     'buildMain',
     'runMain',
     'buildAndRunMain',
+    'gnatsasAnalyze',
+    'gnatsasReport',
+    'gnatdoc',
+    'gnattest',
 ] as const;
 type AdaTaskKinds = (typeof adaTaskKinds)[number];
 
@@ -141,6 +145,7 @@ export interface CustomTaskDefinition extends vscode.TaskDefinition {
         mainArgs?: string[];
         buildTask?: string;
         runTask?: string;
+        format?: string;
     };
 }
 
@@ -221,6 +226,26 @@ export const allTaskProperties: { [id in AllTaskKinds]: TaskProperties } = {
         command: ['gprbuild'],
         title: 'Build and run main - ',
         // description: 'Run the build task followed by the run task for the given main',
+    },
+    gnatsasAnalyze: {
+        command: ['gnatsas', 'analyze'],
+        title: 'Analyze the project with GNAT SAS',
+        diagnosticArgs: false,
+    },
+    gnatsasReport: {
+        command: ['gnatsas', 'report'],
+        title: 'Create a report after a GNAT SAS analysis',
+        diagnosticArgs: false,
+    },
+    gnatdoc: {
+        command: ['gnatdoc'],
+        title: 'Extract documentation from the project',
+        diagnosticArgs: false,
+    },
+    gnattest: {
+        command: ['gnattest'],
+        title: 'Create/update test skeletons for the project',
+        diagnosticArgs: false,
     },
 };
 
@@ -354,6 +379,8 @@ async function createOrResolveTask(
         case 'proveSubprogram':
         case 'proveRegion':
         case 'proveLine':
+        case 'gnattest':
+        case 'gnatdoc':
             /**
              * Tasks that can issue problems
              */
@@ -362,6 +389,8 @@ async function createOrResolveTask(
 
         case 'runMain':
         case 'buildAndRunMain':
+        case 'gnatsasAnalyze':
+        case 'gnatsasReport':
             /**
              * Tasks that don't issue problems
              */
@@ -559,6 +588,18 @@ export class ConfigurableTaskProvider implements vscode.TaskProvider {
             },
         };
 
+        switch (kind) {
+            case 'gnatsasReport':
+                /**
+                 * For GNAT SAS use the SARIF format by default.
+                 */
+                definition.configuration.format = 'sarif';
+                definition.configuration.args = ['-o', 'report.sarif'];
+                break;
+            default:
+                break;
+        }
+
         return definition;
     }
 
@@ -646,6 +687,12 @@ async function buildFullCommandLine(
     const task = allTaskProperties[taskDef.configuration.kind];
 
     let cmd = task.command.concat();
+
+    if (taskDef.configuration.kind == 'gnatsasReport') {
+        if (taskDef.configuration.format) {
+            cmd.push(taskDef.configuration.format);
+        }
+    }
 
     if (task.projectArgs === undefined || task.projectArgs) {
         // Add project and scenario args

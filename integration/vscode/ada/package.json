@@ -492,7 +492,11 @@
                                     "cleanProject",
                                     "buildMain",
                                     "runMain",
-                                    "buildAndRunMain"
+                                    "buildAndRunMain",
+                                    "gnatsasAnalyze",
+                                    "gnatsasReport",
+                                    "gnatdoc",
+                                    "gnattest"
                                 ],
                                 "enumDescriptions": [
                                     "Build a GPR project",
@@ -500,7 +504,11 @@
                                     "Clean a GPR project",
                                     "Build a main program specified in a GPR project",
                                     "Run a main program specified in a GPR project",
-                                    "Run a build task and a run task in sequence for a given main program"
+                                    "Run a build task and a run task in sequence for a given main program",
+                                    "Analyze a project with GNAT SAS",
+                                    "Create a report after a GNAT SAS analysis",
+                                    "Extract documentation from a project",
+                                    "Create/update test skeletons for the project"
                                 ]
                             },
                             "projectFile": {
@@ -524,7 +532,10 @@
                                         "enum": [
                                             "buildProject",
                                             "checkFile",
-                                            "cleanProject"
+                                            "cleanProject",
+                                            "gnatsasAnalyze",
+                                            "gnatdoc",
+                                            "gnattest"
                                         ]
                                     },
                                     "projectFile": true,
@@ -597,6 +608,26 @@
                                     "runTask": {
                                         "type": "string",
                                         "description": "Name of the task that runs the main executable"
+                                    }
+                                },
+                                "additionalProperties": false
+                            },
+                            {
+                                "required": [
+                                    "format"
+                                ],
+                                "$comment": "Each oneOf is evaluated regardless of the parent schema. That's why valid properties of the parent must be repeated here in order to be allowed.",
+                                "properties": {
+                                    "kind": {
+                                        "enum": [
+                                            "gnatsasReport"
+                                        ]
+                                    },
+                                    "projectFile": true,
+                                    "args": true,
+                                    "format": {
+                                        "type": "string",
+                                        "description": "Format of GNAT SAS report (e.g. sarif, cvs, etc...). See `gnatsas report --help` for available formats."
                                     }
                                 },
                                 "additionalProperties": false
