@@ -134,8 +134,8 @@ export class ExtensionState {
         ) {
             logger.info('project related settings have changed: clearing caches for tasks');
             this.clearALSCache();
-            this.unregisterTaskProviders();
-            this.registerTaskProviders();
+            // this.unregisterTaskProviders();
+            // this.registerTaskProviders();
         }
 
         //  React to changes made in the environment variables, showing
