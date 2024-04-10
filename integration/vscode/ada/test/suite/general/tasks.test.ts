@@ -38,6 +38,7 @@ ada: Check current file - kind: checkFile
 ada: Clean current project - kind: cleanProject
 ada: Analyze the project with GNAT SAS - kind: gnatsasAnalyze
 ada: Create a report after a GNAT SAS analysis - kind: gnatsasReport
+ada: Analyze the project with GNAT SAS and produce a report - kind: gnatsasAnalyzeAndReport
 ada: Generate documentation from the project - kind: gnatdoc
 ada: Create/update test skeletons for the project - kind: gnattest
 ada: Build main - src/main1.adb - kind: buildMain
