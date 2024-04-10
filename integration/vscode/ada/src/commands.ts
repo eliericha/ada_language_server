@@ -123,13 +123,13 @@ export function registerCommands(context: vscode.ExtensionContext, clients: Exte
  * @returns an array of -P and -X project and scenario command lines arguments
  * for use with GPR-based tools.
  */
-export async function gprProjectArgs(): Promise<string[]> {
+export async function gprProjectArgs(): Promise<string> {
     const vars: string[][] = Object.entries(
         vscode.workspace.getConfiguration('ada').get('scenarioVariables') ?? []
     );
-    return ['-P', await getProjectFromConfigOrALS()].concat(
-        vars.map(([key, value]) => `-X${key}=${value}`)
-    );
+    return ['-P', await getProjectFromConfigOrALS()]
+        .concat(vars.map(([key, value]) => `-X${key}=${value}`))
+        .join(' ');
 }
 
 export const PROJECT_FROM_CONFIG = '${config:ada.projectFile}';

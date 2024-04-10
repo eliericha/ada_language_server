@@ -109,6 +109,7 @@ export const adaTaskKinds = [
     'buildMain',
     'runMain',
     'buildAndRunMain',
+    'gnatsas',
     'gnatsasAnalyze',
     'gnatsasReport',
     'gnatsasAnalyzeAndReport',
@@ -144,6 +145,7 @@ export type AllTaskKinds = AdaTaskKinds | SparkTaskKinds;
  * package.json describe the structure more precisely.
  */
 export interface CustomTaskDefinition extends vscode.TaskDefinition {
+    commandLine?: string;
     configuration: {
         kind: AllTaskKinds;
         projectFile?: string;
@@ -231,6 +233,12 @@ export const allTaskProperties: { [id in AllTaskKinds]: TaskProperties } = {
     buildAndRunMain: {
         title: 'Build and run main - ',
         // description: 'Run the build task followed by the run task for the given main',
+    },
+    gnatsas: {
+        // command: ['gnatsas'],
+        title: 'Analyze the project with GNAT SAS',
+        projectArgs: false,
+        diagnosticArgs: false,
     },
     gnatsasAnalyze: {
         command: ['gnatsas', 'analyze'],
@@ -328,23 +336,27 @@ async function createOrResolveTask(
             allTaskProperties['gnatsasReport'].title,
         ]);
     } else {
-        /**
-         * Quote the command line so that no shell interpretations can happen.
-         */
-        const cmd = quoteCommandLine(
-            commandPrefix.concat(await buildFullCommandLine(name, definition))
-        );
+        if (definition.commandLine !== undefined) {
+            execution = new vscode.ShellExecution(definition.commandLine);
+        } else {
+            /**
+             * Quote the command line so that no shell interpretations can happen.
+             */
+            const cmd = quoteCommandLine(
+                commandPrefix.concat(await buildFullCommandLine(name, definition))
+            );
 
-        /**
-         * It is necessary to use a ShellExecution instead of a ProcessExecution to
-         * go through a terminal where terminal.integrated.env.* is applicable and
-         * tools can be resolved and can run according to the User's environment
-         * settings. Alternatively, a ProcessExecution could be used if the
-         * extension resolves the full path to the called executable and passes the
-         * terminal.integrated.env.* environment to the child process. But this is
-         * deemed overkill for the moment.
-         */
-        execution = new vscode.ShellExecution(cmd[0], cmd.slice(1));
+            /**
+             * It is necessary to use a ShellExecution instead of a ProcessExecution to
+             * go through a terminal where terminal.integrated.env.* is applicable and
+             * tools can be resolved and can run according to the User's environment
+             * settings. Alternatively, a ProcessExecution could be used if the
+             * extension resolves the full path to the called executable and passes the
+             * terminal.integrated.env.* environment to the child process. But this is
+             * deemed overkill for the moment.
+             */
+            execution = new vscode.ShellExecution(cmd[0], cmd.slice(1));
+        }
     }
 
     /**
@@ -395,6 +407,7 @@ async function createOrResolveTask(
 
         case 'runMain':
         case 'buildAndRunMain':
+        case 'gnatsas':
         case 'gnatsasAnalyze':
         case 'gnatsasReport':
         case 'gnatsasAnalyzeAndReport':
@@ -599,6 +612,20 @@ export class ConfigurableTaskProvider implements vscode.TaskProvider {
         };
 
         switch (kind) {
+            case 'gnatsas':
+                definition.commandLine = [
+                    'gnatsas',
+                    'analyze',
+                    `\${command:${CMD_GPR_PROJECT_ARGS}}`,
+                    '&&',
+                    'gnatsas',
+                    'report',
+                    'sarif',
+                    '-o',
+                    'report.sarif',
+                    `\${command:${CMD_GPR_PROJECT_ARGS}}`,
+                ].join(' ');
+                break;
             case 'gnatsasReport':
                 /**
                  * For GNAT SAS use the SARIF format by default.

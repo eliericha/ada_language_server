@@ -477,6 +477,9 @@
                     "configuration"
                 ],
                 "properties": {
+                    "commandLine": {
+                        "type": "string"
+                    },
                     "configuration": {
                         "type": "object",
                         "required": [
