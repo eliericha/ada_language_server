@@ -436,3 +436,9 @@ export function getSymbols(
 export function escapeRegExp(text: string) {
     return text.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
 }
+
+export function requireTools(test: Mocha.Context, tools: string[]) {
+    if (tools.includes('spark')) {
+        test.skip();
+    }
+}

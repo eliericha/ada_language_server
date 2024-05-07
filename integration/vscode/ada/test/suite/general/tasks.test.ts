@@ -1,7 +1,7 @@
 import assert from 'assert';
 import { existsSync } from 'fs';
 import * as vscode from 'vscode';
-import { exe, getProjectFile } from '../../../src/helpers';
+import { exe, getProjectFile, requireTools } from '../../../src/helpers';
 import {
     CustomTaskDefinition,
     PROJECT_FROM_CONFIG,
@@ -54,7 +54,8 @@ ada: Build and run main - src/test.adb - kind: buildAndRunMain`.trim();
     /**
      * Check that the list of offered SPARK tasks is expected.
      */
-    test('Spark tasks list', async () => {
+    test('Spark tasks list', async function () {
+        requireTools(this, ['spark']);
         const prov = createSparkTaskProvider();
         const tasks = await prov.provideTasks();
         assert.notStrictEqual(tasks, undefined);
@@ -347,7 +348,8 @@ ada: Build and run main - src/test.adb - kind: buildAndRunMain`.trim();
         assert.equal(getSelectedRegion(vscode.window.activeTextEditor), '16:18');
     });
 
-    test('spark tasks on current location', async () => {
+    test('spark tasks on current location', async function () {
+        requireTools(this, ['spark']);
         assert(vscode.workspace.workspaceFolders);
         const testAdbUri = vscode.Uri.joinPath(
             vscode.workspace.workspaceFolders[0].uri,

@@ -6,6 +6,9 @@ import { join } from 'path';
 let baseMochaOptions = {
     ui: 'tdd',
     color: true,
+    reporterOptions: {
+        maxDiffSize: 0,
+    },
 };
 
 if (process.env.MOCHA_REPORTER) {
@@ -13,12 +16,9 @@ if (process.env.MOCHA_REPORTER) {
     // environment could set this to 'mocha-junit-reporter' to produce JUnit
     // results.
     baseMochaOptions.reporter = process.env.MOCHA_REPORTER;
-}
-
-if (!baseMochaOptions.reporterOptions) {
-    baseMochaOptions.reporterOptions = {
-        maxDiffSize: 0,
-    };
+    if (process.env.MOCHA_REPORTER.includes('junit')) {
+        baseMochaOptions.reporterOptions.includePending = true;
+    }
 }
 
 if (process.env['MOCHA_TIMEOUT']) {
@@ -60,7 +60,10 @@ export default defineConfig(
             const mochaFile = process.env.MOCHA_RESULTS_DIR
                 ? join(process.env.MOCHA_RESULTS_DIR, `${suiteName}.xml`)
                 : `${suiteName}.xml`;
-            mochaOptions.reporterOptions = { mochaFile: mochaFile };
+            mochaOptions.reporterOptions = {
+                ...mochaOptions.reporterOptions,
+                mochaFile: mochaFile,
+            };
         }
 
         return {
