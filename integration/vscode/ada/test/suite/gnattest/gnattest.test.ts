@@ -27,8 +27,8 @@ import {
     resolveHandler,
     runHandler,
 } from '../../../src/gnattest';
-import { activate } from '../utils';
 import { escapeRegExp } from '../../../src/helpers';
+import { activate } from '../utils';
 
 suite('GNATtest Integration Tests', function () {
     this.beforeAll(async () => {
