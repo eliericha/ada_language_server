@@ -26,13 +26,16 @@ import { ALSClientFeatures } from './alsClientFeatures';
 import { alsCommandExecutor } from './alsExecuteCommand';
 import { registerCommands } from './commands';
 import {
+    CONTEXT_ADA,
+    CONTEXT_ENABLE_OBSOLETE_TASKS_GNAT,
+    CONTEXT_ENABLE_OBSOLETE_TASKS_GPR,
+} from './contexts';
+import {
     TERMINAL_ENV_SETTING_NAME,
     assertSupportedEnvironments,
     getEvaluatedTerminalEnv,
     startedInDebugMode,
 } from './helpers';
-
-const ADA_CONTEXT = 'ADA_PROJECT_CONTEXT';
 
 /**
  * A global object encapsulating extension state. This includes the Ada and GPR
@@ -158,7 +161,13 @@ async function activateExtension(context: vscode.ExtensionContext) {
      */
     registerCommands(context, adaExtState);
 
-    await vscode.commands.executeCommand('setContext', ADA_CONTEXT, true);
+    await vscode.commands.executeCommand('setContext', CONTEXT_ADA, true);
+
+    /**
+     * TODO explain why
+     */
+    await vscode.commands.executeCommand('setContext', CONTEXT_ENABLE_OBSOLETE_TASKS_GNAT, false);
+    await vscode.commands.executeCommand('setContext', CONTEXT_ENABLE_OBSOLETE_TASKS_GPR, false);
 
     /**
      * This can display a dialog to the User so don't wait on the result.
@@ -243,5 +252,5 @@ function setUpLogging(context: vscode.ExtensionContext) {
 }
 
 export async function deactivate() {
-    await vscode.commands.executeCommand('setContext', ADA_CONTEXT, undefined);
+    await vscode.commands.executeCommand('setContext', CONTEXT_ADA, undefined);
 }

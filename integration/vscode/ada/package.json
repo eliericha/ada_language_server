@@ -690,6 +690,7 @@
             },
             {
                 "type": "gnat",
+                "when": "shellExecutionSupported && ada.ctx.enableObsoleteTasksGnat",
                 "required": [
                     "taskKind"
                 ],
@@ -708,6 +709,7 @@
             },
             {
                 "type": "gpr",
+                "when": "shellExecutionSupported && ada.ctx.enableObsoleteTasksGpr",
                 "required": [
                     "main"
                 ],
