@@ -14,28 +14,30 @@ This extension provides support for the Ada and SPARK programming languages in V
 ## Features
 
 Ada and SPARK are compiled languages which means that a compiler is needed to translate the source code into a program that can be executed.
-Additionally if your source code uses the SPARK subset of Ada, you can perform formal proof on it using GNATprove.
+Other tools are also needed to perform tasks such as testing, static analysis and formal proof of SPARK code.
 
-Even though this extension **does not include a compiler nor a proof tool**, a number of features are available without those tools, and it is easy to obtain them if needed.
+Even though this extension **does not include a compiler nor additional tools**, a number of features are available without those tools, and it is easy to obtain them if needed.
 
 <!-- markdownlint-disable MD033 -->
-|                     |   Without<br>Additional Tools  | With<br>Ada Compiler | With<br>Ada Compiler & GNATprove |
-|---------------------|:------------------------------:|:---------------------:|:---------------------------------:|
-| Syntax Highlighting |                ✅               |           ✅           |                 ✅                 |
-| Navigation          | ✅<br>(except standard runtime) |           ✅           |                 ✅                 |
-| Auto-completion     | ✅<br>(except standard runtime) |           ✅           |                 ✅                 |
-| Refactoring         |                ✅               |           ✅           |                 ✅                 |
-| Build               |                                |           ✅           |                 ✅                 |
-| Debug               |                                |           ✅           |                 ✅                 |
-| Formal Proof        |                                |                       |                 ✅                 |
+|                     |   Without<br>Additional Tools  | With<br>Ada Compiler | & With<br>GNATtest | & With<br>GNAT SAS | & With<br>GNATprove |
+|---------------------|:------------------------------:|:--------------------:|:------------------:|:------------------:|:-------------------:|
+| Syntax Highlighting |                ✅               |           ✅          |       ✅            |       ✅            |       ✅          |
+| Navigation          | ✅<br>(except standard runtime) |           ✅          |       ✅            |       ✅            |       ✅          |
+| Auto-completion     | ✅<br>(except standard runtime) |           ✅          |       ✅            |       ✅            |       ✅          |
+| Refactoring         |                ✅               |           ✅          |       ✅            |       ✅            |       ✅          |
+| Build               |                                |           ✅          |       ✅            |       ✅            |       ✅          |
+| Debug               |                                |           ✅          |       ✅            |       ✅            |       ✅          |
+| Test                |                                |                      |       ✅            |       ✅            |       ✅          |
+| Static Analysis     |                                |                      |                    |       ✅            |       ✅          |
+| Formal Proof        |                                |                      |                    |                    |       ✅          |
 
-## Getting an Ada Compiler or GNATprove
+## Getting Additional Tools
 
-For a fully operational development environment you can obtain a compiler and/or GNATprove from the following channels.
+For a fully operational development environment you can obtain a compiler and/or other tools from the following channels.
 
 ### AdaCore Customers
 
-If you are an [AdaCore](https://www.adacore.com/) customer, you can log into your account on [GNAT Tracker](https://support.adacore.com/csm) to download the tools available in your subscription.
+If you are an [AdaCore](https://www.adacore.com/) customer, log into your account on [GNAT Tracker](https://support.adacore.com/csm) to download the tools available in your subscription.
 
 ### Community Users
 
