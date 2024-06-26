@@ -152,14 +152,15 @@ export function getCmdLine(exec: vscode.ShellExecution) {
 
 export async function testTask(
     taskName: string,
-    testedTasks: Set<string>,
-    allProvidedTasks?: vscode.Task[]
+    testedTasks?: Set<string>,
+    allProvidedTasks?: vscode.Task[],
+    useRenamings = false
 ) {
     assert(vscode.workspace.workspaceFolders);
 
-    const task = await findTaskByName(taskName, allProvidedTasks);
+    const task = await findTaskByName(taskName, allProvidedTasks, useRenamings);
     assert(task);
-    testedTasks.add(getConventionalTaskLabel(task));
+    testedTasks?.add(getConventionalTaskLabel(task));
 
     const execStatus: number | undefined = await runTaskAndGetResult(task);
 

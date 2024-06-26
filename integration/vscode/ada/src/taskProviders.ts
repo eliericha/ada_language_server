@@ -133,7 +133,7 @@ const predefinedTasks: PredefinedTask[] = [
         problemMatchers: DEFAULT_PROBLEM_MATCHER,
     },
     {
-        label: 'Analyze the project with GNAT SAS',
+        label: 'GNAT SAS - Analyze the project',
         taskDef: {
             type: TASK_TYPE_ADA,
             command: 'gnatsas',
@@ -147,7 +147,7 @@ const predefinedTasks: PredefinedTask[] = [
         problemMatchers: '',
     },
     {
-        label: 'Analyze the current file with GNAT SAS',
+        label: 'GNAT SAS - Analyze the current file',
         taskDef: {
             type: TASK_TYPE_ADA,
             command: 'gnatsas',
@@ -161,7 +161,7 @@ const predefinedTasks: PredefinedTask[] = [
         problemMatchers: '',
     },
     {
-        label: 'Create a report after a GNAT SAS analysis',
+        label: 'GNAT SAS - Create a report after an analysis',
         taskDef: {
             type: TASK_TYPE_ADA,
             command: 'gnatsas',
@@ -174,12 +174,12 @@ const predefinedTasks: PredefinedTask[] = [
         problemMatchers: '',
     },
     {
-        label: 'Analyze the project with GNAT SAS and produce a report',
+        label: 'GNAT SAS - Analyze the project and produce a report',
         taskDef: {
             type: TASK_TYPE_ADA,
             compound: [
-                'Analyze the project with GNAT SAS',
-                'Create a report after a GNAT SAS analysis',
+                'GNAT SAS - Analyze the project',
+                'GNAT SAS - Create a report after an analysis',
             ],
         },
         /**
@@ -189,12 +189,12 @@ const predefinedTasks: PredefinedTask[] = [
         problemMatchers: '',
     },
     {
-        label: 'Analyze the current file with GNAT SAS and produce a report',
+        label: 'GNAT SAS - Analyze the current file and produce a report',
         taskDef: {
             type: TASK_TYPE_ADA,
             compound: [
-                'Analyze the current file with GNAT SAS',
-                'Create a report after a GNAT SAS analysis',
+                'GNAT SAS - Analyze the current file',
+                'GNAT SAS - Create a report after an analysis',
             ],
         },
         /**
@@ -350,6 +350,21 @@ const predefinedTasks: PredefinedTask[] = [
         problemMatchers: DEFAULT_PROBLEM_MATCHER,
     },
 ];
+
+/**
+ * This map allows old pre-defined task names to map to new ones and still be
+ * able to run as part of compound tasks.
+ */
+const TASK_RENAMINGS: { [oldName: string]: string } = {
+    'ada: Analyze the project with GNAT SAS': 'ada: GNAT SAS - Analyze the project',
+    'ada: Analyze the current file with GNAT SAS': 'ada: GNAT SAS - Analyze the current file',
+    'ada: Create a report after a GNAT SAS analysis':
+        'ada: GNAT SAS - Create a report after an analysis',
+    'ada: Analyze the project with GNAT SAS and produce a report':
+        'ada: GNAT SAS - Analyze the project and produce a report',
+    'ada: Analyze the current file with GNAT SAS and produce a report':
+        'ada: GNAT SAS - Analyze the current file and produce a report',
+};
 
 /**
  * A provider of tasks based on the {@link SimpleTaskDef} task definition.
@@ -885,7 +900,8 @@ abstract class SequentialExecution extends vscode.CustomExecution {
  */
 export async function findTaskByName(
     taskName: string,
-    tasks?: vscode.Task[]
+    tasks?: vscode.Task[],
+    useTaskRenamings = true
 ): Promise<vscode.Task> {
     if (!tasks) {
         tasks = (
@@ -900,8 +916,20 @@ export async function findTaskByName(
         throw Error('The task list is empty.' + ` Cannot find task '${taskName}'`);
     }
 
-    const task = tasks.find((v) => {
-        return taskName == getConventionalTaskLabel(v) || taskName == v.name;
+    const task = tasks.sort(workspaceTasksFirst).find((v) => {
+        return (
+            taskName == getConventionalTaskLabel(v) ||
+            taskName == v.name ||
+            /**
+             * Tasks that have been renamed might still be referenced in
+             * User-defined tasks under the old name. To keep those references
+             * operational, we apply the known renamings. This behavior is
+             * controlled by a parameter.
+             */
+            (useTaskRenamings &&
+                (applyTaskRenaming(taskName) == getConventionalTaskLabel(v) ||
+                    applyTaskRenaming(taskName) == v.name))
+        );
     });
     if (task) {
         return task;
@@ -911,6 +939,15 @@ export async function findTaskByName(
             .join('\n')}`;
         throw Error(msg);
     }
+}
+
+/**
+ *
+ * @param taskName - a task name that might have been renamed.
+ * @returns the new name if applicable, otherwise returns the same name.
+ */
+function applyTaskRenaming(taskName: string): string {
+    return taskName in TASK_RENAMINGS ? TASK_RENAMINGS[taskName] : taskName;
 }
 
 /**
@@ -924,7 +961,11 @@ class SequentialExecutionByName extends SequentialExecution {
 
     protected async getTasksToRun(): Promise<vscode.Task[]> {
         const adaTasks = await vscode.tasks.fetchTasks({ type: TASK_TYPE_ADA });
-        return Promise.all(this.taskNames.map((name) => findTaskByName(name, adaTasks)));
+        return Promise.all(
+            this.taskNames.map((name) => {
+                return findTaskByName(name, adaTasks);
+            })
+        );
     }
 }
 

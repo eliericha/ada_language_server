@@ -39,11 +39,11 @@ ada: Clean current project
 ada: Build current project
 ada: Check current file
 ada: Compile current file
-ada: Analyze the project with GNAT SAS
-ada: Analyze the current file with GNAT SAS
-ada: Create a report after a GNAT SAS analysis
-ada: Analyze the project with GNAT SAS and produce a report
-ada: Analyze the current file with GNAT SAS and produce a report
+ada: GNAT SAS - Analyze the project
+ada: GNAT SAS - Analyze the current file
+ada: GNAT SAS - Create a report after an analysis
+ada: GNAT SAS - Analyze the project and produce a report
+ada: GNAT SAS - Analyze the current file and produce a report
 ada: Generate documentation from the project
 ada: Create/update test skeletons for the project
 ada: Build main - src/main1.adb
@@ -64,9 +64,9 @@ ada: Clean current project - gprclean -P ${projectPath}
 ada: Build current project - gprbuild -P ${projectPath} -cargs:ada -gnatef
 ada: Check current file - gprbuild -q -f -c -u -gnatc -P ${projectPath} \${fileBasename} -cargs:ada -gnatef
 ada: Compile current file - gprbuild -q -f -c -u -P ${projectPath} \${fileBasename} -cargs:ada -gnatef
-ada: Analyze the project with GNAT SAS - gnatsas analyze -P ${projectPath}
-ada: Analyze the current file with GNAT SAS - gnatsas analyze -P ${projectPath} --file=\${fileBasename}
-ada: Create a report after a GNAT SAS analysis - gnatsas report sarif -P ${projectPath} -o report.sarif
+ada: GNAT SAS - Analyze the project - gnatsas analyze -P ${projectPath}
+ada: GNAT SAS - Analyze the current file - gnatsas analyze -P ${projectPath} --file=\${fileBasename}
+ada: GNAT SAS - Create a report after an analysis - gnatsas report sarif -P ${projectPath} -o report.sarif
 ada: Generate documentation from the project - gnatdoc -P ${projectPath}
 ada: Create/update test skeletons for the project - gnattest -P ${projectPath}
 ada: Build main - src/main1.adb - gprbuild -P ${projectPath} src/main1.adb -cargs:ada -gnatef
@@ -236,11 +236,11 @@ suite('Task Execution', function () {
     declTaskTest('ada: Build main - src/test.adb');
     declTaskTest('ada: Build and run main - src/main1.adb');
     declTaskTest('ada: Build and run main - src/test.adb');
-    declTaskTest('ada: Analyze the project with GNAT SAS');
-    declTaskTest('ada: Create a report after a GNAT SAS analysis');
-    declTaskTest('ada: Analyze the project with GNAT SAS and produce a report');
-    declTaskTest('ada: Analyze the current file with GNAT SAS and produce a report', openSrcFile);
-    declTaskTest('ada: Analyze the current file with GNAT SAS', openSrcFile);
+    declTaskTest('ada: GNAT SAS - Analyze the project');
+    declTaskTest('ada: GNAT SAS - Create a report after an analysis');
+    declTaskTest('ada: GNAT SAS - Analyze the project and produce a report');
+    declTaskTest('ada: GNAT SAS - Analyze the current file and produce a report', openSrcFile);
+    declTaskTest('ada: GNAT SAS - Analyze the current file', openSrcFile);
     declTaskTest('ada: Generate documentation from the project');
     declTaskTest('ada: Create/update test skeletons for the project');
 
@@ -343,6 +343,31 @@ suite('Task Execution', function () {
              * list.
              */
             await testTask(taskName, testedTaskLabels, prolog ? undefined : allProvidedTasks);
+        });
+    }
+});
+
+suite('Task Renamings', function () {
+    this.beforeAll(async function () {
+        await closeAllEditors();
+    });
+
+    declRenamingTest('ada: Analyze the project with GNAT SAS');
+    declRenamingTest('ada: Analyze the current file with GNAT SAS', openSrcFile);
+    declRenamingTest('ada: Create a report after a GNAT SAS analysis');
+    declRenamingTest('ada: Analyze the project with GNAT SAS and produce a report');
+    declRenamingTest(
+        'ada: Analyze the current file with GNAT SAS and produce a report',
+        openSrcFile
+    );
+
+    function declRenamingTest(taskName: string, prolog?: () => void | Promise<void>) {
+        return test(taskName, async function () {
+            if (prolog) {
+                await prolog();
+            }
+
+            await testTask(taskName, undefined, undefined, true);
         });
     }
 });
