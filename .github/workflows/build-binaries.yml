@@ -155,8 +155,3 @@ jobs:
           echo "TAG=$TAG" >> $GITHUB_ENV
           .github/workflows/pack-binaries.sh ""      "${{secrets.VSCE_TOKEN}}" "${{secrets.OPENVSX_TOKEN}}" $TAG
           # .github/workflows/pack-binaries.sh "debug" "${{secrets.VSCE_TOKEN}}" "${{secrets.OPENVSX_TOKEN}}" $TAG
-      - name: Archive ALS vsix
-        uses: actions/upload-artifact@v3
-        with:
-          name: als-vsix-${{ matrix.debug }}${{ env.TAG }}
-          path: '*.vsix'

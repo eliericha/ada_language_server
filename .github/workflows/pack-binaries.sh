@@ -88,7 +88,15 @@ for OS in macOS Windows Linux; do
    done
 done
 
-# Move all .vsix packages to the root of the checkout
-mv -v "$ext_dir"/*.vsix .
+# Upload the resulting VSIX files to AdaCore's AWS S3 bucket
+(
+   cd "$ext_dir"
+   bucket_url=s3://adacore-gha-tray-eu-west-1/vscode-extension
+   for vsix in *.vsix; do
+      aws s3 cp "$vsix" "$bucket_url/$vsix" --sse=AES256
+   done
+   aws s3 ls "$bucket_url"
+)
+
 # Discard the package.json and package-lock.json changes
 git checkout "$ext_dir"/package*.json
