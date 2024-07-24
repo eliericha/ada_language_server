@@ -946,7 +946,7 @@
         "eslint-plugin-tsdoc": "0.2.17",
         "glob": "9.3.0",
         "mocha": "10.2.0",
-        "mocha-junit-reporter": "^2.2.0",
+        "mocha-junit-reporter": "file:../../../../mocha-junit-reporter",
         "prettier": "2.8.4",
         "ts-mockito": "^2.6.1",
         "typescript": "4.9.5",

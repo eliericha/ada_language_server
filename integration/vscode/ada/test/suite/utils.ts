@@ -1,4 +1,4 @@
-import assert from 'assert';
+import assert, { AssertionError } from 'assert';
 import { spawnSync } from 'child_process';
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import path from 'path';
@@ -35,7 +35,29 @@ export function assertEqualToFileContent(actual: string, expectedUri: vscode.Uri
 
         const expected: string = readFileSync(expectedUri.fsPath, 'utf-8');
 
+        // if (actual.localeCompare(expected) != 0) {
+        //     const err = {
+        //         name: 'StringComparisonError',
+        //         message: 'String comparison failed',
+        //         actual: actual + 'hi',
+        //         expected: expected + 'hello',
+        //     };
+        //     throw err;
+        // }
         assert.strictEqual(actual, expected);
+        // try {
+        // assert.strictEqual(
+        //     'elie;'.repeat(4).replace(/;/g, '\n'),
+        //     'richa;'.repeat(5).replace(/;/g, '\n')
+        // );
+        // } catch (err) {
+        //     if (err instanceof AssertionError) {
+        //         err.message = 'Modified ' + err.message;
+        //         err.actual = actual;
+        //         err.expected = expected;
+        //     }
+        //     throw err;
+        // }
     }
 }
 
