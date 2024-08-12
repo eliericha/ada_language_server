@@ -1,7 +1,7 @@
 import { defineConfig } from '@vscode/test-cli';
-import { mkdtempSync } from 'fs';
+import { existsSync, mkdtempSync, readFileSync } from 'fs';
 import * as os from 'os';
-import { join } from 'path';
+import { join, normalize, resolve } from 'path';
 
 let baseMochaOptions = {
     ui: 'tdd',
@@ -33,6 +33,83 @@ if (process.env['MOCHA_TIMEOUT']) {
 
 if (process.env['MOCHA_GREP']) {
     baseMochaOptions.grep = process.env['MOCHA_GREP'];
+}
+
+/**
+ * The Extension Test Runner extension for VS Code starts runs test in a VS
+ * Code instance that inherits the parent process's environment but doesn't
+ * take into consideration the terminal.integrated.env.* setting. So tests that
+ * rely on a GNAT toolchain won't find one in the environment, unless it was
+ * provided in the environment prior to starting the development VS Code
+ * instance which can be difficult in a remote environment.
+ *
+ * This function reads the settings of the workspace folder, extracts the
+ * applicable terminal.integrated.env.* setting and returns the value so that
+ * it may be used for test execution.
+ */
+function getEnv(workspacePath) {
+    /**
+     * Obtain env from VS Code workspace
+     */
+    const wsPath = resolve(workspacePath);
+    const wsSettingsPath = join(wsPath, '.vscode', 'settings.json');
+    let wsEnv = {};
+    if (existsSync(wsSettingsPath)) {
+        const data = readFileSync(wsSettingsPath).toLocaleString();
+        const wsSettings = JSON.parse(data);
+        let osName;
+        switch (process.platform) {
+            case 'win32':
+                osName = 'windows';
+                break;
+
+            case 'darwin':
+                osName = 'osx';
+                break;
+
+            default:
+                osName = process.platform;
+                break;
+        }
+        const setting = `terminal.integrated.env.${osName}`;
+        if (setting in wsSettings) {
+            wsEnv = wsSettings[setting];
+            // console.info('Found env: ' + JSON.stringify(wsEnv, undefined, 2));
+            evalEnv(wsEnv, wsPath);
+            // console.info('Evaluated env: ' + JSON.stringify(wsEnv, undefined, 2));
+        }
+    }
+
+    return wsEnv;
+
+    function evalEnvValue(value, workspaceFolder) {
+        const wsRe = /\${workspaceFolder}/g;
+        value = value.replace(wsRe, workspaceFolder);
+
+        const envRe = /\${env:(\w+)}/g;
+        value = value.replace(envRe, function (variable) {
+            return process.env[variable.match(envRe)[1]] || '';
+        });
+
+        return value;
+    }
+
+    function evalEnv(env, workspaceFolder) {
+        for (const k in env) {
+            env[k] = evalEnvValue(env[k], workspaceFolder);
+        }
+    }
+}
+
+let env;
+if ('MOCHA_RESULTS_DIR' in process.env) {
+    /**
+     * If called by outer automation, do not set up the environment because the
+     * automation already sets that up.
+     */
+    env = {};
+} else {
+    env = getEnv('./../../..');
 }
 
 const testsuites = ['general', 'gnattest', 'workspace_missing_dirs'];
@@ -68,16 +145,7 @@ export default defineConfig(
             files: `out/test/suite/${suiteName}/**/*.test.js`,
             workspaceFolder: `./test/workspaces/${suiteName}`,
             mocha: mochaOptions,
-            env: {
-                // When working remotely on Linux, it is necessary to have "Xvfb
-                // :99" running in the background, and this env variable set for
-                // the VS Code instances spawned for testing.
-                //
-                // This may prevent running locally on Linux and having the test
-                // windows visible, but we consider this a minor use case for
-                // now. A workaround is to remove this line.
-                DISPLAY: ':99',
-            },
+            env: env,
             launchArgs: [
                 // It's important to use the --user-data-dir=<path> form. The
                 // --user-data-dir <path> form sometimes gets <path> considered
