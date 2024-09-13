@@ -27,6 +27,7 @@ with GPR2.Log;
 with GPR2.Path_Name;
 with GPR2.Project.Registry.Attribute;
 with GPR2.Project.Tree.View_Builder;
+with GPR2.Reporter.Console;
 with GPR2.Project.View;
 
 pragma Warnings (Off, "unit ""GPR2.Build.Source.Sets"" is not referenced");
@@ -452,22 +453,18 @@ package body LSP.Ada_Handlers.Project_Loading is
       declare
          Opts    : GPR2.Options.Object;
          Success : Boolean;
+         use GPR2.Reporter;
       begin
-         --  Do not print any gpr messages on the standard output
-         GPR2.Project.Tree.Verbosity := GPR2.Project.Tree.Quiet;
-
          --  Load the project
          Opts.Add_Switch (GPR2.Options.P, Project_File.Display_Full_Name);
+         Opts.Add_Context (Context);
 
          Success := Self.Project_Tree.Load
-            (Opts,
-             With_Runtime     => True,
-             Absent_Dir_Error => GPR2.No_Error,
-             Environment      => Environment);
-
-         if Success then
-            Success := Self.Project_Tree.Set_Context (Context);
-         end if;
+           (Opts,
+            Reporter         => GPR2.Reporter.Console.Create (Quiet),
+            With_Runtime     => True,
+            Absent_Dir_Error => GPR2.No_Error,
+            Environment      => Environment);
 
          if not Success then
             LSP.Ada_Project_Loading.Set_Load_Status
@@ -475,7 +472,7 @@ package body LSP.Ada_Handlers.Project_Loading is
          end if;
 
          if Self.Project_Tree.Is_Defined then
-            Self.Project_Tree.Update_Sources (Update_Log);
+            Self.Project_Tree.Update_Sources;
          end if;
 
       exception
