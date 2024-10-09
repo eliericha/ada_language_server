@@ -24,11 +24,15 @@ include:
       image: systemgtk
 
   # Testing of the VSCode extension
-  - component: $CI_SERVER_FQDN/eng/gitlab-templates/test@~latest
+  - component: $CI_SERVER_FQDN/eng/gitlab-templates/test@topic/anod-logs
     inputs:
       job-name: vscode-extension
       anod-args: run test_vscode_extension_$ACI_TRACK
       image: systemgtk
+      save-anod-logs: true
+      artifacts:
+        - some-artifact-path
+        - some-other-artifact-path
 
   # Integration testsuite
   - component: $CI_SERVER_FQDN/eng/gitlab-templates/test@~latest
