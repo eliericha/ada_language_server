@@ -1,5 +1,6 @@
 import importlib.util
 import inspect
+import logging
 import os
 import sys
 
@@ -45,6 +46,13 @@ class PythonTestDriver(ALSTestDriver):
                 self.env.als_home,
                 str(self.env.wait_factor),
             ]
+
+            if int(self.env.main_options.verbose) > 0:
+                cmd += ["-v"]
+
+            if self.env.main_options.debug:
+                cmd += ["--debug"]
+
             self.shell(
                 cmd,
                 cwd=wd,
@@ -98,5 +106,7 @@ if __name__ == "__main__":
     parser.add_argument("als_home", help="The ALS home directory")
     parser.add_argument("wait_factor", type=float, help="The wait factor")
     parser.add_argument("--debug", action="store_true", help="Enable debug mode")
+    parser.add_argument("--verbose", "-v", action="count", help="Enable verbose logging")
     args = parser.parse_args()
+    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
     run_a_module(args.test, args.als, args.als_home, args.wait_factor, args.debug)

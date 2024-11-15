@@ -2,6 +2,7 @@
 
 """Provide a Python class to drive an LSP server for testing purposes."""
 
+import logging
 import subprocess
 import argparse
 import json
@@ -72,6 +73,8 @@ RLIMIT_SECONDS = 60.0
 RESPONSE_TIMEOUT = 2.0
 DEBUG_MODE = False
 
+LOG = logging.getLogger(__name__)
+
 
 def set_debug_mode(mode: bool = True):
     """Set the debug mode."""
@@ -105,6 +108,8 @@ class LSP(object):
 
         if cl is None:
             cl = os.environ.get("ALS", "ada_language_server")
+
+        LOG.debug("Run: cd %s; %s", working_dir, cl)
 
         # Launch the lsp server, with pipes ready for input/output
         self.process = subprocess.Popen(
@@ -214,7 +219,9 @@ class LSP(object):
         start_time = time.time()
 
         if expect_response:
-            while time.time() - start_time <= RESPONSE_TIMEOUT:
+            # If in debug mode, do not apply a timeout because the developer might set
+            # breakpoints that would delay messages significantly.
+            while DEBUG_MODE or time.time() - start_time <= RESPONSE_TIMEOUT:
                 # Check if there is something in the queue
                 if self.queue.empty():
                     time.sleep(0.1)
@@ -229,6 +236,8 @@ class LSP(object):
                     f" not received in {RESPONSE_TIMEOUT} seconds"
                 }
             )
+        else:
+            return None
 
         return None
 
