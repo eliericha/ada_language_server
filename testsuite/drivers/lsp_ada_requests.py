@@ -122,6 +122,7 @@ def initialize(workspacefolder=URI(".")):
                 "workspaceFolders": [
                     {"name": "ada_language_server", "uri": workspacefolder}
                 ],
+                "rootUri": workspacefolder,
             },
         }
     )
