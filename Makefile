@@ -1,3 +1,4 @@
+# A dummy diff
 # Server executable file:
 ROOTDIR=$(shell pwd)
 
