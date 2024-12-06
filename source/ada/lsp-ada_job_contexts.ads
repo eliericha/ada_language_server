@@ -95,6 +95,12 @@ package LSP.Ada_Job_Contexts is
         LSP.Structures.Empty;
       Force             : Boolean := False) is abstract;
 
+   procedure Publish_Diagnostics
+     (Self              : in out Ada_Job_Context;
+      Other_Diagnostics : LSP.Structures.Diagnostic_Vector :=
+        LSP.Structures.Empty;
+      Force             : Boolean := False) is abstract;
+
    function Contexts_For_File
      (Self : Ada_Job_Context;
       File : GNATCOLL.VFS.Virtual_File)
