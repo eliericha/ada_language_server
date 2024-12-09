@@ -24,6 +24,7 @@ import winston from 'winston';
 
 import { existsSync } from 'fs';
 import { EXTENSION_NAME, adaExtState, logger, mainOutputChannel } from './extension';
+import { getEnvFile, parseEnvFile } from './env';
 
 /* Whether we are under Windows */
 const isWindows = process.platform === 'win32';
@@ -177,14 +178,24 @@ export function getArgValue(a: string | vscode.ShellQuotedString): string {
  * The targetEnv can be `process.env` to apply the changes to the environment of
  * the running process.
  */
-export function setTerminalEnvironment(
+export async function setTerminalEnvironment(
     targetEnv: NodeJS.ProcessEnv,
     custom_env?: { [name: string]: string | null },
 ) {
     if (custom_env == undefined) {
         // Retrieve the user's custom environment variables if specified in their
         // settings/workspace
-        custom_env = getEvaluatedTerminalEnv();
+        const envFileUri = getEnvFile();
+        if (envFileUri) {
+            const envEntries = await parseEnvFile(envFileUri);
+            custom_env = {};
+            for (const entry of envEntries) {
+                custom_env[entry.name] = entry.value;
+            }
+        } else {
+            // If there is no env file, fallback to the terminal settings
+            custom_env = getEvaluatedTerminalEnv();
+        }
     }
 
     if (custom_env) {

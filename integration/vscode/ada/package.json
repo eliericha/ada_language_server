@@ -321,6 +321,12 @@
                         "type": "string",
                         "default": null,
                         "markdownDescription": "This setting must be used in conjunction with the `relocateBuildTree` setting.\n\nIt specifies the root directory for artifact relocation. It corresponds to the [--root-dir GPRbuild command line switch](https://docs.adacore.com/gprbuild-docs/html/gprbuild_ug/building_with_gprbuild.html#switches)."
+                    },
+                    "ada.envFile": {
+                        "scope": "window",
+                        "type": "string",
+                        "default": ".env",
+                        "markdownDescription": "The path to a file containing assignments of environment variables to be used when spawning the Ada Language Server.\n\nThis typically includes setting the GPR_PROJECT_PATH variable which allows the language server to resolve imported GPR projects, and the PATH variable to provide an Ada toolchain.\n\nThe content of the environment file is applied on top of the initial VS Code environment. Expansion of `$VAR` references to other variables are not evaluated. The path separator in variables like PATH or GPR_PROJECT_PATH is platform-specific, `;` on Windows and `:` elsewhere."
                     }
                 }
             },

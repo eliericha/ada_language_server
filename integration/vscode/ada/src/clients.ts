@@ -30,7 +30,7 @@ class AdaLanguageClient extends LanguageClient {
         return super.handleFailedRequest(type, token, error, defaultValue, showNotification);
     }
 }
-export function createClient(
+export async function createClient(
     context: vscode.ExtensionContext,
     id: string,
     name: string,
@@ -89,7 +89,7 @@ export function createClient(
     // Copy this process's environment
     const serverEnv: NodeJS.ProcessEnv = { ...process.env };
     // Set custom environment
-    setTerminalEnvironment(serverEnv);
+    await setTerminalEnvironment(serverEnv);
 
     logger.debug(`Environment for ${name}:`);
     for (const key in serverEnv) {
