@@ -94,12 +94,36 @@ function pin_crates() {
 
       URL="https://github.com/AdaCore/${repo:-$crate}.git"
       if [ ! -d "subprojects/$crate" ]; then
+         # If the checkout doesn't exist, clone
          git clone "$URL" "subprojects/$crate"
-         git -C "subprojects/$crate" checkout "${commit:-${branch:-master}}"
+      else
+         # This script makes some changes in files of dependency checkouts to
+         # make the build work with Alire. Stash them to avoid interference
+         # with the next Git commands.
+         git -C "subprojects/$crate" stash
+         # If the checkout exists, reuse the directory but fetch the new history
+         git -C "subprojects/$crate" fetch origin
+      fi
+      git -C "subprojects/$crate" checkout "${commit:-${branch:-master}}"
+      if [ -z "$commit" ]; then
+         # If no specific commit was requested, a branch is used. The previous
+         # checkout command would simply switch to it but not update it from
+         # remote. So let's do that update.
+         git -C "subprojects/$crate" pull origin "${branch:-master}"
       fi
       cp -v "subprojects/$crate".toml "subprojects/$crate/alire.toml"
-      alr --force --non-interactive pin "$crate" "--use=$PWD/subprojects/$crate"
+
+      # Instead of calling `alr pin` for each crate, it's more efficient to
+      # append the necessary text in alire.toml and call `alr update` once at
+      # the end.
+      cat >>"$PWD/alire.toml" <<EOF
+[[pins]]
+$crate = { path='subprojects/$crate' }
+
+EOF
    done
+
+   alr --force --non-interactive update
 
    alr exec alr -- action -r post-fetch # Configure XmlAda, etc
 }
