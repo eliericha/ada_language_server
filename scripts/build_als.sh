@@ -113,7 +113,7 @@ function build_so_raw() {
    sed -i.bak -e 's/GPR_BUILD/GPR_LIBRARY_TYPE/' ./langkit/libmanage.py
    pip install .
    python manage.py make --no-mypy --generate-auto-dll-dirs \
-      --library-types=relocatable --gargs "-cargs -fPIC"
+      --library-types=relocatable --gargs "-v -cargs -fPIC"
    python manage.py setenv >"$SETENV"
    cd -
    find . -name '*.o' -delete
