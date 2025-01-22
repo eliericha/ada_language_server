@@ -402,6 +402,15 @@ export class ExtensionState {
     public getSparkTaskProvider() {
         return this.sparkTaskProvider;
     }
+
+    /**
+     *
+     * @returns the Ada task provider which can be useful for resolving tasks
+     * created on the fly, e.g. when running GNATtest tests in coverage mode.
+     */
+    public getAdaTaskProvider() {
+        return this.adaTaskProvider;
+    }
 }
 
 /**
