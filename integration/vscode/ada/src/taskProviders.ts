@@ -94,6 +94,18 @@ export const TASK_PROVE_LINE_PLAIN_NAME = 'Prove line';
 export const TASK_PROVE_FILE_PLAIN_NAME = 'Prove file';
 export const TASK_BUILD_TEST_DRIVER = 'Build GNATtest test harness project';
 
+export const TASK_GNATCOV_SETUP: PredefinedTask = {
+    label: 'GNATcoverage - Setup runtime library',
+    taskDef: {
+        type: TASK_TYPE_ADA,
+        command: 'gnatcov',
+        args: ['setup'],
+    },
+    problemMatchers: DEFAULT_PROBLEM_MATCHER,
+};
+
+const gnatCovTasks: PredefinedTask[] = [TASK_GNATCOV_SETUP];
+
 /**
  * Predefined tasks offered by the extension. Both 'ada' and 'spark' tasks are
  * included in this array. They are later on split and provided by different
@@ -369,7 +381,7 @@ const predefinedTasks: PredefinedTask[] = [
         },
         problemMatchers: DEFAULT_PROBLEM_MATCHER,
     },
-];
+].concat(gnatCovTasks);
 
 /**
  * A provider of tasks based on the {@link SimpleTaskDef} task definition.
