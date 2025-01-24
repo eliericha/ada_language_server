@@ -20,7 +20,7 @@ class AdaLanguageClient extends LanguageClient {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         error: any,
         defaultValue: T,
-        showNotification?: boolean | undefined,
+        showNotification?: boolean,
     ): T {
         const showError = vscode.workspace.getConfiguration('ada').get('showNotificationsOnErrors');
         if (!showError) {

@@ -72,7 +72,7 @@ export function initializeDebugging(ctx: vscode.ExtensionContext): {
     providerInitial: AdaInitialDebugConfigProvider;
     providerDynamic: {
         provideDebugConfigurations(
-            _folder?: vscode.WorkspaceFolder | undefined,
+            _folder?: vscode.WorkspaceFolder,
         ): Promise<vscode.DebugConfiguration[]>;
     };
 } {
@@ -206,7 +206,7 @@ export function initializeConfig(main: AdaMain, name?: string): AdaConfig {
 export class AdaInitialDebugConfigProvider implements vscode.DebugConfigurationProvider {
     async provideDebugConfigurations(
         folder: vscode.WorkspaceFolder | undefined,
-        _token?: vscode.CancellationToken | undefined,
+        _token?: vscode.CancellationToken,
     ): Promise<vscode.DebugConfiguration[]> {
         // This method is called when no launch.json exists. The provider
         // should return a set of configurations to initialize the launch.json
@@ -255,7 +255,7 @@ export class AdaInitialDebugConfigProvider implements vscode.DebugConfigurationP
     async resolveDebugConfiguration(
         _folder: vscode.WorkspaceFolder | undefined,
         debugConfiguration: vscode.DebugConfiguration,
-        _token?: vscode.CancellationToken | undefined,
+        _token?: vscode.CancellationToken,
     ): Promise<vscode.DebugConfiguration | undefined> {
         // This method is called when a debug session is being started. The
         // debug configuration either comes from the launch.json file, or from

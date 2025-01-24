@@ -38,7 +38,7 @@ export class ExtensionState {
     public readonly context: vscode.ExtensionContext;
     public readonly dynamicDebugConfigProvider: {
         provideDebugConfigurations(
-            _folder?: vscode.WorkspaceFolder | undefined,
+            _folder?: vscode.WorkspaceFolder,
         ): Promise<vscode.DebugConfiguration[]>;
     };
     public readonly initialDebugConfigProvider: AdaInitialDebugConfigProvider;
