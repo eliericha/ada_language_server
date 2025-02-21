@@ -35,6 +35,8 @@ include:
       image: systemgtk
       disk: 80
       windows: true
+      windows-cpus: 8
+      windows-mem: 16
 
   # Testing of the ALS with coverage
   - component: $CI_SERVER_FQDN/eng/gitlab-templates/test@~latest
