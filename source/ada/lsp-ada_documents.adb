@@ -204,32 +204,22 @@ package body LSP.Ada_Documents is
          if Is_Dotted_Name
            and then not Missing_Unit_Name.Starts_With (Dotted_Node_Prefix)
          then
-            declare
-               Dotted_Prefix_Parts : VSS.String_Vectors.
-                 Virtual_String_Vector :=
-                 Dotted_Node_Prefix.Split
-                   (Separator => VSS.Characters.Latin.Full_Stop);
-            begin
                --  Check if the unit specified as a prefix actually exists.
-               --  If not, it might be a renamed package
-               --  declaration/instantiation: in that case we want to add a
-               --  with-clause on the enclosing unit (e.g: the prefix before
-               --  the last '.').
+               --  If it's the case, import it instead of the original missing
+               --  unit.
 
-               while Get_From_Provider
-                 (Context => Context.LAL_Context,
-                  Name    => Langkit_Support.Text.To_Text
-                    (VSS.Strings.Conversions.To_UTF_8_String
-                         (Dotted_Node_Prefix)),
-                  Kind    => Libadalang.Common.Unit_Specification).Root.Is_Null
-               loop
-                  Dotted_Prefix_Parts.Delete_Last;
-                  Dotted_Node_Prefix :=
-                    Dotted_Prefix_Parts.Join (VSS.Characters.Latin.Full_Stop);
-               end loop;
-
+            if not Get_From_Provider
+                     (Context => Context.LAL_Context,
+                      Name    =>
+                        Langkit_Support.Text.To_Text
+                          (VSS.Strings.Conversions.To_UTF_8_String
+                             (Dotted_Node_Prefix)),
+                      Kind    => Libadalang.Common.Unit_Specification)
+                     .Root
+                     .Is_Null
+            then
                Missing_Unit_Name := Dotted_Node_Prefix;
-            end;
+            end if;
          end if;
 
          --  We should not add any qualifier if the user accepted the
