@@ -18,15 +18,11 @@
             fallback: {},
             modules: ['node_modules'],
         },
-        watchOptions: { ignored: /node_modules/ },
         module: {
             rules: [
                 {
                     test: /\.css$/i,
-                    use: [
-                        { loader: 'style-loader' },
-                        { loader: 'css-loader', options: { url: false } },
-                    ],
+                    use: ['style-loader', 'css-loader'],
                 },
             ],
         },

@@ -23,6 +23,6 @@
             "@/*": ["./*"]
         }
     },
-    "exclude": ["node_modules", "out", "test/visualizer_test"],
+    "exclude": ["node_modules", "out"],
     "include": ["test", "src", ".vscode-test.mjs", "webpack.config.js"]
 }

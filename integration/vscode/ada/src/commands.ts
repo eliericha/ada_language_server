@@ -30,7 +30,6 @@ import {
 import { createHelloWorldProject, walkthroughStartDebugging } from './walkthrough';
 import { loadGnatCoverageReport } from './gnattest';
 import { startVisualize } from './alsVisualizer';
-import { Hierarchy } from './visualizerTypes';
 
 /**
  * Identifier for a hidden command used for building and running a project main.
@@ -122,19 +121,7 @@ export function registerCommands(context: vscode.ExtensionContext, clients: Exte
         vscode.commands.registerCommand('ada.createHelloWorldProject', createHelloWorldProject),
     );
     context.subscriptions.push(
-        vscode.commands.registerCommand('ada.visualizeCalls', () =>
-            startVisualize(context, Hierarchy.CALL),
-        ),
-    );
-    context.subscriptions.push(
-        vscode.commands.registerCommand('ada.visualizeTypes', () =>
-            startVisualize(context, Hierarchy.TYPE),
-        ),
-    );
-    context.subscriptions.push(
-        vscode.commands.registerCommand('ada.visualizePackages', () =>
-            startVisualize(context, Hierarchy.PACKAGE),
-        ),
+        vscode.commands.registerCommand('ada.visualize', () => startVisualize(context)),
     );
     context.subscriptions.push(
         vscode.commands.registerCommand('ada.walkthroughStartDebugging', walkthroughStartDebugging),
