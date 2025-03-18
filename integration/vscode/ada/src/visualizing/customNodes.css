@@ -1,61 +1,13 @@
-.text-updater-node {
-    height: 50px;
-    border: 1px solid #eee;
-    padding: 5px;
-    border-radius: 5px;
-    background: white;
-}
-
-.triangle-up {
-    width: 0;
-    height: 0;
-    border-left: 50px solid transparent;
-    border-right: 50px solid transparent;
-    border-bottom: 100px solid lightblue;
-}
-.trapezoid {
-    border-bottom: 50px solid lightcyan;
-    border-left: 25px solid transparent;
-    border-right: 25px solid transparent;
-    height: 0;
-    width: 125px;
-}
-
 .rectangle {
-    height: 50px;
-    width: 100px;
-    border: solid 1px gray;
-    background-color: lightgreen;
-}
-
-.circle {
-    height: 100px;
-    width: 100px;
-    background-color: lightcoral;
-    border: solid 1px gray;
-    border-radius: 50%;
-}
-
-.oval {
-    height: 100px;
-    width: 200px;
-    background-color: lightseagreen;
-    border: solid 1px gray;
-    border-radius: 50%;
-}
-
-.parallelogram {
-    width: 100px;
-    height: 50px;
-    border: solid 1px gray;
-    transform: skew(20deg);
-    background: lightsalmon;
-}
-
-.text-updater-node label {
-    display: block;
-    color: pink;
-    font-size: 12px;
+    --node-border-color: gray;
+    height: 200px;
+    width: 150px;
+    border: solid 1px var(--node-border-color);
+    border-radius: 6px;
+    padding: 8px;
+    background: var(--vscode-sideBar-background);
+    color: var(--vscode-editor-foreground);
+    box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
 }
 
 .center {
@@ -66,33 +18,35 @@
     white-space: nowrap;
     text-overflow: ellipsis;
     overflow: hidden;
-    -ms-transform: translateY(-50%);
     transform: translateY(-50%);
     top: 50%;
     left: 0;
-    width: 100%;
+    padding: 5%;
+    width: 90%;
     z-index: 1000;
     margin: 0 auto;
+    font-size: 16px;
 }
 
-.tooltip {
-    max-width: fit-content;
-    margin-inline: auto;
-    background-color: black;
-    color: #fff;
+.title {
+    border-bottom: inherit;
+    display: flex;
+    justify-content: center;
+    flex-direction: row;
+    font-size: larger;
+}
+
+.text {
     text-align: center;
-    padding: 5px 0;
-    border-radius: 6px;
-    top: -50%;
-    left: 50%;
-    transform: translate(-50%, 50%);
-    position: absolute;
-    z-index: 1;
+    display: inline-block;
+    margin-left: 3px;
+    margin-bottom: 10px;
 }
 
-/* .center:hover .tooltiptext {
-    visibility: visible;
-} */
+.icon {
+    transform: translateY(10%);
+    margin-bottom: 10px;
+}
 
 /* Make the node handle invisible and retract them a bit in the node so that the edge goes into it*/
 .invis {
@@ -104,14 +58,40 @@
 }
 
 .hoverable:hover {
-    border: solid 1px black;
+    border-color: var(--vscode-focusBorder);
+    background-color: var(--vscode-activityBar-background);
+    color: var(--vscode-activityBar-foreground);
+    transition: all 0.1s ease-in-out;
 }
 
-.react-flow__edge.selectable:hover .react-flow__edge-path,
+.react-flow__edge.selectable:hover .react-flow__edge-path:hover,
 .react-flow__edge.selectable.selected .react-flow__edge-path {
-    stroke: black;
+    --edge-color: var(--vscode-focusBorder);
+    stroke: var(--edge-color);
 }
 
 .background {
     background-color: var(--vscode-editor-background);
+}
+
+.button {
+    position: absolute;
+    color: var(--vscode-editor-foreground);
+    bottom: 1%;
+    border: transparent;
+    background: transparent;
+    width: 50%;
+}
+
+.button:hover {
+    transition: all 0.1s ease-in-out;
+    color: var(--vscode-chat-slashCommandForeground);
+}
+
+.superButton {
+    left: 0%;
+}
+
+.subButton {
+    right: 0%;
 }

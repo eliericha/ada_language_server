@@ -1,48 +1,35 @@
 import * as React from 'react';
 import { Handle, Node, NodeProps, Position } from '@xyflow/react';
 import './customNodes.css';
+import { NodeData, RelationDirection } from '../vizualizerTypes';
 
-type LabelNode = Node<{ label: string }, 'label'>;
+type DataNode = Node<NodeData, 'data'>;
 
-const handleStyle = { left: 10 };
+const vscode = acquireVsCodeApi();
+export const nodeTypes = {
+    rectangle: Rectangle,
+};
 
-export function Triangle({ data, isConnectable }: NodeProps<LabelNode>) {
-    return (
-        <div className="triangle-up">
-            <Handle
-                className="invis"
-                type="target"
-                position={Position.Top}
-                isConnectable={isConnectable}
-            />
-            <Handle
-                className="invis"
-                type="source"
-                position={Position.Bottom}
-                id="b"
-                isConnectable={isConnectable}
-            />
-            <div className="center">{data.label}</div>
-        </div>
-    );
-}
-
-export function Rectangle({ data, isConnectable }: NodeProps<LabelNode>) {
-    const [state, setState] = React.useState(false);
-    let toolSize = 0;
-    const onEnter = React.useCallback(() => {
-        setState(true);
-    }, []);
-    const onLeave = React.useCallback(() => {
-        setState(false);
-    }, []);
-    // Maybe find another way to avoid calling this function on each rerender
-    // (cannot memoize it or it will always return 0)
-    const getTooltipSize = (el: HTMLDivElement) => {
-        if (!el || toolSize != 0) return;
-        toolSize = el.getBoundingClientRect().width;
+const nodeString: string[] = ['rectangle'];
+export function nodeFactory(x: number, y: number, data: NodeData) {
+    const { ...objData } = data;
+    return {
+        id: data.label,
+        type: nodeString[0],
+        position: { x: x, y: y },
+        data: objData,
     };
-
+}
+// var(--vscode-symbolIcon-arrayForeground)
+export function Rectangle({ data, isConnectable }: NodeProps<DataNode>) {
+    const requestTypes = React.useCallback(({ direction = RelationDirection.Out }) => {
+        vscode.postMessage({
+            command: 'requestTypes',
+            data: JSON.stringify({ location: data.location, direction: direction }),
+        });
+    }, []);
+    const iconClassName = 'icon codicon codicon-symbol-' + data.kind;
+    const color = 'var(--vscode-symbolIcon-' + data.kind + 'Foreground';
     return (
         <div className="rectangle hoverable">
             <Handle
@@ -58,140 +45,23 @@ export function Rectangle({ data, isConnectable }: NodeProps<LabelNode>) {
                 id="b"
                 isConnectable={isConnectable}
             />
-            <div
-                className="center"
-                title={data.label}
-                onMouseEnter={onEnter}
-                onMouseLeave={onLeave}
-                ref={getTooltipSize}
-            >
+            <div className="title">
+                <span className={iconClassName} style={{ color: color }}></span>
+                <div className="text"> {data.label}</div>
+            </div>
+            <div className="center" title={data.label}>
                 {data.label}
             </div>
-            <div
-                className="tooltip"
-                style={{ visibility: state ? 'visible' : 'hidden' }}
-                ref={(el) => {
-                    if (!el) return;
-                    // If the tooltip would be display (ie the user is overing it) check if this div
-                    // is bigger than the node itself
-                    // console.log(toolSize);
-                    if (state) setState(toolSize < el.getBoundingClientRect().width);
-                }}
-            >
-                {data.label}
-            </div>
+            <button
+                className="codicon codicon-type-hierarchy-sub button subButton"
+                title="Add subtypes to the graph"
+                onClick={() => requestTypes({ direction: RelationDirection.In })}
+            ></button>
+            <button
+                className="codicon codicon-type-hierarchy-super button superButton"
+                title="Add supertypes to the graph"
+                onClick={() => requestTypes({ direction: RelationDirection.Out })}
+            ></button>
         </div>
     );
 }
-
-export function Trapezoid({ data, isConnectable }: NodeProps<LabelNode>) {
-    return (
-        <div className="trapezoid">
-            <Handle
-                className="invis"
-                type="target"
-                position={Position.Top}
-                isConnectable={isConnectable}
-            />
-            <Handle
-                className="invis"
-                type="source"
-                position={Position.Bottom}
-                id="b"
-                isConnectable={isConnectable}
-            />
-            <div className="center">{data.label}</div>
-        </div>
-    );
-}
-
-export function Circle({ data, isConnectable }: NodeProps<LabelNode>) {
-    return (
-        <div className="circle hoverable">
-            <Handle
-                className="invis"
-                type="target"
-                position={Position.Top}
-                isConnectable={isConnectable}
-            />
-            <Handle
-                className="invis"
-                type="source"
-                position={Position.Bottom}
-                id="b"
-                isConnectable={isConnectable}
-            />
-            <div className="center">{data.label}</div>
-        </div>
-    );
-}
-
-export function Oval({ data, isConnectable }: NodeProps<LabelNode>) {
-    return (
-        <div className="oval hoverable">
-            <Handle
-                className="invis"
-                type="target"
-                position={Position.Top}
-                isConnectable={isConnectable}
-            />
-            <Handle
-                className="invis"
-                type="source"
-                position={Position.Bottom}
-                id="b"
-                isConnectable={isConnectable}
-            />
-            <div className="center">{data.label}</div>
-        </div>
-    );
-}
-
-export function Parallelogram({ data, isConnectable }: NodeProps<LabelNode>) {
-    return (
-        <div className="parallelogram hoverable">
-            <Handle
-                className="invis"
-                type="target"
-                position={Position.Top}
-                isConnectable={isConnectable}
-            />
-            <Handle
-                className="invis"
-                type="source"
-                position={Position.Bottom}
-                id="b"
-                isConnectable={isConnectable}
-            />
-            <div className="center">{data.label}</div>
-        </div>
-    );
-}
-
-export function TextUpdaterNode({ data, isConnectable }: NodeProps<LabelNode>) {
-    console.log(data);
-    const onChange = React.useCallback((evt: { target: { value: unknown } }) => {
-        console.log(evt.target.value);
-    }, []);
-
-    return (
-        <div className="text-updater-node">
-            <Handle type="target" position={Position.Top} isConnectable={isConnectable} />
-            <div>
-                <label htmlFor="text">Text:</label>
-                <input id="text" name="text" onChange={onChange} className="nodrag" />
-            </div>
-            <div>{data.label}</div>
-            <Handle
-                type="source"
-                position={Position.Bottom}
-                id="a"
-                style={handleStyle}
-                isConnectable={isConnectable}
-            />
-            <Handle type="source" position={Position.Bottom} id="b" isConnectable={isConnectable} />
-        </div>
-    );
-}
-
-export default TextUpdaterNode;

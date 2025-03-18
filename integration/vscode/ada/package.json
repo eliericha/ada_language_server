@@ -1057,7 +1057,7 @@
             },
             {
                 "command": "ada.visualize",
-                "title": "Ada: Visualize code",
+                "title": "Show Call Hierarchy (graph)",
                 "shortTitle": "Visualize code",
                 "enablement": "config.ada.enableExperimentalFeatures"
             },
@@ -1216,13 +1216,18 @@
                     "command": "ada.subprogramBox",
                     "group": "ada",
                     "when": "editorLangId == ada"
+                },
+                {
+                    "command": "ada.visualize",
+                    "group": "0_navigation@5",
+                    "when": "editorLangId == ada && config.ada.enableExperimentalFeatures"
                 }
             ],
             "editor/title/run": [
                 {
                     "command": "ada.buildAndRunMainLast",
                     "when": "editorLangId == ada",
-                    "group": "navigation@0"
+                    "group": "navigation"
                 },
                 {
                     "command": "ada.buildAndRunMainAsk",
@@ -1447,6 +1452,7 @@
         "unresolve": "node unresolve.js"
     },
     "dependencies": {
+        "@vscode/codicons": "^0.0.36",
         "@xyflow/react": "^12.4.4",
         "command-exists": "1.2.9",
         "elkjs": "^0.9.3",
