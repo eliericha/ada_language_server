@@ -7,60 +7,80 @@ import {
     RelationDirection,
     Message,
     NodeData,
-    RequestHierarchy,
+    RequestMessage,
     SymbolsMap,
+    NodeHierarchy,
 } from './vizualizerTypes';
+
+// Store the roots of all the graph (the node that don't have parents)
+let rootNodes: NodeHierarchy[] = [];
+const symbolsMap: SymbolsMap = new Map();
+// The node that will be focused when updating the graph
+let focusedNode: NodeHierarchy | null = null;
 
 let panel: vscode.WebviewPanel | null;
 
 async function handleMessage(message: Message) {
     switch (message.command) {
         case 'requestTypes': {
-            const data = JSON.parse(message.data) as RequestHierarchy;
-
+            const data = JSON.parse(message.data) as RequestMessage;
+            const node = symbolsMap.get(data.label);
             // Check that the symbol is not a runtime generated one
-            if (!fs.existsSync(data.location.path)) return;
-            const location = new vscode.Location(
-                vscode.Uri.file(data.location.path),
-                new vscode.Range(data.location.range[0], data.location.range[1]),
-            );
-            const symbolsMap = await getTypeHierarchy(location, data.direction);
-            sendMessage(symbolsMap);
+            if (node === undefined) return;
+            node.expanded = data.expand;
+            if (
+                (data.expand || data.direction === RelationDirection.Super) &&
+                fs.existsSync(node.location.uri.fsPath)
+            )
+                await getTypeHierarchy(node.location, data.direction);
+            sendMessage();
             break;
         }
-        default:
-            panel?.webview.postMessage(message);
-            break;
     }
 }
 
-function createNodeData(typeHierarchyItem: vscode.TypeHierarchyItem) {
+function createNodeHierarchy(typeHierarchyItem: vscode.TypeHierarchyItem) {
     return {
         label: typeHierarchyItem.name,
         // We only keeps important informations as all the other will be lost after a JSON.stringify
-        location: {
-            path: typeHierarchyItem.uri.fsPath,
-            range: [typeHierarchyItem.selectionRange.start, typeHierarchyItem.selectionRange.end],
-        },
+        location: new vscode.Location(
+            typeHierarchyItem.uri,
+            typeHierarchyItem.selectionRange.start,
+        ),
         kind: vscode.SymbolKind[typeHierarchyItem.kind].toLowerCase(),
-        edges: new Set<DirectedEdge>(),
-    };
+        parent: null,
+        childrens: [],
+        expanded: false,
+        hasParent: false,
+        focus: false,
+    } as NodeHierarchy;
 }
 
-function sendMessage(symbolsMap: SymbolsMap) {
+function convertHierarchyToData(nodeHierarchy: NodeHierarchy) {
+    return {
+        label: nodeHierarchy.label,
+        kind: nodeHierarchy.kind,
+        expanded: nodeHierarchy.expanded,
+        hasParent: nodeHierarchy.hasParent,
+        focus: nodeHierarchy.focus,
+    } as NodeData;
+}
+
+function convertToMessage(nodes: Set<NodeData>, edges: Set<DirectedEdge>, root: NodeHierarchy) {
+    nodes.add(convertHierarchyToData(root));
+    if (root.expanded) {
+        for (const child of root.childrens) {
+            edges.add({ src: root.label, dst: child.label, edgeDirection: RelationDirection.Sub });
+            convertToMessage(nodes, edges, child);
+        }
+    }
+}
+
+function sendMessage() {
     const nodes: Set<NodeData> = new Set();
     const edges: Set<DirectedEdge> = new Set();
-    for (const symbol of symbolsMap) {
-        nodes.add(symbol[1]);
-        for (const edge of symbol[1].edges) {
-            const dstData = symbolsMap.get(edge.dst);
-            if (dstData) nodes.add(dstData);
-            edges.add({
-                src: edge.src,
-                dst: edge.dst,
-                edgeDirection: edge.edgeDirection,
-            });
-        }
+    for (const root of rootNodes) {
+        convertToMessage(nodes, edges, root);
     }
     if (nodes.size !== 0) {
         panel?.webview.postMessage({
@@ -69,6 +89,7 @@ function sendMessage(symbolsMap: SymbolsMap) {
         });
         panel?.reveal();
     }
+    if (focusedNode) focusedNode.focus = false;
 }
 
 function setupWebView(context: vscode.ExtensionContext) {
@@ -76,7 +97,7 @@ function setupWebView(context: vscode.ExtensionContext) {
     panel = vscode.window.createWebviewPanel(
         'alsVisualizer',
         'Als Visualizer',
-        vscode.ViewColumn.Active,
+        vscode.ViewColumn.Beside,
         {
             enableScripts: true,
             retainContextWhenHidden: true,
@@ -87,38 +108,51 @@ function setupWebView(context: vscode.ExtensionContext) {
     panel.webview.onDidReceiveMessage((message: Message) => {
         void handleMessage(message);
     });
-    panel.onDidDispose(() => (panel = null));
+    panel.onDidDispose(() => {
+        panel = null;
+        symbolsMap.clear();
+        rootNodes = [];
+    });
+}
+
+// Helper function either add the symbol to the Map and return it or return the one
+// from the Map if it exists
+function insertSymbolsMap(newNode: NodeHierarchy) {
+    const node = symbolsMap.get(newNode.label);
+    if (node !== undefined) return node;
+    symbolsMap.set(newNode.label, newNode);
+    return newNode;
 }
 
 async function getTypeHierarchy(
     location: vscode.Location,
     direction: RelationDirection = RelationDirection.Both,
 ) {
-    const symbolMap: SymbolsMap = new Map();
-
     async function getHierarchy(
         command: string,
         typeItem: vscode.TypeHierarchyItem,
         direction: RelationDirection,
+        middleNode: NodeHierarchy,
     ) {
-        const opposite =
-            direction === RelationDirection.In ? RelationDirection.Out : RelationDirection.In;
-        // We can only call the supertypes as relations between type is non oriented
-        // so subtype(type1) == supertype(type2) if type1 -> type2
         const types = await vscode.commands.executeCommand<vscode.TypeHierarchyItem[]>(
             command,
             typeItem,
         );
         types.forEach((type) => {
-            symbolMap.set(type.name, createNodeData(type));
-            if (
-                !symbolMap
-                    .get(type.name)
-                    ?.edges.has({ src: type.name, dst: typeItem.name, edgeDirection: opposite })
-            ) {
-                symbolMap
-                    .get(typeItem.name)
-                    ?.edges.add({ src: typeItem.name, dst: type.name, edgeDirection: direction });
+            const newNodeTmp: NodeHierarchy = createNodeHierarchy(type);
+            const newNode = insertSymbolsMap(newNodeTmp);
+            if (direction === RelationDirection.Sub) {
+                if (!middleNode.childrens.some((node) => node.label === newNode.label))
+                    middleNode.childrens.push(newNode);
+                newNode.parent = middleNode;
+                newNode.hasParent = true;
+            } else {
+                middleNode.parent = newNode;
+                middleNode.hasParent = true;
+                if (!newNode.childrens.some((node) => node.label === middleNode.label))
+                    newNode.childrens.push(middleNode);
+                // We check if we just created middleNode or it is a node created previously
+                if (newNode === newNodeTmp) newNode.expanded = true;
             }
         });
     }
@@ -128,18 +162,30 @@ async function getTypeHierarchy(
         location.uri,
         location.range.start,
     );
-    if (typeItems.length == 0) return symbolMap;
+    if (typeItems.length == 0) return;
     //TODO: Handle type homonyme
     for (const typeItem of typeItems) {
-        symbolMap.set(typeItem.name, createNodeData(typeItem));
+        const middleNode = insertSymbolsMap(createNodeHierarchy(typeItem));
+        middleNode.focus = true;
+        focusedNode = middleNode;
+        if (direction === RelationDirection.Both || direction === RelationDirection.Super)
+            await getHierarchy(
+                'vscode.provideSupertypes',
+                typeItem,
+                RelationDirection.Super,
+                middleNode,
+            );
 
-        if (direction === RelationDirection.Both || direction === RelationDirection.Out)
-            await getHierarchy('vscode.provideSupertypes', typeItem, RelationDirection.Out);
-
-        if (direction === RelationDirection.Both || direction === RelationDirection.In)
-            await getHierarchy('vscode.provideSubtypes', typeItem, RelationDirection.In);
+        if (direction === RelationDirection.Both || direction === RelationDirection.Sub)
+            await getHierarchy(
+                'vscode.provideSubtypes',
+                typeItem,
+                RelationDirection.Sub,
+                middleNode,
+            );
+        middleNode.expanded = direction === RelationDirection.Super ? middleNode.expanded : true;
     }
-    return symbolMap;
+    rootNodes = Array.from(symbolsMap.values()).filter((node) => node.parent === null);
 }
 
 export async function startVisualize(context: vscode.ExtensionContext) {
@@ -149,11 +195,11 @@ export async function startVisualize(context: vscode.ExtensionContext) {
             vscode.window.activeTextEditor?.document.uri,
             vscode.window.activeTextEditor?.selection.active,
         );
-        const symbolMap = await getTypeHierarchy(input);
+        await getTypeHierarchy(input);
 
         // Create the webView only if there is something to display
-        if (symbolMap.size > 0) setupWebView(context);
-        sendMessage(symbolMap);
+        if (symbolsMap.size > 0) setupWebView(context);
+        sendMessage();
     }
 }
 

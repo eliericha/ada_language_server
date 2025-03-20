@@ -8,10 +8,9 @@ import {
     useEdgesState,
     ReactFlow,
     Panel,
-    useReactFlow,
     ReactFlowProvider,
-    MiniMap,
     addEdge,
+    Controls,
 } from '@xyflow/react';
 
 import '@xyflow/react/dist/style.css';
@@ -19,46 +18,51 @@ import './customNodes.css';
 import 'vscode-webview';
 import { edgeFactory, edgeTypes, floatingConnectionLine } from './customeEdges';
 import { nodeFactory, nodeTypes } from './customNodes';
-import { elkOptions, getLayoutedElements } from './layouting';
-
-// const vscode = acquireVsCodeApi();
+import { elkOptions, layoutSubgraphs } from './layouting';
 
 let onNodesChange;
 let onEdgesChange;
 let nodes: Node[] = [];
 let edges: Edge[] = [];
-let currentDirection = 'RIGHT';
+export let currentDirection = 'RIGHT';
 let setNodes: React.Dispatch<React.SetStateAction<Node[]>>;
 let setEdges: React.Dispatch<React.SetStateAction<Edge[]>>;
 
-function handleTypes(messageData: string) {
+async function handleTypes(messageData: string) {
     const data: NodeEdge = JSON.parse(messageData) as NodeEdge;
-    const nodeSize = nodes.length;
-    const edgeSize = edges.length;
+    let subGraphNode: Node | undefined = undefined;
+
+    // Remove all node that are not in the graph anymore (after a folding for example)
+    nodes = nodes.filter((node) =>
+        data.nodesData.some((nodeData) => nodeData.label === node.data.label),
+    );
 
     data.nodesData.forEach((node) => {
         const newNode = nodeFactory(0, 0, node);
-        if (!nodes.some((node) => node.id === newNode.id)) nodes.push(newNode);
+        const foundNode: Node | undefined = nodes.find((node) => node.id === newNode.id);
+        // Only add node that does not already exists
+        if (foundNode === undefined) {
+            subGraphNode = newNode;
+            nodes.push(newNode);
+        }
+        // If the node to focus was already created we update it
+        else if (newNode.data.focus) foundNode.data.focus = newNode.data.focus;
     });
 
-    data.edges.forEach(({ src, dst, edgeDirection }) => {
-        const newEdge: Edge = edgeFactory(src, dst, edgeDirection);
-        // Check if an inverted edge already exist
-        // (the test for the regular edge is done in add edge)
-        if (!edges.some((e) => e.source == newEdge.target && e.target == newEdge.source))
-            edges = addEdge(newEdge, edges);
+    data.edges.forEach(({ src, dst }) => {
+        // addEdge checks if an edge src dst already exist
+        edges = addEdge(edgeFactory(src, dst), edges);
     });
+
+    const focusIndex = nodes.findIndex((node) => node.data.focus);
+    if (focusIndex !== -1) nodes[focusIndex] = { ...nodes[focusIndex] };
 
     // If more nodes where added, relayout the graph
-    if (nodes.length != nodeSize)
-        void getLayoutedElements(nodes, edges, currentDirection, elkOptions).then(
-            ({ nodes: layoutedNodes, edges: layoutedEdges }) => {
-                setNodes(layoutedNodes);
-                setEdges(layoutedEdges);
-            },
-        );
-    // If only edges where added, just add those edge without relayouting
-    else if (edges.length != edgeSize) setEdges(edges);
+    if (subGraphNode !== undefined) {
+        await layoutSubgraphs(subGraphNode, nodes, edges, currentDirection, elkOptions);
+    }
+    setEdges(edges);
+    setNodes(nodes);
 }
 
 // This code is put outside the App function to register only one event listener
@@ -66,7 +70,7 @@ function handleTypes(messageData: string) {
 window.addEventListener('message', (text: MessageEvent<Message>) => {
     switch (text.data.command) {
         case 'types': {
-            handleTypes(text.data.data);
+            void handleTypes(text.data.data);
             break;
         }
     }
@@ -76,19 +80,21 @@ window.addEventListener('message', (text: MessageEvent<Message>) => {
 export default function App() {
     [nodes, setNodes, onNodesChange] = useNodesState(nodes);
     [edges, setEdges, onEdgesChange] = useEdgesState(edges);
-    const { fitView } = useReactFlow();
 
     // Callback to relayout the graph
     const onLayout = React.useCallback(
-        ({ direction = 'DOWN' }) => {
+        ({ direction = 'DOWN' }): void => {
             currentDirection = direction;
-            void getLayoutedElements(nodes, edges, direction, elkOptions).then(
-                ({ nodes: layoutedNodes, edges: layoutedEdges }) => {
-                    setNodes(layoutedNodes);
-                    setEdges(layoutedEdges);
-                    window.requestAnimationFrame(() => () => fitView());
-                },
-            );
+
+            // await setCenter(x, y);
+            // window.requestAnimationFrame(() => () => setCenter(x, y));
+            // window.requestAnimationFrame(() => () => fitView());
+            // void getLayoutedElements(nodes, edges, direction, elkOptions).then(
+            // ({ nodes: layoutedNodes, edges: layoutedEdges }) => {
+            // setNodes(layoutedNodes);
+            // setEdges(layoutedEdges);
+            // },
+            // );
         },
         [nodes, edges],
     );
@@ -102,20 +108,23 @@ export default function App() {
                     onNodesChange={onNodesChange}
                     onEdgesChange={onEdgesChange}
                     fitView
+                    onlyRenderVisibleElements={true}
                     nodeTypes={nodeTypes}
                     connectionLineComponent={floatingConnectionLine}
                     edgeTypes={edgeTypes}
+                    panOnDrag
+                    zoomOnScroll
                 >
                     <Panel position="top-right">
+                        (
                         <button onClick={() => onLayout({ direction: 'DOWN' })}>
                             vertical layout
                         </button>
                         <button onClick={() => onLayout({ direction: 'RIGHT' })}>
                             horizontal layout
                         </button>
-                        <input id="inputField"></input>
                     </Panel>
-                    <MiniMap></MiniMap>
+                    <Controls />
                 </ReactFlow>
             }
         </div>

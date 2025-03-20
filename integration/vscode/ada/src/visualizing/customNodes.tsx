@@ -1,7 +1,9 @@
 import * as React from 'react';
-import { Handle, Node, NodeProps, Position } from '@xyflow/react';
+import { Handle, Node, NodeProps, Position, useReactFlow } from '@xyflow/react';
 import './customNodes.css';
 import { NodeData, RelationDirection } from '../vizualizerTypes';
+import { currentDirection } from './App';
+import { Console } from 'console';
 
 type DataNode = Node<NodeData, 'data'>;
 
@@ -18,49 +20,79 @@ export function nodeFactory(x: number, y: number, data: NodeData) {
         type: nodeString[0],
         position: { x: x, y: y },
         data: objData,
+        width: 150,
+        height: 200,
     };
 }
-// var(--vscode-symbolIcon-arrayForeground)
-export function Rectangle({ data, isConnectable }: NodeProps<DataNode>) {
-    const requestTypes = React.useCallback(({ direction = RelationDirection.Out }) => {
-        vscode.postMessage({
-            command: 'requestTypes',
-            data: JSON.stringify({ location: data.location, direction: direction }),
-        });
-    }, []);
-    const iconClassName = 'icon codicon codicon-symbol-' + data.kind;
+
+export function Rectangle(node: NodeProps<DataNode>) {
+    const data = node.data;
+    const [expand, setExpand] = React.useState<boolean>(data.expanded);
+    const [hidden, setHidden] = React.useState<boolean>(data.hasParent);
+    const { setCenter } = useReactFlow();
+
+    // Dynamically asign class to DOM element to take into accound, layouting direction,
+    // type of data being displayed....
     const color = 'var(--vscode-symbolIcon-' + data.kind + 'Foreground';
+    const iconClass = 'icon codicon codicon-symbol-' + data.kind;
+    const subButtonClass =
+        'icon codicon codicon-chevron-' +
+        (expand ? 'down' : 'right') +
+        ' hierarchy-button sub-button-' +
+        (currentDirection === 'RIGHT' ? 'right' : 'down');
+
+    const superButtonClass =
+        'icon codicon codicon-plus hierarchy-button super-button-' +
+        (currentDirection === 'RIGHT' ? 'left' : 'up');
+
+    // Focus on the graph on this node
+    if (data.focus) {
+        data.focus = false;
+        const x = node.positionAbsoluteX + (node.width ?? 0) / 2;
+        const y = node.positionAbsoluteY + (node.height ?? 0) / 2;
+
+        void setCenter(x, y, {
+            zoom: 1,
+            duration: 500,
+        });
+    }
+
+    // Callback to get super or sub types
+    const requestTypes = React.useCallback(
+        ({ direction = RelationDirection.Super }) => {
+            vscode.postMessage({
+                command: 'requestTypes',
+                data: JSON.stringify({
+                    label: data.label,
+                    direction: direction,
+                    expand: direction === RelationDirection.Sub ? !expand : expand,
+                }),
+            });
+            if (direction === RelationDirection.Sub) setExpand(!expand);
+            else setHidden(true);
+        },
+        [expand],
+    );
+
     return (
         <div className="rectangle hoverable">
-            <Handle
-                className="invis"
-                type="target"
-                position={Position.Top}
-                isConnectable={isConnectable}
-            />
-            <Handle
-                className="invis"
-                type="source"
-                position={Position.Bottom}
-                id="b"
-                isConnectable={isConnectable}
-            />
+            <Handle className="invis" type="target" position={Position.Top} />
+            <Handle className="invis" type="source" position={Position.Bottom} />
             <div className="title">
-                <span className={iconClassName} style={{ color: color }}></span>
+                <span className={iconClass} style={{ color: color }}></span>
                 <div className="text"> {data.label}</div>
             </div>
             <div className="center" title={data.label}>
                 {data.label}
             </div>
             <button
-                className="codicon codicon-type-hierarchy-sub button subButton"
-                title="Add subtypes to the graph"
-                onClick={() => requestTypes({ direction: RelationDirection.In })}
+                className={subButtonClass}
+                onClick={() => requestTypes({ direction: RelationDirection.Sub })}
             ></button>
             <button
-                className="codicon codicon-type-hierarchy-super button superButton"
-                title="Add supertypes to the graph"
-                onClick={() => requestTypes({ direction: RelationDirection.Out })}
+                className={superButtonClass}
+                style={{ display: hidden ? 'none' : 'inherit' }}
+                onClick={() => requestTypes({ direction: RelationDirection.Super })}
             ></button>
         </div>
     );

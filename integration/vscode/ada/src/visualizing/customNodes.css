@@ -1,7 +1,8 @@
 .rectangle {
     --node-border-color: gray;
-    height: 200px;
-    width: 150px;
+    height: inherit;
+    width: inherit;
+    position: relative;
     border: solid 1px var(--node-border-color);
     border-radius: 6px;
     padding: 8px;
@@ -29,69 +30,87 @@
 }
 
 .title {
-    border-bottom: inherit;
     display: flex;
-    justify-content: center;
     flex-direction: row;
+    justify-content: center;
     font-size: larger;
+    border-bottom: inherit;
 }
 
 .text {
-    text-align: center;
-    display: inline-block;
     margin-left: 3px;
     margin-bottom: 10px;
+    text-align: center;
+    display: inline-block;
 }
 
 .icon {
-    transform: translateY(10%);
     margin-bottom: 10px;
+    transform: translateY(10%);
 }
 
 /* Make the node handle invisible and retract them a bit in the node so that the edge goes into it*/
 .invis {
-    opacity: 0;
     height: 0;
     width: 0;
     top: 25%;
     bottom: 25%;
+    opacity: 0;
 }
 
 .hoverable:hover {
-    border-color: var(--vscode-focusBorder);
-    background-color: var(--vscode-activityBar-background);
-    color: var(--vscode-activityBar-foreground);
     transition: all 0.1s ease-in-out;
+    border-color: var(--vscode-focusBorder);
+    color: var(--vscode-activityBar-foreground);
+    background-color: var(--vscode-activityBar-background);
 }
 
 .react-flow__edge.selectable:hover .react-flow__edge-path:hover,
 .react-flow__edge.selectable.selected .react-flow__edge-path {
-    --edge-color: var(--vscode-focusBorder);
     stroke: var(--edge-color);
+    --edge-color: var(--vscode-focusBorder);
 }
 
 .background {
     background-color: var(--vscode-editor-background);
 }
 
-.button {
+.hierarchy-button {
     position: absolute;
+    border-radius: 50%;
+    border: solid 1px var(--node-border-color);
+    width: 20%;
+    aspect-ratio: 1 / 1;
+    background: var(--vscode-sideBar-background);
     color: var(--vscode-editor-foreground);
-    bottom: 1%;
-    border: transparent;
-    background: transparent;
-    width: 50%;
 }
 
-.button:hover {
+.hierarchy-button:hover {
     transition: all 0.1s ease-in-out;
-    color: var(--vscode-chat-slashCommandForeground);
+    border-color: var(--vscode-focusBorder);
+    color: var(--vscode-activityBar-foreground);
+    background-color: color-mix(
+        in srgb,
+        var(--vscode-activityBar-background) 80%,
+        var(--vscode-foreground) 20%
+    );
 }
 
-.superButton {
-    left: 0%;
+.sub-button-down {
+    left: 40%;
+    bottom: -10%;
+}
+.sub-button-right {
+    right: -10%;
+    top: 40%;
 }
 
-.subButton {
-    right: 0%;
+.super-button-up {
+    left: 40%;
+    top: -10%;
+}
+
+.super-button-left {
+    top: 40%;
+    left: -10%;
 }

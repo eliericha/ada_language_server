@@ -6,39 +6,27 @@ import {
     InternalNode,
     Node,
     MarkerType,
+    Edge,
 } from '@xyflow/react';
 
-import { RelationDirection, FloatingEdge } from '../vizualizerTypes';
+import { FloatingEdge } from '../vizualizerTypes';
 import React from 'react';
 
 export const edgeTypes = {
     floating: floatingEdge,
 };
 
-export function edgeFactory(
-    src: string,
-    dst: string,
-    edgeDirection: RelationDirection = RelationDirection.Out,
-) {
-    const inner = edgeDirection == RelationDirection.In || edgeDirection == RelationDirection.Both;
-    const out = edgeDirection == RelationDirection.Out || edgeDirection == RelationDirection.Both;
+export function edgeFactory(src: string, dst: string) {
     return {
         id: 'e' + src + '-' + dst,
         source: src,
         target: dst,
         type: 'floating',
-        markerStart: inner
-            ? {
-                  height: 15,
-                  width: 15,
-                  type: MarkerType.Arrow,
-                  orient: 'auto-start-reverse',
-              }
-            : undefined,
-        markerEnd: out ? { height: 15, width: 15, type: MarkerType.Arrow } : undefined,
+        markerEnd: { height: 15, width: 15, type: MarkerType.Arrow },
         style: { strokeWidth: 2 },
-    };
+    } as Edge;
 }
+
 //Get the intersection point between the edge (center intersectionNode -> targetNode)
 // and the outer border of the intersection Node.
 // Used to determine where to place the negining of the edge for a better visual.
@@ -58,8 +46,8 @@ function getNodeIntersection(intersectionNode: InternalNode, targetNode: Interna
 
     // The algorithm is more precisly explained here
     // https://math.stackexchange.com/questions/1724792/an-algorithm-for-finding-the-intersection-point-between-a-center-of-vision-and-a
-    const w = mesure?.width / 2;
-    const h = mesure?.height / 2;
+    const w = mesure.width / 2;
+    const h = mesure.height / 2;
 
     const x2 = intersectionNodePosition.x + w;
     const y2 = intersectionNodePosition.y + h;

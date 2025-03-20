@@ -1,3 +1,4 @@
+import { Node, Edge } from '@xyflow/react';
 import { CSSProperties } from 'react';
 import * as vscode from 'vscode';
 
@@ -8,9 +9,16 @@ export type Message = {
 
 export type NodeData = {
     label: string;
-    location: { path: string; range: Array<vscode.Position> };
     kind: string;
-    edges: Set<DirectedEdge>;
+    expanded: boolean;
+    hasParent: boolean;
+    focus: boolean;
+};
+
+export type NodeHierarchy = NodeData & {
+    location: vscode.Location;
+    parent: NodeHierarchy | null;
+    childrens: NodeHierarchy[];
 };
 
 export type NodeEdge = {
@@ -29,15 +37,30 @@ export type FloatingEdge = {
     markerStart?: string;
 };
 
-export type SymbolsMap = Map<string, NodeData>;
+export type BoundingBox = {
+    minX: number;
+    maxX: number;
+    minY: number;
+    maxY: number;
+    width: number;
+    height: number;
+};
+
+export type Subgraph = {
+    nodes: Node[];
+    edges: Edge[];
+};
+
+export type SymbolsMap = Map<string, NodeHierarchy>;
 
 export enum RelationDirection {
-    Out,
-    In,
+    Super,
+    Sub,
     Both,
 }
 
-export type RequestHierarchy = {
-    location: { path: string; range: Array<vscode.Position> };
+export type RequestMessage = {
+    label: string;
     direction: RelationDirection;
+    expand: boolean;
 };
