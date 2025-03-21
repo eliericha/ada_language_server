@@ -1,6 +1,6 @@
 import { Edge, Node } from '@xyflow/react';
 import ELK, { ElkNode } from 'elkjs/lib/elk.bundled.js';
-import { BoundingBox, Subgraph } from '../vizualizerTypes';
+import { BoundingBox, Direction, Subgraph } from '../vizualizerTypes';
 import { currentDirection } from './App';
 
 export const elkOptions = {
@@ -21,16 +21,16 @@ const elk = new ELK();
 
 export const getLayoutedElements = async (
     subGraph: Subgraph,
-    direction: string = 'RIGHT',
+    direction = Direction.RIGHT,
     options = {},
 ) => {
     const nodes = subGraph.nodes;
     const edges = subGraph.edges;
-    const isHorizontal = direction === 'RIGHT';
+    const isHorizontal = direction === Direction.RIGHT;
     // Convert current graph to ELK graph
     const graph: ElkNode = {
         id: 'root',
-        layoutOptions: { 'elk.direction': direction, ...options },
+        layoutOptions: { 'elk.direction': direction.toString(), ...options },
         children: nodes.map((node) => ({
             ...node,
             'elk.position': {
@@ -149,32 +149,59 @@ function getBoundingBox(nodes: Node[]) {
     };
 }
 
+function isOverlapping(
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    existingBoxes: BoundingBox[],
+    padding: number,
+) {
+    return existingBoxes.some(
+        (box) =>
+            !(
+                x + width < box.minX - padding ||
+                y + height < box.minY - padding ||
+                x > box.maxX + padding ||
+                y > box.maxY + padding
+            ),
+    );
+}
+
 // Find a position for a subgraph with no overlapping with any other one
 function findNonOverlappingPosition(
-    subgraphBox: BoundingBox,
+    subBox: BoundingBox,
     existingBoxes: BoundingBox[],
-    padding = 50,
+    padding = 150,
+    step = 50,
 ) {
-    let newX = subgraphBox.minX;
-    let newY = subgraphBox.minY;
+    let newX = subBox.minX;
+    let newY = subBox.minY;
+    let numberOfStep = 1;
+    let stepX = currentDirection === Direction.RIGHT ? 0 : step;
+    let stepY = currentDirection === Direction.RIGHT ? -step : 0;
 
-    let overlap = true;
+    let overlap = isOverlapping(newX, newY, subBox.width, subBox.height, existingBoxes, padding);
     while (overlap) {
-        overlap = false;
-        for (const box of existingBoxes) {
-            if (
-                newX < box.maxX + padding &&
-                newX + subgraphBox.width > box.minX - padding &&
-                newY < box.maxY + padding &&
-                newY + subgraphBox.height > box.minY - padding
-            ) {
-                if (currentDirection === 'RIGHT') newY = box.maxY + padding;
-                else newX = box.maxX + padding;
-                overlap = true;
-                break;
+        for (let c = 0; c < 2; c++) {
+            for (let i = 0; i < numberOfStep; i++) {
+                newX += stepX;
+                newY += stepY;
+                overlap = isOverlapping(
+                    newX,
+                    newY,
+                    subBox.width,
+                    subBox.height,
+                    existingBoxes,
+                    padding,
+                );
+                if (!overlap) break;
             }
+            [stepX, stepY] = [-stepY, stepX];
         }
+        numberOfStep++;
     }
+
     return { x: newX, y: newY };
 }
 
@@ -184,7 +211,7 @@ export async function layoutSubgraphs(
     currNode: Node,
     nodes: Node[],
     edges: Edge[],
-    direction = 'RIGHT',
+    direction = Direction.RIGHT,
     options = {},
 ) {
     const subGraphs: Subgraph[] = getSubGraphs(nodes, edges);

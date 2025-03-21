@@ -54,9 +54,16 @@ export type Subgraph = {
 export type SymbolsMap = Map<string, NodeHierarchy>;
 
 export enum RelationDirection {
-    Super,
-    Sub,
-    Both,
+    SUPER,
+    SUB,
+    BOTH,
+}
+
+export enum Direction {
+    LEFT = 'LEFT',
+    UP = 'UP',
+    RIGHT = 'RIGHT',
+    DOWN = 'DOWN',
 }
 
 export type RequestMessage = {

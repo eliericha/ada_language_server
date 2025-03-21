@@ -59,16 +59,16 @@ export function Rectangle(node: NodeProps<DataNode>) {
 
     // Callback to get super or sub types
     const requestTypes = React.useCallback(
-        ({ direction = RelationDirection.Super }) => {
+        ({ direction = RelationDirection.SUPER }) => {
             vscode.postMessage({
                 command: 'requestTypes',
                 data: JSON.stringify({
                     label: data.label,
                     direction: direction,
-                    expand: direction === RelationDirection.Sub ? !expand : expand,
+                    expand: direction === RelationDirection.SUB ? !expand : expand,
                 }),
             });
-            if (direction === RelationDirection.Sub) setExpand(!expand);
+            if (direction === RelationDirection.SUB) setExpand(!expand);
             else setHidden(true);
         },
         [expand],
@@ -87,12 +87,12 @@ export function Rectangle(node: NodeProps<DataNode>) {
             </div>
             <button
                 className={subButtonClass}
-                onClick={() => requestTypes({ direction: RelationDirection.Sub })}
+                onClick={() => requestTypes({ direction: RelationDirection.SUB })}
             ></button>
             <button
                 className={superButtonClass}
                 style={{ display: hidden ? 'none' : 'inherit' }}
-                onClick={() => requestTypes({ direction: RelationDirection.Super })}
+                onClick={() => requestTypes({ direction: RelationDirection.SUPER })}
             ></button>
         </div>
     );

@@ -29,7 +29,7 @@ async function handleMessage(message: Message) {
             if (node === undefined) return;
             node.expanded = data.expand;
             if (
-                (data.expand || data.direction === RelationDirection.Super) &&
+                (data.expand || data.direction === RelationDirection.SUPER) &&
                 fs.existsSync(node.location.uri.fsPath)
             )
                 await getTypeHierarchy(node.location, data.direction);
@@ -70,7 +70,7 @@ function convertToMessage(nodes: Set<NodeData>, edges: Set<DirectedEdge>, root: 
     nodes.add(convertHierarchyToData(root));
     if (root.expanded) {
         for (const child of root.childrens) {
-            edges.add({ src: root.label, dst: child.label, edgeDirection: RelationDirection.Sub });
+            edges.add({ src: root.label, dst: child.label, edgeDirection: RelationDirection.SUB });
             convertToMessage(nodes, edges, child);
         }
     }
@@ -126,7 +126,7 @@ function insertSymbolsMap(newNode: NodeHierarchy) {
 
 async function getTypeHierarchy(
     location: vscode.Location,
-    direction: RelationDirection = RelationDirection.Both,
+    direction: RelationDirection = RelationDirection.BOTH,
 ) {
     async function getHierarchy(
         command: string,
@@ -141,7 +141,7 @@ async function getTypeHierarchy(
         types.forEach((type) => {
             const newNodeTmp: NodeHierarchy = createNodeHierarchy(type);
             const newNode = insertSymbolsMap(newNodeTmp);
-            if (direction === RelationDirection.Sub) {
+            if (direction === RelationDirection.SUB) {
                 if (!middleNode.childrens.some((node) => node.label === newNode.label))
                     middleNode.childrens.push(newNode);
                 newNode.parent = middleNode;
@@ -168,22 +168,22 @@ async function getTypeHierarchy(
         const middleNode = insertSymbolsMap(createNodeHierarchy(typeItem));
         middleNode.focus = true;
         focusedNode = middleNode;
-        if (direction === RelationDirection.Both || direction === RelationDirection.Super)
+        if (direction === RelationDirection.BOTH || direction === RelationDirection.SUPER)
             await getHierarchy(
                 'vscode.provideSupertypes',
                 typeItem,
-                RelationDirection.Super,
+                RelationDirection.SUPER,
                 middleNode,
             );
 
-        if (direction === RelationDirection.Both || direction === RelationDirection.Sub)
+        if (direction === RelationDirection.BOTH || direction === RelationDirection.SUB)
             await getHierarchy(
                 'vscode.provideSubtypes',
                 typeItem,
-                RelationDirection.Sub,
+                RelationDirection.SUB,
                 middleNode,
             );
-        middleNode.expanded = direction === RelationDirection.Super ? middleNode.expanded : true;
+        middleNode.expanded = direction === RelationDirection.SUPER ? middleNode.expanded : true;
     }
     rootNodes = Array.from(symbolsMap.values()).filter((node) => node.parent === null);
 }

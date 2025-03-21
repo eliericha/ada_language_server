@@ -1,6 +1,6 @@
 import * as React from 'react';
 import ReactDOM from 'react-dom/client';
-import { Message, NodeEdge } from '../vizualizerTypes';
+import { Direction, Message, NodeEdge } from '../vizualizerTypes';
 import {
     Node,
     Edge,
@@ -24,7 +24,7 @@ let onNodesChange;
 let onEdgesChange;
 let nodes: Node[] = [];
 let edges: Edge[] = [];
-export let currentDirection = 'RIGHT';
+export let currentDirection = Direction.RIGHT;
 let setNodes: React.Dispatch<React.SetStateAction<Node[]>>;
 let setEdges: React.Dispatch<React.SetStateAction<Edge[]>>;
 
@@ -83,7 +83,7 @@ export default function App() {
 
     // Callback to relayout the graph
     const onLayout = React.useCallback(
-        ({ direction = 'DOWN' }): void => {
+        ({ direction = Direction.DOWN }): void => {
             currentDirection = direction;
 
             // await setCenter(x, y);
@@ -117,10 +117,10 @@ export default function App() {
                 >
                     <Panel position="top-right">
                         (
-                        <button onClick={() => onLayout({ direction: 'DOWN' })}>
+                        <button onClick={() => onLayout({ direction: Direction.DOWN })}>
                             vertical layout
                         </button>
-                        <button onClick={() => onLayout({ direction: 'RIGHT' })}>
+                        <button onClick={() => onLayout({ direction: Direction.DOWN })}>
                             horizontal layout
                         </button>
                     </Panel>
