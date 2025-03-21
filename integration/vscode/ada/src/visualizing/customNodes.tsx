@@ -1,9 +1,9 @@
 import * as React from 'react';
 import { Handle, Node, NodeProps, Position, useReactFlow } from '@xyflow/react';
 import './customNodes.css';
-import { NodeData, RelationDirection } from '../vizualizerTypes';
+import { Direction, NodeData, RelationDirection, HierarchyMessage } from '../visualizerTypes';
 import { currentDirection } from './App';
-import { Console } from 'console';
+import { getNodeKind } from './utils';
 
 type DataNode = Node<NodeData, 'data'>;
 
@@ -11,8 +11,15 @@ const vscode = acquireVsCodeApi();
 export const nodeTypes = {
     rectangle: Rectangle,
 };
-
 const nodeString: string[] = ['rectangle'];
+
+/**
+ * Return a new react flow node
+ * @param x - x position of the node
+ * @param y - y position of the node
+ * @param data - Data stored by the node
+ * @returns A new react flow Node
+ */
 export function nodeFactory(x: number, y: number, data: NodeData) {
     const { ...objData } = data;
     return {
@@ -22,28 +29,36 @@ export function nodeFactory(x: number, y: number, data: NodeData) {
         data: objData,
         width: 150,
         height: 200,
-    };
+    } as Node;
 }
 
+/**
+ * Customize a basic node, adding it childs, style and interactions
+ *
+ * @param node - The base node to customize
+ * @returns A react JSX object representing the node.
+ */
 export function Rectangle(node: NodeProps<DataNode>) {
     const data = node.data;
     const [expand, setExpand] = React.useState<boolean>(data.expanded);
     const [hidden, setHidden] = React.useState<boolean>(data.hasParent);
     const { setCenter } = useReactFlow();
 
-    // Dynamically asign class to DOM element to take into accound, layouting direction,
-    // type of data being displayed....
+    /**
+     * Dynamically assign class to DOM element to take into account, layouting direction,
+     *  type of data being displayed....
+     */
     const color = 'var(--vscode-symbolIcon-' + data.kind + 'Foreground';
     const iconClass = 'icon codicon codicon-symbol-' + data.kind;
     const subButtonClass =
         'icon codicon codicon-chevron-' +
         (expand ? 'down' : 'right') +
         ' hierarchy-button sub-button-' +
-        (currentDirection === 'RIGHT' ? 'right' : 'down');
+        (currentDirection === Direction.RIGHT ? 'right' : 'down');
 
     const superButtonClass =
         'icon codicon codicon-plus hierarchy-button super-button-' +
-        (currentDirection === 'RIGHT' ? 'left' : 'up');
+        (currentDirection === Direction.RIGHT ? 'left' : 'up');
 
     // Focus on the graph on this node
     if (data.focus) {
@@ -61,12 +76,13 @@ export function Rectangle(node: NodeProps<DataNode>) {
     const requestTypes = React.useCallback(
         ({ direction = RelationDirection.SUPER }) => {
             vscode.postMessage({
-                command: 'requestTypes',
+                command: 'requestHierarchy',
                 data: JSON.stringify({
                     label: data.label,
                     direction: direction,
                     expand: direction === RelationDirection.SUB ? !expand : expand,
-                }),
+                    hierarchy: getNodeKind(data.kind),
+                } as HierarchyMessage),
             });
             if (direction === RelationDirection.SUB) setExpand(!expand);
             else setHidden(true);

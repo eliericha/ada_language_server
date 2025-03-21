@@ -4,18 +4,22 @@ import {
     useInternalNode,
     XYPosition,
     InternalNode,
-    Node,
     MarkerType,
     Edge,
 } from '@xyflow/react';
 
-import { FloatingEdge } from '../vizualizerTypes';
 import React from 'react';
 
 export const edgeTypes = {
     floating: floatingEdge,
 };
 
+/**
+ * Return a new react flow edge.
+ * @param src - Source node of the edge.
+ * @param dst - Destination node of the edge.
+ * @returns A new react flow Edge.
+ */
 export function edgeFactory(src: string, dst: string) {
     return {
         id: 'e' + src + '-' + dst,
@@ -27,27 +31,36 @@ export function edgeFactory(src: string, dst: string) {
     } as Edge;
 }
 
-//Get the intersection point between the edge (center intersectionNode -> targetNode)
-// and the outer border of the intersection Node.
-// Used to determine where to place the negining of the edge for a better visual.
+/**
+ * Get the intersection point between the edge (center intersectionNode -\> targetNode)
+ * and the outer border of the intersection Node.
+ * Used to determine where to place the beginning of the edge for a better visual.
+ *
+ * @param intersectionNode - The source node of the edge for which we search the intersection.
+ * @param targetNode - The target node of the edge.
+ * @returns The XY coordinates of the intersection point between the edge and the outer edge of
+ * the node.
+ */
 function getNodeIntersection(intersectionNode: InternalNode, targetNode: InternalNode) {
-    const mesure = intersectionNode.measured;
+    const measure = intersectionNode.measured;
     const intersectionNodePosition = intersectionNode.internals.positionAbsolute;
     const targetPosition = targetNode.internals.positionAbsolute;
 
-    // This should never be true but it is needed to remove undefined type from the variables
+    // Immediately return if one of the element is undefined
     if (
-        mesure?.width === undefined ||
-        mesure.height === undefined ||
+        measure?.width === undefined ||
+        measure.height === undefined ||
         targetNode.measured.width === undefined ||
         targetNode.measured.height === undefined
     )
-        return;
+        return undefined;
 
-    // The algorithm is more precisly explained here
-    // https://math.stackexchange.com/questions/1724792/an-algorithm-for-finding-the-intersection-point-between-a-center-of-vision-and-a
-    const w = mesure.width / 2;
-    const h = mesure.height / 2;
+    /**
+     * The algorithm is more precisely explained here
+     * https://math.stackexchange.com/questions/1724792/an-algorithm-for-finding-the-intersection-point-between-a-center-of-vision-and-a
+     */
+    const w = measure.width / 2;
+    const h = measure.height / 2;
 
     const x2 = intersectionNodePosition.x + w;
     const y2 = intersectionNodePosition.y + h;
@@ -65,7 +78,14 @@ function getNodeIntersection(intersectionNode: InternalNode, targetNode: Interna
     return { x, y };
 }
 
-// Returns the position of the intersectionPoint compared to the node
+/**
+ * Returns the position of the intersectionPoint compared to the node.
+ *
+ * @param node - The source node of the edge.
+ * @param intersectionPoint - The XY coordinate of the intersection between
+ * the node and the outer border of the node.
+ * @returns The Position of the intersection point.
+ */
 function getEdgePosition(node: InternalNode, intersectionPoint: XYPosition) {
     const n = { ...node.internals.positionAbsolute, ...node };
     if (n.measured.width === undefined || n.measured.height === undefined) return;
@@ -91,7 +111,13 @@ function getEdgePosition(node: InternalNode, intersectionPoint: XYPosition) {
     return Position.Top;
 }
 
-// Returns the parameters that will create the edge
+/**
+ * Returns the parameters necessary to create an edge
+ *
+ * @param source - The source node of the edge.
+ * @param target - The target node of the edge.
+ * @returns The intersections points and position of the source and target node.
+ */
 function getEdgeParams(source: InternalNode, target: InternalNode) {
     const sourceIntersectionPoint: XYPosition | undefined = getNodeIntersection(source, target);
     const targetIntersectionPoint: XYPosition | undefined = getNodeIntersection(target, source);
@@ -111,10 +137,24 @@ function getEdgeParams(source: InternalNode, target: InternalNode) {
     };
 }
 
-// Custom edge fonction, calculate and create the position of hte edge between two nodes
-export function floatingEdge({ id, source, target, style, markerEnd, markerStart }: FloatingEdge) {
-    const sourceNode = useInternalNode(source);
-    const targetNode = useInternalNode(target);
+type FloatingEdge = {
+    id: string;
+    source: string;
+    target: string;
+    style?: React.CSSProperties;
+    markerEnd?: string;
+    markerStart?: string;
+};
+
+/**
+ * Custom edge function, calculate and create the position of the edge between two nodes.
+ *
+ * @param floatingEdge - The data necessary to create the edge and style it.
+ * @returns A react JSX element representing the edge.
+ */
+export function floatingEdge(floatingEdge: FloatingEdge) {
+    const sourceNode = useInternalNode(floatingEdge.source);
+    const targetNode = useInternalNode(floatingEdge.target);
 
     // If an internal node is not defined just return an empty path
     if (!sourceNode || !targetNode) {
@@ -141,12 +181,12 @@ export function floatingEdge({ id, source, target, style, markerEnd, markerStart
     if (edgePath.includes('NaN')) return <path />;
     return (
         <path
-            id={id}
+            id={floatingEdge.id}
             className="react-flow__edge-path"
             d={edgePath}
-            style={style}
-            markerStart={markerStart}
-            markerEnd={markerEnd}
+            style={floatingEdge.style}
+            markerStart={floatingEdge.markerStart}
+            markerEnd={floatingEdge.markerEnd}
         />
     );
 }
@@ -159,31 +199,37 @@ type FloatingConnectionLine = {
     fromNode: InternalNode;
 };
 
-// Create the line part of the edge
-export function floatingConnectionLine({
-    toX,
-    toY,
-    fromPosition,
-    toPosition,
-    fromNode,
-}: FloatingConnectionLine) {
-    if (!fromNode) {
+/**
+ * Create the connection line used by the edges to link two nodes together.
+ *
+ * @param floatingConnectionLine - The data necessary to create the connection line.
+ * @returns A React JSX component that will be used as a connection line between nodes.
+ */
+export function floatingConnectionLine(floatingConnectionLine: FloatingConnectionLine) {
+    if (!floatingConnectionLine.fromNode) {
         return null;
     }
 
     const [edgePath] = getBezierPath({
-        sourceX: fromNode.position.x,
-        sourceY: fromNode.position.y,
-        sourcePosition: fromPosition,
-        targetPosition: toPosition,
-        targetX: toX,
-        targetY: toY,
+        sourceX: floatingConnectionLine.fromNode.position.x,
+        sourceY: floatingConnectionLine.fromNode.position.y,
+        sourcePosition: floatingConnectionLine.fromPosition,
+        targetPosition: floatingConnectionLine.toPosition,
+        targetX: floatingConnectionLine.toX,
+        targetY: floatingConnectionLine.toY,
     });
 
     return (
         <g>
             <path fill="none" stroke="#222" strokeWidth={1.5} className="animated" d={edgePath} />
-            <circle cx={toX} cy={toY} fill="#fff" r={3} stroke="#222" strokeWidth={1.5} />
+            <circle
+                cx={floatingConnectionLine.toX}
+                cy={floatingConnectionLine.toY}
+                fill="#fff"
+                r={3}
+                stroke="#222"
+                strokeWidth={1.5}
+            />
         </g>
     );
 }

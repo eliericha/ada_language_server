@@ -1,12 +1,28 @@
 import { Node, Edge } from '@xyflow/react';
-import { CSSProperties } from 'react';
 import * as vscode from 'vscode';
 
+/**
+ * The base format of all message exchanged between server side and client side.
+ */
 export type Message = {
     command: string;
     data: string;
 };
 
+/**
+ * Message sended from the client to the server side to request for new
+ * node up or down from the hierarchy.
+ */
+export type HierarchyMessage = {
+    label: string;
+    direction: RelationDirection;
+    expand: boolean;
+    hierarchy: Hierarchy;
+};
+
+/**
+ * Data stored in a node client side.
+ */
 export type NodeData = {
     label: string;
     kind: string;
@@ -15,28 +31,31 @@ export type NodeData = {
     focus: boolean;
 };
 
+/**
+ * Data stored in a node server side.
+ */
 export type NodeHierarchy = NodeData & {
     location: vscode.Location;
     parent: NodeHierarchy | null;
-    childrens: NodeHierarchy[];
+    childs: NodeHierarchy[];
 };
 
+/**
+ * Contain all the nodes and edge that will be displayed on the viewPort.
+ */
 export type NodeEdge = {
     nodesData: NodeData[];
     edges: DirectedEdge[];
 };
 
+/**
+ * Represent a directed edge.
+ */
 export type DirectedEdge = { src: string; dst: string; edgeDirection: RelationDirection };
 
-export type FloatingEdge = {
-    id: string;
-    source: string;
-    target: string;
-    style?: CSSProperties;
-    markerEnd?: string;
-    markerStart?: string;
-};
-
+/**
+ * Represent the smallest box that can contain all the node of a subgraph.
+ */
 export type BoundingBox = {
     minX: number;
     maxX: number;
@@ -46,19 +65,31 @@ export type BoundingBox = {
     height: number;
 };
 
+/**
+ * Represent a subgraph.
+ */
 export type Subgraph = {
     nodes: Node[];
     edges: Edge[];
 };
 
+/**
+ * Map used to store all the Nodes already created server side
+ */
 export type SymbolsMap = Map<string, NodeHierarchy>;
 
+/**
+ * Indicate the direction of the hierarchy call to make.
+ */
 export enum RelationDirection {
     SUPER,
     SUB,
     BOTH,
 }
 
+/**
+ * Store the four usual direction
+ */
 export enum Direction {
     LEFT = 'LEFT',
     UP = 'UP',
@@ -66,8 +97,10 @@ export enum Direction {
     DOWN = 'DOWN',
 }
 
-export type RequestMessage = {
-    label: string;
-    direction: RelationDirection;
-    expand: boolean;
-};
+/**
+ * The type of hierarchy that can be called
+ */
+export enum Hierarchy {
+    TYPES,
+    CALL,
+}

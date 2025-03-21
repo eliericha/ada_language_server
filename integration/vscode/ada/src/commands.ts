@@ -29,7 +29,7 @@ import {
 } from './taskProviders';
 import { createHelloWorldProject, walkthroughStartDebugging } from './walkthrough';
 import { loadGnatCoverageReport } from './gnattest';
-import { startVisualize } from './alsVisualizer';
+import { startVisualizeCalls, startVisualizeTypes } from './alsVisualizer';
 
 /**
  * Identifier for a hidden command used for building and running a project main.
@@ -121,7 +121,10 @@ export function registerCommands(context: vscode.ExtensionContext, clients: Exte
         vscode.commands.registerCommand('ada.createHelloWorldProject', createHelloWorldProject),
     );
     context.subscriptions.push(
-        vscode.commands.registerCommand('ada.visualize', () => startVisualize(context)),
+        vscode.commands.registerCommand('ada.visualizeCalls', () => startVisualizeCalls(context)),
+    );
+    context.subscriptions.push(
+        vscode.commands.registerCommand('ada.visualizeTypes', () => startVisualizeTypes(context)),
     );
     context.subscriptions.push(
         vscode.commands.registerCommand('ada.walkthroughStartDebugging', walkthroughStartDebugging),

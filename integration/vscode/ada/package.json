@@ -1056,9 +1056,15 @@
                 "when": "ADA_PROJECT_CONTEXT"
             },
             {
-                "command": "ada.visualize",
+                "command": "ada.visualizeTypes",
+                "title": "Show Type Hierarchy (graph)",
+                "shortTitle": "Visualize type hierarchy",
+                "enablement": "config.ada.enableExperimentalFeatures"
+            },
+            {
+                "command": "ada.visualizeCalls",
                 "title": "Show Call Hierarchy (graph)",
-                "shortTitle": "Visualize code",
+                "shortTitle": "Visualize call hierarchy",
                 "enablement": "config.ada.enableExperimentalFeatures"
             },
             {
@@ -1218,8 +1224,13 @@
                     "when": "editorLangId == ada"
                 },
                 {
-                    "command": "ada.visualize",
+                    "command": "ada.visualizeTypes",
                     "group": "0_navigation@5",
+                    "when": "editorLangId == ada && config.ada.enableExperimentalFeatures"
+                },
+                {
+                    "command": "ada.visualizeCalls",
+                    "group": "0_navigation@6",
                     "when": "editorLangId == ada && config.ada.enableExperimentalFeatures"
                 }
             ],
@@ -1403,7 +1414,7 @@
         "@eslint/js": "^9.10.0",
         "@types/command-exists": "1.2.3",
         "@types/mocha": "10.0.7",
-        "@types/node": "22.13.5",
+        "@types/node": "^18.0.0",
         "@types/react": "^19.0.10",
         "@types/react-dom": "^19.0.4",
         "@types/vscode": "~1.88.0",

@@ -1,6 +1,6 @@
 import * as React from 'react';
 import ReactDOM from 'react-dom/client';
-import { Direction, Message, NodeEdge } from '../vizualizerTypes';
+import { Direction, Message, NodeEdge } from '../visualizerTypes';
 import {
     Node,
     Edge,
@@ -16,19 +16,31 @@ import {
 import '@xyflow/react/dist/style.css';
 import './customNodes.css';
 import 'vscode-webview';
-import { edgeFactory, edgeTypes, floatingConnectionLine } from './customeEdges';
+import { edgeFactory, edgeTypes, floatingConnectionLine } from './customEdges';
 import { nodeFactory, nodeTypes } from './customNodes';
 import { elkOptions, layoutSubgraphs } from './layouting';
 
+/**
+ * Variables used to store the node state and access it in the rest of the program
+ */
 let onNodesChange;
 let onEdgesChange;
 let nodes: Node[] = [];
 let edges: Edge[] = [];
-export let currentDirection = Direction.RIGHT;
 let setNodes: React.Dispatch<React.SetStateAction<Node[]>>;
 let setEdges: React.Dispatch<React.SetStateAction<Edge[]>>;
 
-async function handleTypes(messageData: string) {
+/**
+ * Current direction of the graph layout
+ */
+export let currentDirection = Direction.RIGHT;
+
+/**
+ * Create a graph based on the JSON string passed as an arguments
+ *
+ * @param messageData  - JSON string containing the data of all the nodes to display
+ */
+async function handleHierarchy(messageData: string) {
     const data: NodeEdge = JSON.parse(messageData) as NodeEdge;
     let subGraphNode: Node | undefined = undefined;
 
@@ -65,18 +77,24 @@ async function handleTypes(messageData: string) {
     setNodes(nodes);
 }
 
-// This code is put outside the App function to register only one event listener
-// The app function would create one on every re-render
+/**
+ * Listener on the message from the server side
+ * This code is put outside the App function to register only one event listener
+ * The app function would create one on every re-render
+ */
 window.addEventListener('message', (text: MessageEvent<Message>) => {
     switch (text.data.command) {
-        case 'types': {
-            void handleTypes(text.data.data);
+        case 'hierarchy': {
+            void handleHierarchy(text.data.data);
             break;
         }
     }
 });
 
-// This function will be called multiple time (when re-rendering for example)
+/**
+ * Main function that configure and render the graph
+ * @returns A div containing the react flow graph's viewPort
+ */
 export default function App() {
     [nodes, setNodes, onNodesChange] = useNodesState(nodes);
     [edges, setEdges, onEdgesChange] = useEdgesState(edges);
@@ -108,12 +126,13 @@ export default function App() {
                     onNodesChange={onNodesChange}
                     onEdgesChange={onEdgesChange}
                     fitView
-                    onlyRenderVisibleElements={true}
                     nodeTypes={nodeTypes}
                     connectionLineComponent={floatingConnectionLine}
                     edgeTypes={edgeTypes}
                     panOnDrag
                     zoomOnScroll
+                    maxZoom={4}
+                    minZoom={0.1}
                 >
                     <Panel position="top-right">
                         (

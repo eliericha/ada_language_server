@@ -1,6 +1,6 @@
 import { Edge, Node } from '@xyflow/react';
 import ELK, { ElkNode } from 'elkjs/lib/elk.bundled.js';
-import { BoundingBox, Direction, Subgraph } from '../vizualizerTypes';
+import { BoundingBox, Direction, Subgraph } from '../visualizerTypes';
 import { currentDirection } from './App';
 
 export const elkOptions = {
@@ -19,6 +19,15 @@ export const elkOptions = {
 
 const elk = new ELK();
 
+/**
+ * Layout a subgraph by converting all the nodes and edges to Elkjs' ones, calculating
+ * their positions and then converting them back to their original types.
+ *
+ * @param subGraph - The subgraph to layout.
+ * @param direction - The direction in which to layout the subgraph.
+ * @param options - Elkjs options used to customize the layouting algorithm.
+ * @returns A subgraph with the same nodes but with their positions updated.
+ */
 export const getLayoutedElements = async (
     subGraph: Subgraph,
     direction = Direction.RIGHT,
@@ -84,7 +93,17 @@ export const getLayoutedElements = async (
     } as Subgraph;
 };
 
-// Extract a subgraph (all nodes that are linked together) from the node array
+/**
+ * Extract all the nodes and edges forming a subgraph from the nodes and edges array, starting from
+ * a specific node
+ * This is a recursive function.
+ *
+ * @param node - The node that mark the subgraph to extract.
+ * @param subNodes - An array containing all the nodes already part of the subgraph.
+ * @param subEdges - An array containing all the edges already part of the subgraph.
+ * @param nodes - An array containing all the nodes not already part of any subgraphs.
+ * @param edges - An array containing all the edges not already part of any subgraphs.
+ */
 function getSubGraph(node: Node, subNodes: Node[], subEdges: Edge[], nodes: Node[], edges: Edge[]) {
     subNodes.push(node);
     nodes.splice(nodes.indexOf(node), 1);
@@ -108,7 +127,13 @@ function getSubGraph(node: Node, subNodes: Node[], subEdges: Edge[], nodes: Node
     }
 }
 
-// Extract all subgraphs from a node array
+/**
+ * Sort all the nodes and edges into subgraphs
+ *
+ * @param nodes - An array containing all the nodes from the graph.
+ * @param edges - An array containing all the edges from the edges.
+ * @returns An array containing all the subgraphs.
+ */
 function getSubGraphs(nodes: Node[], edges: Edge[]) {
     const subgraphs: Subgraph[] = [];
     while (nodes.length != 0) {
@@ -120,7 +145,13 @@ function getSubGraphs(nodes: Node[], edges: Edge[]) {
     return subgraphs;
 }
 
-// Concatenate the subgraphs back to a node array
+/**
+ * Concatenate the subgraphs back to their original node array and edge array
+ *
+ * @param subGraphs - The array containing all the subgraphs.
+ * @param nodes - The original nodes array.
+ * @param edges - The original edges array.
+ */
 function concatSubgraphs(subGraphs: Subgraph[], nodes: Node[], edges: Edge[]) {
     subGraphs.forEach((subGraph) => {
         nodes.push(...subGraph.nodes);
@@ -129,7 +160,12 @@ function concatSubgraphs(subGraphs: Subgraph[], nodes: Node[], edges: Edge[]) {
     return { nodes: nodes, edges: edges } as Subgraph;
 }
 
-// Get the smallest box containing all the node of a subgraph
+/**
+ * Get the smallest box containing all the nodes of a subgraph
+ *
+ * @param nodes - The array of all the nodes contained in the subgraph.
+ * @returns The position and size of smallest box containing the subgraph.
+ */
 function getBoundingBox(nodes: Node[]) {
     const xs = nodes.map((node) => node.position.x);
     const ys = nodes.map((node) => node.position.y);
@@ -149,6 +185,18 @@ function getBoundingBox(nodes: Node[]) {
     };
 }
 
+/**
+ * Helper function to check if the current subgraph is overlapping
+ * with any other subgraphs.
+ *
+ * @param x - The x position of the subgraph.
+ * @param y - The y position of the subgraph.
+ * @param width - The width of the subgraph.
+ * @param height - The height of the subgraph.
+ * @param existingBoxes - The array of all the other subgraphs' boxes.
+ * @param step - Distance between to overlapping check.
+ * @returns True if the subgraph does not overlap with any other subgraphs else False.
+ */
 function isOverlapping(
     x: number,
     y: number,
@@ -168,7 +216,16 @@ function isOverlapping(
     );
 }
 
-// Find a position for a subgraph with no overlapping with any other one
+/**
+ * Find a position for a subgraph with no overlapping with any other subgraphs.
+ *
+ * @param subBox - The subgraph's box that is being layouted
+ * @param existingBoxes - All the other subgraphs' boxes
+ * @param padding - Additional distance added to avoid the subgraphs being to
+ * close from one another.
+ * @param step - Distance between to overlapping check.
+ * @returns
+ */
 function findNonOverlappingPosition(
     subBox: BoundingBox,
     existingBoxes: BoundingBox[],
@@ -182,7 +239,9 @@ function findNonOverlappingPosition(
     let stepY = currentDirection === Direction.RIGHT ? -step : 0;
 
     let overlap = isOverlapping(newX, newY, subBox.width, subBox.height, existingBoxes, padding);
+    //Spiral around the current location of the subGraph to find the closest location that fits it.
     while (overlap) {
+        // Every two direction change make 1 more step before changing direction
         for (let c = 0; c < 2; c++) {
             for (let i = 0; i < numberOfStep; i++) {
                 newX += stepX;
@@ -197,6 +256,7 @@ function findNonOverlappingPosition(
                 );
                 if (!overlap) break;
             }
+            // Rotate the coordinates between [step, 0], [0, step], [-step, 0], [0, -step]
             [stepX, stepY] = [-stepY, stepX];
         }
         numberOfStep++;
@@ -205,8 +265,16 @@ function findNonOverlappingPosition(
     return { x: newX, y: newY };
 }
 
-// Extract the subgraph currNode is part of, layout it, place it somewhere with no overlapping
-// and return all nodes
+/**
+ * Extract the subgraph currNode is part of, layout it, place it somewhere with no overlapping.
+ * This function change nodes and edges in place.
+ *
+ * @param currNode - The node from which will be extracted the subgraph that will be layouted.
+ * @param nodes - The array of all the nodes of the graph.
+ * @param edges - The array of all the edges of the graph.
+ * @param direction - The direction in which to layout the graph.
+ * @param options - Elkjs option used to customize how the layout is done.
+ */
 export async function layoutSubgraphs(
     currNode: Node,
     nodes: Node[],
