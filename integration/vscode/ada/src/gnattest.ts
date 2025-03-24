@@ -160,28 +160,49 @@ export async function refreshTestItemTree() {
  * @returns the full path to the GNATtest XML file.
  */
 export async function getGnatTestXmlPath(): Promise<string> {
-    const gnatTestXmlPath = path.join(await getHarnessDir(), 'gnattest.xml');
+    const gnatTestXmlPath = path.join(
+        await getHarnessDir(),
+        await adaExtState
+            // If GNATtest.GNATTest_Mapping_File exists, use it
+            .getProjectAttributeValue('GNATTest_Mapping_File', 'GNATtest')
+            .then((v) => v as string)
+            .catch(() => 'gnattest.xml'),
+    );
+
     return gnatTestXmlPath;
 }
 
-export async function getHarnessDir() {
-    return await adaExtState
-        .getProjectAttributeValue('Harness_Dir', 'Gnattest')
-        .catch(
-            /**
-             * default to gnattest/harness if Harness_Dir is unspecified
-             */
-            (err) => {
-                if (err instanceof Error && err.message == 'The queried attribute is not known') {
-                    return path.join('gnattest', 'harness');
-                } else {
-                    // Reject the promise with the same error.
-                    // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
-                    return Promise.reject(err);
-                }
-            },
-        )
-        .then(async (value) => path.join(await adaExtState.getObjectDir(), value as string));
+export async function getHarnessDir(): Promise<string> {
+    return (
+        adaExtState
+            // If the project has an Origin_Project attribute, it means that it is
+            // the harness project. Use its directory.
+            .getProjectAttributeValue('Origin_Project')
+            .then(async () => path.dirname(await adaExtState.getProjectFile()))
+            .catch(() =>
+                adaExtState
+                    .getProjectAttributeValue('Harness_Dir', 'Gnattest')
+                    .catch((err) => {
+                        if (
+                            err instanceof Error &&
+                            err.message == 'The queried attribute is not known'
+                        ) {
+                            /**
+                             * default to gnattest/harness if Harness_Dir is unspecified
+                             */
+                            return path.join('gnattest', 'harness');
+                        } else {
+                            // Reject the promise with the same error.
+                            // eslint-disable-next-line max-len
+                            // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
+                            return Promise.reject(err);
+                        }
+                    })
+                    .then(async (value) =>
+                        path.join(await adaExtState.getObjectDir(), value as string),
+                    ),
+            )
+    );
 }
 
 /**
@@ -189,8 +210,12 @@ export async function getHarnessDir() {
  * @returns the full path to the GNATtest test driver GPR project.
  */
 export async function getGnatTestDriverProjectPath(): Promise<string> {
-    const testDriverPath = path.join(await getHarnessDir(), 'test_driver.gpr');
-    return testDriverPath;
+    return await adaExtState
+        // If the current project has the Origin_Project attribute, it
+        // means that it is the harness project
+        .getProjectAttributeValue('Origin_Project')
+        .then(() => adaExtState.getProjectFile())
+        .catch(async () => path.join(await getHarnessDir(), 'test_driver.gpr'));
 }
 
 /**
@@ -647,7 +672,6 @@ async function handleRunRequestedTests(
         /**
          * Invoke the test driver for each test
          */
-        const execPath = await getGnatTestDriverExecPath();
         const tracesDir = await getTracesDir();
 
         if (coverage) {
@@ -668,6 +692,24 @@ async function handleRunRequestedTests(
             if (token?.isCancellationRequested) {
                 throw new vscode.CancellationError();
             }
+
+            const testCase = testData.get(test)!.data as TestCase;
+            const file = testCase.test['@_file'];
+            const fileStem = path.parse(file).name;
+
+            const driversList = path.join(await getHarnessDir(), 'test_drivers.list');
+            let execPath;
+            if (fs.existsSync(driversList)) {
+                const drivers = await vscode.workspace.fs
+                    .readFile(vscode.Uri.file(driversList))
+                    .then((value) => value.toLocaleString().split(/[\n\r]+/));
+                execPath = drivers.find((v) => v.includes(fileStem));
+            } else {
+                execPath = await getGnatTestDriverExecPath();
+            }
+
+            assert(execPath);
+
             const start = Date.now();
             run.started(test);
 

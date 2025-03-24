@@ -684,7 +684,17 @@ export class ExtensionState {
      * store temporary state
      */
     public async getVSCodeObjectSubdir(): Promise<string> {
-        return path.join(await this.getObjectDir(), 'vscode-ada');
+        return path.join(
+            await this.getObjectDir().catch(async () =>
+                /**
+                 * If the current project is an aggregate project, the request
+                 * for an object dir will fail. Fallback to an arbitrary 'obj'
+                 * directory in the same directory as the project.
+                 */
+                path.join(path.dirname(await this.getProjectFile()), 'obj'),
+            ),
+            'vscode-ada',
+        );
     }
 }
 
