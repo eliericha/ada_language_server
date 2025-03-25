@@ -621,8 +621,9 @@ export async function checkSrcDirectories(atStartup = false, displayYesNoPopup =
 
                 await vscode.window
                     .showInformationMessage(
-                        'Some project source directories are not \
-                    listed in your workspace: do you want to add them?',
+                        'Some project source directories are not' +
+                            ' listed in your workspace: do you want to add them?\n' +
+                            workspaceDirsToAdd.map((d) => d.uri.fsPath).join('\n'),
                         ...buttons,
                     )
                     .then((answer) => {
