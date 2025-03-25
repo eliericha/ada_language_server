@@ -1,7 +1,13 @@
 import * as React from 'react';
 import { Handle, Node, NodeProps, Position, useReactFlow } from '@xyflow/react';
 import './customNodes.css';
-import { Direction, NodeData, RelationDirection, HierarchyMessage } from '../visualizerTypes';
+import {
+    Direction,
+    NodeData,
+    RelationDirection,
+    HierarchyMessage,
+    Hierarchy,
+} from '../visualizerTypes';
 import { currentDirection } from './App';
 import { getNodeKind } from './utils';
 
@@ -20,15 +26,21 @@ const nodeString: string[] = ['rectangle'];
  * @param data - Data stored by the node
  * @returns A new react flow Node
  */
-export function nodeFactory(x: number, y: number, data: NodeData) {
+export function nodeFactory(
+    x: number,
+    y: number,
+    data: NodeData,
+    width: number = 150,
+    height: number = 200,
+) {
     const { ...objData } = data;
     return {
-        id: data.label,
+        id: data.id,
         type: nodeString[0],
         position: { x: x, y: y },
         data: objData,
-        width: 150,
-        height: 200,
+        width: width,
+        height: height,
     } as Node;
 }
 
@@ -41,7 +53,8 @@ export function nodeFactory(x: number, y: number, data: NodeData) {
 export function Rectangle(node: NodeProps<DataNode>) {
     const data = node.data;
     const [expand, setExpand] = React.useState<boolean>(data.expanded);
-    const [hidden, setHidden] = React.useState<boolean>(data.hasParent);
+    const [showParentButton, setShowParentButton] = React.useState<boolean>(!data.hasParent);
+    const [showChildButton, setShowChildButton] = React.useState<boolean>(!data.hasChildren);
     const { setCenter } = useReactFlow();
 
     /**
@@ -51,13 +64,21 @@ export function Rectangle(node: NodeProps<DataNode>) {
     const color = 'var(--vscode-symbolIcon-' + data.kind + 'Foreground';
     const iconClass = 'icon codicon codicon-symbol-' + data.kind;
     const subButtonClass =
-        'icon codicon codicon-chevron-' +
-        (expand ? 'down' : 'right') +
+        'icon codicon codicon-' +
+        (showChildButton
+            ? data.hierarchy === Hierarchy.CALL
+                ? 'call-outgoing'
+                : 'type-hierarchy-sub'
+            : expand
+              ? 'chevron-down'
+              : 'chevron-right') +
         ' hierarchy-button sub-button-' +
         (currentDirection === Direction.RIGHT ? 'right' : 'down');
 
     const superButtonClass =
-        'icon codicon codicon-plus hierarchy-button super-button-' +
+        'icon codicon codicon-' +
+        (node.data.hierarchy === Hierarchy.CALL ? 'call-incoming' : 'type-hierarchy-super') +
+        ' hierarchy-button super-button-' +
         (currentDirection === Direction.RIGHT ? 'left' : 'up');
 
     // Focus on the graph on this node
@@ -73,19 +94,22 @@ export function Rectangle(node: NodeProps<DataNode>) {
     }
 
     // Callback to get super or sub types
-    const requestTypes = React.useCallback(
+    const requestHierarchy = React.useCallback(
         ({ direction = RelationDirection.SUPER }) => {
+            console.log(expand);
             vscode.postMessage({
                 command: 'requestHierarchy',
                 data: JSON.stringify({
-                    label: data.label,
+                    id: data.id,
                     direction: direction,
                     expand: direction === RelationDirection.SUB ? !expand : expand,
                     hierarchy: getNodeKind(data.kind),
                 } as HierarchyMessage),
             });
-            if (direction === RelationDirection.SUB) setExpand(!expand);
-            else setHidden(true);
+            if (direction === RelationDirection.SUB) {
+                setExpand(!expand);
+                setShowChildButton(false);
+            } else setShowParentButton(false);
         },
         [expand],
     );
@@ -99,16 +123,17 @@ export function Rectangle(node: NodeProps<DataNode>) {
                 <div className="text"> {data.label}</div>
             </div>
             <div className="center" title={data.label}>
-                {data.label}
+                <div>{data.string_location.path.split('/').at(-1)}</div>
+                <div>{data.string_location.position}</div>
             </div>
             <button
                 className={subButtonClass}
-                onClick={() => requestTypes({ direction: RelationDirection.SUB })}
+                onClick={() => requestHierarchy({ direction: RelationDirection.SUB })}
             ></button>
             <button
                 className={superButtonClass}
-                style={{ display: hidden ? 'none' : 'inherit' }}
-                onClick={() => requestTypes({ direction: RelationDirection.SUPER })}
+                style={{ display: showParentButton ? 'inherit' : 'none' }}
+                onClick={() => requestHierarchy({ direction: RelationDirection.SUPER })}
             ></button>
         </div>
     );

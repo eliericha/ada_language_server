@@ -9,6 +9,6 @@ import { Hierarchy } from '../visualizerTypes';
  * @returns
  */
 export function getNodeKind(kind: string) {
-    if (kind === 'Class' || kind === 'Object') return Hierarchy.TYPES;
+    if (kind === 'class' || kind === 'object') return Hierarchy.TYPES;
     return Hierarchy.CALL;
 }

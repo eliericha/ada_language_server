@@ -46,9 +46,6 @@ export const getLayoutedElements = async (
                 x: node.position.x,
                 y: node.position.y,
             },
-
-            width: 150,
-            height: 50,
         })),
         edges: edges.map((edge) => ({
             id: edge.id,
@@ -189,7 +186,7 @@ function getBoundingBox(nodes: Node[]) {
  * Helper function to check if the current subgraph is overlapping
  * with any other subgraphs.
  *
- * @param x - The x position of the subgraph.
+
  * @param y - The y position of the subgraph.
  * @param width - The width of the subgraph.
  * @param height - The height of the subgraph.
@@ -289,7 +286,18 @@ export async function layoutSubgraphs(
     );
     if (currSubGraph === undefined) return;
     subGraphs.splice(subGraphs.indexOf(currSubGraph), 1);
+    const { x: xpos, y: ypos } = currNode.position;
+    console.log(currNode.position);
     currSubGraph = await getLayoutedElements(currSubGraph, direction, options);
+    const layoutedCurrNode = currSubGraph.nodes.find((node) => node.id === currNode.id);
+    if (layoutedCurrNode !== undefined) {
+        const xDiff = xpos - layoutedCurrNode.position.x;
+        const yDiff = ypos - layoutedCurrNode.position.y;
+        currSubGraph.nodes.forEach((node) => {
+            node.position.x += xDiff;
+            node.position.y += yDiff;
+        });
+    }
 
     const allBoxes = subGraphs.map((subGraph) => getBoundingBox(subGraph.nodes));
     const currBox = getBoundingBox(currSubGraph.nodes);

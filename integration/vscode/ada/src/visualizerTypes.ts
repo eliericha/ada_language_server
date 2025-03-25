@@ -14,7 +14,7 @@ export type Message = {
  * node up or down from the hierarchy.
  */
 export type HierarchyMessage = {
-    label: string;
+    id: string;
     direction: RelationDirection;
     expand: boolean;
     hierarchy: Hierarchy;
@@ -24,11 +24,18 @@ export type HierarchyMessage = {
  * Data stored in a node client side.
  */
 export type NodeData = {
+    id: string;
     label: string;
     kind: string;
     expanded: boolean;
     hasParent: boolean;
+    hasChildren: boolean;
     focus: boolean;
+    string_location: {
+        path: string;
+        position: string;
+    };
+    hierarchy: Hierarchy;
 };
 
 /**
@@ -36,7 +43,7 @@ export type NodeData = {
  */
 export type NodeHierarchy = NodeData & {
     location: vscode.Location;
-    parent: NodeHierarchy | null;
+    parents: NodeHierarchy[];
     childs: NodeHierarchy[];
 };
 
@@ -46,6 +53,7 @@ export type NodeHierarchy = NodeData & {
 export type NodeEdge = {
     nodesData: NodeData[];
     edges: DirectedEdge[];
+    mainNodeId: string;
 };
 
 /**
