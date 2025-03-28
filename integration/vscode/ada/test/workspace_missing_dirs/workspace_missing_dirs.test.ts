@@ -19,6 +19,14 @@ suite('Extensions Advanced Test Suite', function () {
             // source directories into the current workspace if needed
             await vscode.commands.executeCommand('ada.addMissingDirsToWorkspace', false, false);
 
+            /**
+             * The extension host will restart shortly after the above call. So
+             * the test has just the time to do the checks below, yielding a
+             * successful test, and the restart of the extension host yields a
+             * non-zero process exit code. Callers of this testsuite should not
+             * check the process return code.
+             */
+
             // Check that we have 3 workspace folders after executing the command
             folders = vscode.workspace.workspaceFolders;
             assert.strictEqual(folders.length, 3);

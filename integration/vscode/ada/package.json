@@ -24,6 +24,9 @@
         "workspaceContains:alire.toml",
         "onDebugDynamicConfigurations:ada"
     ],
+    "files": [
+        "out"
+    ],
     "main": "./out/src/extension",
     "icon": "icons/ada.png",
     "bugs": "https://github.com/AdaCore/ada_language_server/issues",
@@ -1404,6 +1407,7 @@
     },
     "scripts": {
         "check-licenses": "npx license-checker-rseidelsohn --summary --onlyAllow \"0BSD;Apache-2.0;BSD-2-Clause;BSD-3-Clause;BlueOak-1.0.0;CC0-1.0;GPL-3.0;GPL-3.0-or-later;ISC;MIT;Python-2.0;Zlib;EPL-2.0\" --excludePackages \"@vscode/vsce-sign-linux-x64;@vscode/vsce-sign-win32-x64;@vscode/vsce-sign\"",
+        "prepack": "npm run compile",
         "vscode:prepublish": "npm run esbuild-base -- --minify --sourcemap",
         "esbuild-base": "esbuild ./src/extension.ts --bundle --outfile=out/src/extension.js --external:vscode --format=cjs --platform=node",
         "compile": "node ./node_modules/typescript/bin/tsc",

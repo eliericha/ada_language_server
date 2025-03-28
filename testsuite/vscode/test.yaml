@@ -1,0 +1,5 @@
+driver: vscode
+vscode-suite-path: ../../integration/vscode/ada
+# vscode-suite-label: "Ada extension testsuite: dot-als-json"
+vscode-suite-label: "Ada extension testsuite: workspace_missing_dirs"
+check-exit-code: False

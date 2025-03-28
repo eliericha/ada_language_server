@@ -13,6 +13,8 @@ from drivers.shell import ShellTestDriver
 from drivers.python_driver import PythonTestDriver
 from e3.testsuite import Testsuite
 
+from vscode_driver import VSCodeDriver
+
 VALGRIND_OPTIONS = [
     "--quiet",  # only print errors
     "--tool=memcheck",  # the standard tool
@@ -137,6 +139,7 @@ min_diff: on the fly computed diff of the different values
             "shell": ShellTestDriver,
             "python": PythonTestDriver,
             "pylsp": PyLSP,
+            "vscode": VSCodeDriver,
         }
 
     @property
