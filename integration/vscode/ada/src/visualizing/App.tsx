@@ -7,10 +7,10 @@ import {
     useNodesState,
     useEdgesState,
     ReactFlow,
-    Panel,
     ReactFlowProvider,
     addEdge,
     Controls,
+    ControlButton,
 } from '@xyflow/react';
 
 import '@xyflow/react/dist/style.css';
@@ -18,7 +18,17 @@ import './customNodes.css';
 import 'vscode-webview';
 import { edgeFactory, edgeTypes, floatingConnectionLine } from './customEdges';
 import { nodeFactory, nodeTypes } from './customNodes';
-import { elkOptions, layoutSubgraphs } from './layouting';
+import { elkOptions, layoutSubgraph, layoutSubgraphs } from './layouting';
+
+/**
+ * Current direction of the graph layout.
+ */
+export let currentDirection = Direction.RIGHT;
+
+/**
+ * The vscode used to send message from the webView
+ */
+export const vscode = acquireVsCodeApi();
 
 /**
  * Variables used to store the node state and access it in the rest of the program.
@@ -31,11 +41,6 @@ let setNodes: React.Dispatch<React.SetStateAction<Node[]>>;
 let setEdges: React.Dispatch<React.SetStateAction<Edge[]>>;
 
 /**
- * Current direction of the graph layout.
- */
-export let currentDirection = Direction.RIGHT;
-
-/**
  * Create a graph based on the JSON string passed as an arguments.
  *
  * @param messageData  - JSON string containing the data of all the nodes to display.
@@ -44,20 +49,25 @@ async function handleHierarchy(messageData: string) {
     const data: NodeEdge = JSON.parse(messageData) as NodeEdge;
     const foldedNodes: Node[] = [];
     let subGraphNode: Node | undefined = undefined;
+    const numNodes = nodes.length;
 
     // Remove all node that are not in the graph anymore (after a folding for example)
     nodes = nodes.filter((node) => data.nodesData.some((nodeData) => nodeData.id === node.data.id));
 
     data.nodesData.forEach((nodeData) => {
-        const newNode = nodeFactory(0, 0, nodeData);
+        const newNode = nodeFactory(0, 0, nodeData, 250, 300);
         const foundNode: Node | undefined = nodes.find((node) => node.id === newNode.id);
         // Only add node that does not already exists
         if (foundNode === undefined) {
             nodes.push(newNode);
             if (!newNode.data.expanded) foldedNodes.push(newNode);
+        } else {
+            // If the node to focus was already created we update it
+            if (newNode.data.focus) foundNode.data.focus = newNode.data.focus;
+            // Set children and parent boolean to the current value state.
+            foundNode.data.hasChildren = newNode.data.hasChildren;
+            foundNode.data.hasParent = newNode.data.hasParent;
         }
-        // If the node to focus was already created we update it
-        else if (newNode.data.focus) foundNode.data.focus = newNode.data.focus;
         if (foundNode !== undefined) {
             foundNode.data.expanded = newNode.data.expanded;
             if (!foundNode.data.expanded) foldedNodes.push(foundNode);
@@ -71,12 +81,24 @@ async function handleHierarchy(messageData: string) {
     foldedNodes.forEach((node) => (edges = edges.filter((edge) => edge.source !== node.id)));
 
     const focusIndex = nodes.findIndex((node) => node.data.focus);
-    if (focusIndex !== -1) nodes[focusIndex] = { ...nodes[focusIndex] };
+    // Focus only if the number of nodes increased
+    // Recreate the node to force an update
+    if (focusIndex !== -1 && nodes.length > numNodes) nodes[focusIndex] = { ...nodes[focusIndex] };
+    else if (focusIndex !== -1) nodes[focusIndex].data.focus = false;
+    nodes = nodes.map((node) => {
+        return { ...node };
+    });
 
     subGraphNode = nodes.find((node) => node.id === data.mainNodeId);
-    // If more nodes where added, relayout the graph
-    if (subGraphNode !== undefined && subGraphNode.data.expanded) {
-        await layoutSubgraphs(subGraphNode, nodes, edges, currentDirection, elkOptions);
+    // Check if the was a change in the number of node and if the reference node for layouting
+    //  exists and is expanded or was never layouted before
+    if (
+        nodes.length !== numNodes &&
+        subGraphNode !== undefined &&
+        (subGraphNode.data.expanded ||
+            (subGraphNode.position.x === 0 && subGraphNode.position.y === 0))
+    ) {
+        await layoutSubgraph(subGraphNode, nodes, edges, currentDirection, elkOptions);
     }
     setEdges(edges);
     setNodes(nodes);
@@ -105,22 +127,56 @@ export default function App() {
     [edges, setEdges, onEdgesChange] = useEdgesState(edges);
 
     // Callback to relayout the graph
-    const onLayout = React.useCallback(
-        ({ direction = Direction.DOWN }): void => {
-            currentDirection = direction;
+    const onLayout = React.useCallback(() => {
+        currentDirection = currentDirection === Direction.RIGHT ? Direction.DOWN : Direction.RIGHT;
 
-            // await setCenter(x, y);
-            // window.requestAnimationFrame(() => () => setCenter(x, y));
-            // window.requestAnimationFrame(() => () => fitView());
-            // void getLayoutedElements(nodes, edges, direction, elkOptions).then(
-            // ({ nodes: layoutedNodes, edges: layoutedEdges }) => {
-            // setNodes(layoutedNodes);
-            // setEdges(layoutedEdges);
-            // },
-            // );
+        void layoutSubgraphs(nodes, edges, currentDirection, elkOptions).then(() => {
+            nodes = nodes.map((node) => {
+                return { ...node };
+            });
+            setNodes(nodes);
+            setEdges(edges);
+        });
+    }, [nodes, edges]);
+
+    const onNodeDoubleClick = React.useCallback(
+        (event: React.MouseEvent, node: Node) => {
+            if ((event.target as Element).className.includes('hierarchy-button')) return;
+            void event;
+            vscode.postMessage({
+                command: 'revealNode',
+                data: node.id,
+            });
         },
-        [nodes, edges],
+        [nodes],
     );
+
+    const onNodeMouseEnter = React.useCallback((event: React.MouseEvent, node: Node) => {
+        void event;
+        edges = edges.map((edge) => {
+            if (edge.target === node.id || edge.source === node.id) {
+                edge.data = { additionalClass: 'highlight' };
+                edge = { ...edge };
+            }
+            return edge;
+        });
+        setEdges(edges);
+    }, []);
+
+    const onNodeMouseLeave = React.useCallback((event: React.MouseEvent, node: Node) => {
+        void event;
+        edges = edges.map((edge) => {
+            if (edge.target === node.id || edge.source === node.id) {
+                edge.data = { additionalClass: undefined };
+                edge = { ...edge };
+            }
+            return edge;
+        });
+        setEdges(edges);
+    }, []);
+
+    const minZoom = 0.1;
+    const maxZoom = 4;
 
     return (
         <div style={{ width: '100vw', height: '100vh' }}>
@@ -136,19 +192,19 @@ export default function App() {
                     edgeTypes={edgeTypes}
                     panOnDrag
                     zoomOnScroll
-                    maxZoom={4}
-                    minZoom={0.1}
+                    maxZoom={maxZoom}
+                    minZoom={minZoom}
+                    onNodeDoubleClick={onNodeDoubleClick}
+                    onNodeMouseEnter={onNodeMouseEnter}
+                    onNodeMouseLeave={onNodeMouseLeave}
                 >
-                    <Panel position="top-right">
-                        (
-                        <button onClick={() => onLayout({ direction: Direction.DOWN })}>
-                            vertical layout
-                        </button>
-                        <button onClick={() => onLayout({ direction: Direction.DOWN })}>
-                            horizontal layout
-                        </button>
-                    </Panel>
-                    <Controls />
+                    <Controls>
+                        <ControlButton
+                            className="codicon codicon-layout"
+                            title="Layout the graph"
+                            onClick={() => onLayout()}
+                        />
+                    </Controls>
                 </ReactFlow>
             }
         </div>

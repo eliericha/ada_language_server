@@ -28,8 +28,9 @@ export type NodeData = {
     label: string;
     kind: string;
     expanded: boolean;
-    hasParent: boolean;
-    hasChildren: boolean;
+    // Null means non checked here
+    hasParent: boolean | null;
+    hasChildren: boolean | null;
     focus: boolean;
     string_location: {
         path: string;

@@ -28,6 +28,9 @@ export function edgeFactory(src: string, dst: string) {
         type: 'floating',
         markerEnd: { height: 15, width: 15, type: MarkerType.Arrow },
         style: { strokeWidth: 2 },
+        data: {
+            additionalClass: undefined,
+        },
     } as Edge;
 }
 
@@ -144,6 +147,9 @@ type FloatingEdge = {
     style?: React.CSSProperties;
     markerEnd?: string;
     markerStart?: string;
+    data: {
+        additionalClass?: string;
+    };
 };
 
 /**
@@ -177,12 +183,16 @@ export function floatingEdge(floatingEdge: FloatingEdge) {
         targetY: ty,
     });
 
+    let pathClass = 'react-flow__edge-path';
+    if (floatingEdge.data.additionalClass !== undefined)
+        pathClass += ' ' + floatingEdge.data.additionalClass;
+
     // If bezier path returned nan return empty path
     if (edgePath.includes('NaN')) return <path />;
     return (
         <path
             id={floatingEdge.id}
-            className="react-flow__edge-path"
+            className={pathClass}
             d={edgePath}
             style={floatingEdge.style}
             markerStart={floatingEdge.markerStart}

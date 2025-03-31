@@ -96,32 +96,46 @@ export const getLayoutedElements = async (
  * This is a recursive function.
  *
  * @param node - The node that mark the subgraph to extract.
- * @param subNodes - An array containing all the nodes already part of the subgraph.
- * @param subEdges - An array containing all the edges already part of the subgraph.
  * @param nodes - An array containing all the nodes not already part of any subgraphs.
  * @param edges - An array containing all the edges not already part of any subgraphs.
+ * @param onlyChilds - If true only get the graph starting from node with all its childs,
+ * if false return the whole subgraph
  */
-function getSubGraph(node: Node, subNodes: Node[], subEdges: Edge[], nodes: Node[], edges: Edge[]) {
-    subNodes.push(node);
-    nodes.splice(nodes.indexOf(node), 1);
-    const subEdge: Edge[] = edges.filter(
-        (edge) => edge.target === node.id || edge.source === node.id,
-    );
-    subEdge.forEach((subEdge) => {
-        if (!subEdges.some((edge) => edge.id === subEdge.id)) {
-            subEdges.push(subEdge);
-            edges.splice(edges.indexOf(subEdge), 1);
-        }
-    });
-    for (const edge of subEdges) {
-        const otherId: string = edge.source === node.id ? edge.target : edge.source;
-        if (!subNodes.some((node) => node.id === otherId)) {
-            const otherNode = nodes.find((node) => node.id === otherId);
-            if (otherNode !== undefined) {
-                getSubGraph(otherNode, subNodes, subEdges, nodes, edges);
+function getSubGraph(node: Node, nodes: Node[], edges: Edge[], onlyChilds = false) {
+    const subNodes: Node[] = [];
+    const subEdges: Edge[] = [];
+    const nodeQueue: Node[] = [];
+    nodeQueue.push(node);
+    while (nodeQueue.length !== 0) {
+        const currentNode = nodeQueue.pop();
+        if (!currentNode) break;
+
+        subNodes.push(currentNode);
+        if (!onlyChilds) nodes.splice(nodes.indexOf(currentNode), 1);
+
+        const subEdge: Edge[] = edges.filter(
+            (edge) =>
+                (onlyChilds ? false : edge.target === currentNode.id) ||
+                edge.source === currentNode.id,
+        );
+        subEdge.forEach((subEdge) => {
+            if (!subEdges.some((edge) => edge.id === subEdge.id)) {
+                subEdges.push(subEdge);
+                if (!onlyChilds) edges.splice(edges.indexOf(subEdge), 1);
+            }
+        });
+        for (const edge of subEdges) {
+            const otherId: string = edge.source === currentNode.id ? edge.target : edge.source;
+            if (!subNodes.some((node) => node.id === otherId)) {
+                const otherNode = nodes.find((node) => node.id === otherId);
+                if (otherNode !== undefined) {
+                    nodeQueue.push(otherNode);
+                    // getSubGraph(otherNode, subNodes, subEdges, nodes, edges);
+                }
             }
         }
     }
+    return { nodes: subNodes, edges: subEdges } as Subgraph;
 }
 
 /**
@@ -134,10 +148,7 @@ function getSubGraph(node: Node, subNodes: Node[], subEdges: Edge[], nodes: Node
 function getSubGraphs(nodes: Node[], edges: Edge[]) {
     const subgraphs: Subgraph[] = [];
     while (nodes.length != 0) {
-        const subNodes: Node[] = [];
-        const subEdges: Edge[] = [];
-        getSubGraph(nodes[0], subNodes, subEdges, nodes, edges);
-        subgraphs.push({ nodes: subNodes, edges: subEdges });
+        subgraphs.push(getSubGraph(nodes[0], nodes, edges));
     }
     return subgraphs;
 }
@@ -272,43 +283,69 @@ function findNonOverlappingPosition(
  * @param direction - The direction in which to layout the graph.
  * @param options - Elkjs option used to customize how the layout is done.
  */
-export async function layoutSubgraphs(
+export async function layoutSubgraph(
     currNode: Node,
     nodes: Node[],
     edges: Edge[],
     direction = Direction.RIGHT,
     options = {},
 ) {
+    console.log('hi');
     const subGraphs: Subgraph[] = getSubGraphs(nodes, edges);
 
-    let currSubGraph = subGraphs.find((subGraph) =>
+    const currSubGraph = subGraphs.find((subGraph) =>
         subGraph.nodes.find((node) => currNode.id === node.id),
     );
     if (currSubGraph === undefined) return;
     subGraphs.splice(subGraphs.indexOf(currSubGraph), 1);
+
+    const allBoxes = subGraphs.map((subGraph) => getBoundingBox(subGraph.nodes));
+
     const { x: xpos, y: ypos } = currNode.position;
-    console.log(currNode.position);
-    currSubGraph = await getLayoutedElements(currSubGraph, direction, options);
-    const layoutedCurrNode = currSubGraph.nodes.find((node) => node.id === currNode.id);
+    const currLayoutedSubGraph = await getLayoutedElements(currSubGraph, direction, options);
+
+    const currBox = getBoundingBox(currSubGraph.nodes);
+    const layoutedCurrNode = currLayoutedSubGraph.nodes.find((node) => node.id === currNode.id);
     if (layoutedCurrNode !== undefined) {
         const xDiff = xpos - layoutedCurrNode.position.x;
         const yDiff = ypos - layoutedCurrNode.position.y;
-        currSubGraph.nodes.forEach((node) => {
+        currLayoutedSubGraph.nodes.forEach((node) => {
             node.position.x += xDiff;
             node.position.y += yDiff;
         });
     }
-
-    const allBoxes = subGraphs.map((subGraph) => getBoundingBox(subGraph.nodes));
-    const currBox = getBoundingBox(currSubGraph.nodes);
     const newPosition = findNonOverlappingPosition(currBox, allBoxes);
-    currSubGraph.nodes = currSubGraph.nodes.map((node) => ({
+    currLayoutedSubGraph.nodes = currLayoutedSubGraph.nodes.map((node) => ({
         ...node,
         position: {
             x: node.position.x + (newPosition.x - currBox.minX),
             y: node.position.y + (newPosition.y - currBox.minY),
         },
     }));
-    subGraphs.push(currSubGraph);
+    subGraphs.push(currLayoutedSubGraph);
     concatSubgraphs(subGraphs, nodes, edges);
+}
+
+export async function layoutSubgraphs(
+    nodes: Node[],
+    edges: Edge[],
+    direction = Direction.RIGHT,
+    options = {},
+) {
+    const subgraphs: Subgraph[] = getSubGraphs(nodes, edges);
+    const layoutedSubGraphs: Subgraph[] = [];
+    for (const subgraph of subgraphs) {
+        const layoutedSubGraph = await getLayoutedElements(subgraph, direction, options);
+        const allBoxes = layoutedSubGraphs.map((layouted) => getBoundingBox(layouted.nodes));
+        const currBox = getBoundingBox(layoutedSubGraph.nodes);
+        const newPosition = findNonOverlappingPosition(currBox, allBoxes);
+        layoutedSubGraph.nodes.forEach((node) => {
+            node.position = {
+                x: node.position.x + (newPosition.x - currBox.minX),
+                y: node.position.y + (newPosition.y - currBox.minY),
+            };
+        });
+        layoutedSubGraphs.push(layoutedSubGraph);
+    }
+    concatSubgraphs(layoutedSubGraphs, nodes, edges);
 }

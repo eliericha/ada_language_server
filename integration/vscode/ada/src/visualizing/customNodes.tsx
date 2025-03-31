@@ -8,12 +8,11 @@ import {
     HierarchyMessage,
     Hierarchy,
 } from '../visualizerTypes';
-import { currentDirection } from './App';
+import { currentDirection, vscode } from './App';
 import { getNodeKind } from './utils';
 
 type DataNode = Node<NodeData, 'data'>;
 
-const vscode = acquireVsCodeApi();
 export const nodeTypes = {
     rectangle: Rectangle,
 };
@@ -53,19 +52,20 @@ export function nodeFactory(
 export function Rectangle(node: NodeProps<DataNode>) {
     const data = node.data;
     const [expand, setExpand] = React.useState<boolean>(data.expanded);
-    const [showParentButton, setShowParentButton] = React.useState<boolean>(!data.hasParent);
-    const [showChildButton, setShowChildButton] = React.useState<boolean>(!data.hasChildren);
     const { setCenter } = useReactFlow();
 
+    console.log(node.data.label);
+    console.log(node.selected);
     /**
      * Dynamically assign class to DOM element to take into account, layouting direction,
      *  type of data being displayed....
      */
     const color = 'var(--vscode-symbolIcon-' + data.kind + 'Foreground';
+    const nodeClass = 'rectangle hoverable ' + (node.selected ? 'selectedd' : '');
     const iconClass = 'icon codicon codicon-symbol-' + data.kind;
     const subButtonClass =
         'icon codicon codicon-' +
-        (showChildButton
+        (data.hasChildren === null
             ? data.hierarchy === Hierarchy.CALL
                 ? 'call-outgoing'
                 : 'type-hierarchy-sub'
@@ -74,12 +74,17 @@ export function Rectangle(node: NodeProps<DataNode>) {
               : 'chevron-right') +
         ' hierarchy-button sub-button-' +
         (currentDirection === Direction.RIGHT ? 'right' : 'down');
-
     const superButtonClass =
         'icon codicon codicon-' +
         (node.data.hierarchy === Hierarchy.CALL ? 'call-incoming' : 'type-hierarchy-super') +
         ' hierarchy-button super-button-' +
         (currentDirection === Direction.RIGHT ? 'left' : 'up');
+    const superButtonTitle =
+        (node.data.expanded ? 'Hide ' : 'Display ') +
+        (node.data.hierarchy === Hierarchy.CALL ? 'incoming calls' : 'supertypes');
+    const subButtonTitle =
+        (node.data.expanded ? 'Hide ' : 'Display ') +
+        (node.data.hierarchy === Hierarchy.CALL ? 'outgoing calls' : 'subtypes');
 
     // Focus on the graph on this node
     if (data.focus) {
@@ -96,7 +101,6 @@ export function Rectangle(node: NodeProps<DataNode>) {
     // Callback to get super or sub types
     const requestHierarchy = React.useCallback(
         ({ direction = RelationDirection.SUPER }) => {
-            console.log(expand);
             vscode.postMessage({
                 command: 'requestHierarchy',
                 data: JSON.stringify({
@@ -108,31 +112,35 @@ export function Rectangle(node: NodeProps<DataNode>) {
             });
             if (direction === RelationDirection.SUB) {
                 setExpand(!expand);
-                setShowChildButton(false);
-            } else setShowParentButton(false);
+            }
         },
         [expand],
     );
 
     return (
-        <div className="rectangle hoverable">
+        <div className={nodeClass}>
             <Handle className="invis" type="target" position={Position.Top} />
             <Handle className="invis" type="source" position={Position.Bottom} />
             <div className="title">
                 <span className={iconClass} style={{ color: color }}></span>
-                <div className="text"> {data.label}</div>
+                <div className="text" title={data.label}>
+                    {data.label}
+                </div>
             </div>
-            <div className="center" title={data.label}>
-                <div>{data.string_location.path.split('/').at(-1)}</div>
-                <div>{data.string_location.position}</div>
+            <div className="body" title={data.label}>
+                <div>File : {data.string_location.path.split('/').at(-1)}</div>
+                <div>Position : {data.string_location.position}</div>
             </div>
             <button
                 className={subButtonClass}
+                title={subButtonTitle}
+                style={{ display: data.hasChildren === false ? 'none' : 'inherit' }}
                 onClick={() => requestHierarchy({ direction: RelationDirection.SUB })}
             ></button>
             <button
                 className={superButtonClass}
-                style={{ display: showParentButton ? 'inherit' : 'none' }}
+                title={superButtonTitle}
+                style={{ display: data.hasParent === null ? 'inherit' : 'none' }}
                 onClick={() => requestHierarchy({ direction: RelationDirection.SUPER })}
             ></button>
         </div>

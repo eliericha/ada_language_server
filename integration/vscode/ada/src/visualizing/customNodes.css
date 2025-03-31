@@ -11,10 +11,9 @@
     box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
 }
 
-.center {
+.body {
     vertical-align: middle;
     position: absolute;
-    text-align: center;
     display: inline-block;
     white-space: nowrap;
     text-overflow: ellipsis;
@@ -22,8 +21,8 @@
     transform: translateY(-50%);
     top: 50%;
     left: 0;
-    padding: 5%;
-    width: 90%;
+    padding: 12.5%;
+    width: 75%;
     z-index: 1000;
     margin: 0 auto;
     font-size: 16px;
@@ -42,6 +41,9 @@
     margin-bottom: 10px;
     text-align: center;
     display: inline-block;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
 }
 
 .icon {
@@ -58,13 +60,15 @@
     opacity: 0;
 }
 
-.hoverable:hover {
+.rectangle.selectedd,
+.rectangle.hoverable:hover {
     transition: all 0.1s ease-in-out;
     border-color: var(--vscode-focusBorder);
     color: var(--vscode-activityBar-foreground);
     background-color: var(--vscode-activityBar-background);
 }
 
+.highlight,
 .react-flow__edge.selectable:hover .react-flow__edge-path:hover,
 .react-flow__edge.selectable.selected .react-flow__edge-path {
     stroke: var(--edge-color);
@@ -82,6 +86,7 @@
     width: 20%;
     aspect-ratio: 1 / 1;
     background: var(--vscode-sideBar-background);
+    z-index: 1000;
     color: var(--vscode-editor-foreground);
 }
 

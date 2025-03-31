@@ -1238,7 +1238,7 @@
                 {
                     "command": "ada.buildAndRunMainLast",
                     "when": "editorLangId == ada",
-                    "group": "navigation"
+                    "group": "navigation@0"
                 },
                 {
                     "command": "ada.buildAndRunMainAsk",
