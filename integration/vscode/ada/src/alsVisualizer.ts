@@ -12,6 +12,8 @@ import {
     NodeHierarchy,
     Hierarchy,
     NodeEdge,
+    DeleteMessage,
+    UpdateMessage,
 } from './visualizerTypes';
 
 // Store the roots of all the graph (the node that don't have parents)
@@ -40,7 +42,10 @@ export async function startVisualizeTypes(context: vscode.ExtensionContext) {
         // Create the webView only if there is something to display
         if (middleNode) {
             setupWebView(context, 'alsVisualizerType', 'Visualize Type Hierarchy', Hierarchy.TYPES);
-            sendMessage(middleNode.id, Hierarchy.TYPES);
+            // Make sure the webView was created and initialized
+            setTimeout(() => {
+                sendMessage(middleNode.id, Hierarchy.TYPES);
+            }, 750);
         }
     }
 }
@@ -61,7 +66,10 @@ export async function startVisualizeCalls(context: vscode.ExtensionContext) {
         // Create the webView only if there is something to display
         if (middleNode) {
             setupWebView(context, 'alsVisualizerCall', 'Visualize Call Hierarchy', Hierarchy.CALL);
-            sendMessage(middleNode.id, Hierarchy.CALL);
+            // Make sure the webView was created and initialized
+            setTimeout(() => {
+                sendMessage(middleNode.id, Hierarchy.CALL);
+            }, 750);
         }
     }
 }
@@ -87,10 +95,55 @@ async function handleMessage(message: Message) {
             sendMessage(data.id, data.hierarchy);
             break;
         }
+        //TODO Dismiss node
         case 'revealNode': {
             void revealNode(message.data);
             break;
         }
+        case 'deleteNodes': {
+            const data = JSON.parse(message.data) as DeleteMessage;
+            deleteNodes(data.nodesId);
+        }
+    }
+}
+
+/**
+ * Remove nodes from the symbolMap and the nodeHierarchy. Update the node with no children left
+ *
+ * @param nodeIds - The ids of the nodes to remove
+ */
+function deleteNodes(nodeIds: string[]) {
+    const toUpdate: NodeHierarchy[] = [];
+    nodeIds.forEach((id) => {
+        const node = symbolsMap.get(id);
+        if (!node) return;
+        node.parents.forEach((parent) => {
+            parent.childs = parent.childs.filter((child) => child.id !== node.id);
+            if (parent.childs.length === 0) {
+                toUpdate.push(parent);
+                parent.hasChildren = null;
+            }
+        });
+        symbolsMap.delete(id);
+    });
+    updateNodes(toUpdate);
+}
+
+/**
+ * Send a message to client side to update the content of certain nodes
+ *
+ * @param nodes - The node to updates
+ */
+function updateNodes(nodes: NodeHierarchy[]) {
+    const toSend: NodeData[] = nodes.map((node) => convertHierarchyToData(node));
+    if (toSend.length !== 0) {
+        const panel = toSend[0].hierarchy === Hierarchy.CALL ? callPanel : typePanel;
+        panel?.webview.postMessage({
+            command: 'updateNodes',
+            data: JSON.stringify({
+                nodes: toSend,
+            } as UpdateMessage),
+        });
     }
 }
 

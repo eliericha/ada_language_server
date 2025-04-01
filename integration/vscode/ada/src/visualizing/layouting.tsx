@@ -8,8 +8,6 @@ export const elkOptions = {
     'elk.layered.spacing.nodeNodeBetweenLayers': '250',
     'elk.layered.spacing.edgeNodeBetweenLayers': '50',
     'elk.spacing.nodeNode': '300',
-    // 'elk.layered.nodePlacement.strategy': 'LINEAR_SEGMENTS',
-    // 'elk.layered.layering.strategy': 'LONGEST_PATH',
     'elk.spacing.componentComponent': '300',
     'elk.layered.layering.strategy': 'INTERACTIVE',
     'elk.layered.cycleBreaking.strategy': 'INTERACTIVE',
@@ -290,7 +288,6 @@ export async function layoutSubgraph(
     direction = Direction.RIGHT,
     options = {},
 ) {
-    console.log('hi');
     const subGraphs: Subgraph[] = getSubGraphs(nodes, edges);
 
     const currSubGraph = subGraphs.find((subGraph) =>

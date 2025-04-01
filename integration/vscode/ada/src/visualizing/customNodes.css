@@ -5,7 +5,6 @@
     position: relative;
     border: solid 1px var(--node-border-color);
     border-radius: 6px;
-    padding: 8px;
     background: var(--vscode-sideBar-background);
     color: var(--vscode-editor-foreground);
     box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
@@ -33,6 +32,7 @@
     flex-direction: row;
     justify-content: center;
     font-size: larger;
+    padding: 5% 5% 0% 5%;
     border-bottom: inherit;
 }
 
@@ -60,7 +60,7 @@
     opacity: 0;
 }
 
-.rectangle.selectedd,
+.rectangle.selected,
 .rectangle.hoverable:hover {
     transition: all 0.1s ease-in-out;
     border-color: var(--vscode-focusBorder);

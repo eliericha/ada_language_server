@@ -20,6 +20,14 @@ export type HierarchyMessage = {
     hierarchy: Hierarchy;
 };
 
+export type DeleteMessage = {
+    nodesId: string[];
+};
+
+export type UpdateMessage = {
+    nodes: NodeData[];
+};
+
 /**
  * Data stored in a node client side.
  */
@@ -28,7 +36,7 @@ export type NodeData = {
     label: string;
     kind: string;
     expanded: boolean;
-    // Null means non checked here
+    // Null means the hierarchy was not yet checked and the button for it will be displayed
     hasParent: boolean | null;
     hasChildren: boolean | null;
     focus: boolean;

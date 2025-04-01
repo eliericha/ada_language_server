@@ -1,6 +1,6 @@
 import * as React from 'react';
 import ReactDOM from 'react-dom/client';
-import { Direction, Message, NodeEdge } from '../visualizerTypes';
+import { Direction, Message, NodeEdge, UpdateMessage } from '../visualizerTypes';
 import {
     Node,
     Edge,
@@ -11,6 +11,7 @@ import {
     addEdge,
     Controls,
     ControlButton,
+    getOutgoers,
 } from '@xyflow/react';
 
 import '@xyflow/react/dist/style.css';
@@ -19,6 +20,7 @@ import 'vscode-webview';
 import { edgeFactory, edgeTypes, floatingConnectionLine } from './customEdges';
 import { nodeFactory, nodeTypes } from './customNodes';
 import { elkOptions, layoutSubgraph, layoutSubgraphs } from './layouting';
+import { changeMarker } from './utils';
 
 /**
  * Current direction of the graph layout.
@@ -104,29 +106,54 @@ async function handleHierarchy(messageData: string) {
     setNodes(nodes);
 }
 
-/**
- * Listener on the message from the server side.
- * This code is put outside the App function to register only one event listener.
- * The app function would create one on every re-render.
- */
-window.addEventListener('message', (text: MessageEvent<Message>) => {
-    switch (text.data.command) {
-        case 'hierarchy': {
-            void handleHierarchy(text.data.data);
-            break;
-        }
+function handleUpdate(messageData: string) {
+    const data: UpdateMessage = JSON.parse(messageData) as UpdateMessage;
+    for (const node of data.nodes) {
+        const index = nodes.findIndex((searchNode) => node.id === searchNode.id);
+        if (index === -1) continue;
+        const originalNode = nodes[index];
+        nodes[index] = {
+            ...originalNode,
+            data: node,
+        };
     }
-});
+    nodes = [...nodes];
+    setNodes(nodes);
+}
 
 /**
  * Main function that configure and render the graph.
  * @returns A div containing the react flow graph's viewPort.
  */
 export default function App() {
+    const minZoom = 0.1;
+    const maxZoom = 4;
+
     [nodes, setNodes, onNodesChange] = useNodesState(nodes);
     [edges, setEdges, onEdgesChange] = useEdgesState(edges);
 
-    // Callback to relayout the graph
+    const handleMessage = (text: MessageEvent<Message>) => {
+        switch (text.data.command) {
+            case 'hierarchy': {
+                void handleHierarchy(text.data.data);
+                break;
+            }
+            case 'updateNodes': {
+                void handleUpdate(text.data.data);
+                break;
+            }
+        }
+    };
+
+    React.useEffect(() => {
+        // Listener on the message from the server side.
+        window.addEventListener('message', handleMessage);
+        return () => {
+            window.removeEventListener('message', handleMessage);
+        };
+    }, []);
+
+    // Callback to relayout the graph.
     const onLayout = React.useCallback(() => {
         currentDirection = currentDirection === Direction.RIGHT ? Direction.DOWN : Direction.RIGHT;
 
@@ -139,6 +166,7 @@ export default function App() {
         });
     }, [nodes, edges]);
 
+    // Reveal the symbol represented by the node in the code.
     const onNodeDoubleClick = React.useCallback(
         (event: React.MouseEvent, node: Node) => {
             if ((event.target as Element).className.includes('hierarchy-button')) return;
@@ -151,13 +179,13 @@ export default function App() {
         [nodes],
     );
 
+    // Highlight all edges linked to the node when hovered.
     const onNodeMouseEnter = React.useCallback((event: React.MouseEvent, node: Node) => {
         void event;
+        // Add a timeout to let CSS the time to update the hover state
         edges = edges.map((edge) => {
-            if (edge.target === node.id || edge.source === node.id) {
-                edge.data = { additionalClass: 'highlight' };
-                edge = { ...edge };
-            }
+            if (edge.target === node.id || edge.source === node.id)
+                edge = changeMarker(edge, 'var(--vscode-focusBorder)', 'highlight');
             return edge;
         });
         setEdges(edges);
@@ -165,19 +193,60 @@ export default function App() {
 
     const onNodeMouseLeave = React.useCallback((event: React.MouseEvent, node: Node) => {
         void event;
+        // If a timeout is active clears it
+        // (or the edges can color themselves after the mouse left the node)
         edges = edges.map((edge) => {
-            if (edge.target === node.id || edge.source === node.id) {
-                edge.data = { additionalClass: undefined };
-                edge = { ...edge };
-            }
+            if (edge.target === node.id || edge.source === node.id)
+                edge = changeMarker(edge, '', undefined);
             return edge;
         });
         setEdges(edges);
     }, []);
 
-    const minZoom = 0.1;
-    const maxZoom = 4;
+    const onEdgeMouseEnter = React.useCallback((event: React.MouseEvent, edge: Edge) => {
+        void event;
+        edge = changeMarker(edge, 'var(--vscode-focusBorder)', 'highlight');
 
+        edges[edges.findIndex((searchEdge) => searchEdge.id === edge.id)] = { ...edge };
+        // Refresh the array to force re rendering
+        edges = [...edges];
+        setEdges(edges);
+    }, []);
+
+    const onEdgeMouseLeave = React.useCallback((event: React.MouseEvent, edge: Edge) => {
+        void event;
+        edge = changeMarker(edge, '', undefined);
+
+        edges[edges.findIndex((searchEdge) => searchEdge.id === edge.id)] = edge;
+        // Refresh the array to force re rendering
+        edges = [...edges];
+        setEdges(edges);
+    }, []);
+
+    const onNodeDelete = React.useCallback(
+        (toDelete: Node[]) => {
+            const deleted: Node[] = [];
+            while (toDelete.length !== 0) {
+                const node = toDelete.pop();
+                if (node === undefined) continue;
+
+                deleted.push(node);
+                const outgoers: Node[] = getOutgoers(node, nodes, edges);
+                for (const outgoer of outgoers) {
+                    toDelete.push(outgoer);
+                }
+            }
+            nodes = nodes.filter(
+                (node) => !deleted.some((deletedNode) => node.id === deletedNode.id),
+            );
+            vscode.postMessage({
+                command: 'deleteNodes',
+                data: JSON.stringify({ nodesId: deleted.map((node) => node.id) }),
+            });
+            setNodes(nodes);
+        },
+        [nodes, edges],
+    );
     return (
         <div style={{ width: '100vw', height: '100vh' }}>
             {
@@ -197,6 +266,9 @@ export default function App() {
                     onNodeDoubleClick={onNodeDoubleClick}
                     onNodeMouseEnter={onNodeMouseEnter}
                     onNodeMouseLeave={onNodeMouseLeave}
+                    onEdgeMouseEnter={onEdgeMouseEnter}
+                    onEdgeMouseLeave={onEdgeMouseLeave}
+                    onNodesDelete={onNodeDelete}
                 >
                     <Controls>
                         <ControlButton

@@ -54,14 +54,12 @@ export function Rectangle(node: NodeProps<DataNode>) {
     const [expand, setExpand] = React.useState<boolean>(data.expanded);
     const { setCenter } = useReactFlow();
 
-    console.log(node.data.label);
-    console.log(node.selected);
     /**
      * Dynamically assign class to DOM element to take into account, layouting direction,
      *  type of data being displayed....
      */
     const color = 'var(--vscode-symbolIcon-' + data.kind + 'Foreground';
-    const nodeClass = 'rectangle hoverable ' + (node.selected ? 'selectedd' : '');
+    const nodeClass = 'rectangle hoverable ' + (node.selected ? 'selected' : '');
     const iconClass = 'icon codicon codicon-symbol-' + data.kind;
     const subButtonClass =
         'icon codicon codicon-' +
