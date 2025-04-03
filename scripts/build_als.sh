@@ -136,7 +136,8 @@ function pin_crates() {
          # remote. So let's do that update.
          git -C "subprojects/$crate" pull origin "${branch:-master}"
       fi
-      cp -v "subprojects/$crate".toml "subprojects/$crate/alire.toml"
+
+      [ -f "subprojects/$crate".toml ] && cp -v "subprojects/$crate".toml "subprojects/$crate/alire.toml"
 
       # Instead of calling `alr pin` for each crate, it's more efficient to
       # append the necessary text in alire.toml and call `alr update` once at
@@ -286,25 +287,28 @@ function lkt_run() {
 
 # Build ALS with alire
 function build_als() {
+
    add_unpinned_deps_dlls_to_runtime_path
 
-   # Check that we can use langkit successfully
-   (
-      source "$LANGKIT_SETENV"
+   if false; then
+      # Check that we can use langkit successfully
+      (
+         source "$LANGKIT_SETENV"
 
-      # Log environments for debugging
-      python -c 'import os; print("\n".join(f"{k}={v}" for k, v in os.environ.items()))'
-      alr exec python -- -c 'import os; print("\n".join(f"{k}={v}" for k, v in os.environ.items()))'
+         # Log environments for debugging
+         python -c 'import os; print("\n".join(f"{k}={v}" for k, v in os.environ.items()))'
+         alr exec python -- -c 'import os; print("\n".join(f"{k}={v}" for k, v in os.environ.items()))'
 
-      # On Windows it is not enough to source the langkit env and unpinned
-      # deps. The libraries of pinned Alire dependencies (not under
-      # alire/cache/dependencies) must also be made visible by calling 'alr exec'
-      alr exec python -- -c 'import liblktlang; print("Imported liblktlang successfully")'
-   )
+         # On Windows it is not enough to source the langkit env and unpinned
+         # deps. The libraries of pinned Alire dependencies (not under
+         # alire/cache/dependencies) must also be made visible by calling 'alr exec'
+         alr exec python -- -c 'import liblktlang; print("Imported liblktlang successfully")'
+      )
+   fi
 
    # We use 'alr exec' to benefit from Alire setting up GPR_PROJECT_PATH with
    # all the dependencies.
-   LIBRARY_TYPE=static STANDALONE=no alr exec make -- "VERSION=$TAG" "GPRBUILD_CARGS=-m -vh" all
+   LIBRARY_TYPE=static LIBADALANG_STANDALONE=no alr exec make -- "VERSION=$TAG" "GPRBUILD_CARGS=-m" all
 }
 
 function test_als() {
@@ -410,7 +414,7 @@ activate_venv
 case $STEP in
 all)
    pin_crates
-   build_langkit
+   # build_langkit
    build_als
    fix_rpath
    strip_debug

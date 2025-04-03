@@ -19,6 +19,26 @@ LSP_OS = "osx"
 [gpr-set-externals."case(os)".windows]
 LSP_OS = "Windows_NT"
 
+[gpr-set-externals]
+LIBADALANG_STANDALONE = "no"
+
+# TODO in a next iteration we may want to consider doing these actions here,
+# but we're not there yet. Currently here is the control flow:
+#
+#  GitHub workflow -> scripts/build_als.sh -> alr exec make -> alr build
+#
+# [[actions]]
+# type = "pre-build"
+# command = ["bash", "-e", "-x", "-c", 'LIBRARY_TYPE=static LIBADALANG_STANDALONE=no make "VERSION=$TAG" "GPRBUILD_CARGS=-m -vh" all']
+
+# [[actions]]
+# type = "post-build"
+# command = ["bash", "-e", "-x", "./scripts/build_als.sh", "fix_rpath"]
+
+# [[actions]]
+# type = "post-build"
+# command = ["bash", "-e", "-x", "./scripts/build_als.sh", "strip_debug"]
+
 [[depends-on]]
 gnatcoll         = "^24.0.0"
 libadalang       = "^24.0.0"
@@ -29,4 +49,3 @@ lal_refactor     = "25.0.0-20240625"
 gnatformat       = "25.0.0-20240625"
 gnatdoc          = "^24.0.0"
 spawn            = "^24.0.0"
-

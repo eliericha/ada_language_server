@@ -8,8 +8,61 @@ maintainers-logins = ["pmderodat", "Fabien-Chouteau"]
 licenses = "Apache-2.0 WITH LLVM-exception"
 website = "https://github.com/AdaCore/langkit"
 
+[[actions]]
+type = "pre-build"
+command = ["bash", "-e", "-x", "-c", "sed -i.bak -e 's/GPR_BUILD/GPR_LIBRARY_TYPE/' ./langkit/libmanage.py"]
+
+[[actions]]
+type = "pre-build"
+command = ["bash", "-e", "-x", "-c", 'python -mvenv "$LKT_VENV"']
+
+[[actions]]
+type = "pre-build"
+# TODO on Windows this requires DLLs to be on the PATH. In build_als.sh we call
+# add_unpinned_deps_dlls_to_runtime_path to that effect before attempting the
+# langkit build. We'll have to do something equivalent here, perhaps based on
+# Alire env variables <crate>_ALIRE_PREFIX.
+#
+# This will likely also be needed in the libadalang crate before invoking
+# langkit for source generation.
+#
+# It's unclear why in the following command it was necessary to do $(echo
+# "$LKT_PIP") rather than just "$LKT_PIP". Same for LKT_PYTHON. It was
+# necessary for it to work on Windows.
+command = ["bash", "-e", "-x", "-c", '$(echo "$LKT_PIP") install . && $(echo "$LKT_PYTHON") manage.py make --no-mypy --generate-auto-dll-dirs --library-types=relocatable --gargs="-m -j0"']
+
+[[actions]]
+type = "pre-build"
+command = ["bash", "-e", "-x", "-c", '"$LKT_VENV/$LKT_PYTHON" manage.py printenv | tee "$LKT_ENV_FILE"']
+
+# Fix setenv.sh to be bash script for MSYS2 by replacing
+#  1) C:\ -> /C/  2) '\' -> '/' and ';' -> ':' 3) ": export" -> "; export"
+#
+# Only do this on the PATH environment variable which MSYS2/Cygwin
+# automatically converts to Windows paths. Other variables such as
+# PYTHONPATH must be left in Windows format to be usable by Python
+# subprocresses.
+#
+# See https://www.msys2.org/docs/filesystem-paths/
+[[actions.'case(os)'.windows]]
+type = "pre-build"
+command = ['bash', '-e', '-x', '-c', '''
+    sed -i -e '/^PATH=/s#\([A-Z]\):\\#/\1/#g' -e '/^PATH=/y#\\;#/:#' -e '/^PATH=/s/: export /; export /' "$LKT_ENV_FILE"
+''']
+
 [environment]
 GPR_PROJECT_PATH.prepend = "${CRATE_ROOT}/langkit/support"
+
+LKT_VENV.set = "${CRATE_ROOT}/.venv"
+LKT_ENV_FILE.set = "${CRATE_ROOT}/langkit.env"
+
+[environment."case(os)".windows]
+LKT_PYTHON.set = "${CRATE_ROOT}/.venv/Scripts/python"
+LKT_PIP.set = "${CRATE_ROOT}/.venv/Scripts/pip"
+
+[environment."case(os)"."..."]
+LKT_PYTHON.set = "${CRATE_ROOT}/.venv/bin/python"
+LKT_PIP.set = "${CRATE_ROOT}/.venv/bin/pip"
 
 [[depends-on]]
 gnatcoll = "^24"
