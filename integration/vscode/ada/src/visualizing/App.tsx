@@ -1,6 +1,6 @@
 import * as React from 'react';
 import ReactDOM from 'react-dom/client';
-import { Direction, Message, NodeEdge, UpdateMessage } from '../visualizerTypes';
+import { DeleteMessage, Direction, Message, NodeEdge, UpdateMessage } from '../visualizerTypes';
 import {
     Node,
     Edge,
@@ -21,6 +21,7 @@ import { edgeFactory, edgeTypes, floatingConnectionLine } from './customEdges';
 import { nodeFactory, nodeTypes } from './customNodes';
 import { elkOptions, layoutSubgraph, layoutSubgraphs } from './layouting';
 import { changeMarker } from './utils';
+import { ContextMenu, ContextMenuProps } from './contextMenu';
 
 /**
  * Current direction of the graph layout.
@@ -121,6 +122,18 @@ function handleUpdate(messageData: string) {
     setNodes(nodes);
 }
 
+const handleMessage = (text: MessageEvent<Message>) => {
+    switch (text.data.command) {
+        case 'hierarchy': {
+            void handleHierarchy(text.data.data);
+            break;
+        }
+        case 'updateNodes': {
+            void handleUpdate(text.data.data);
+            break;
+        }
+    }
+};
 /**
  * Main function that configure and render the graph.
  * @returns A div containing the react flow graph's viewPort.
@@ -131,19 +144,8 @@ export default function App() {
 
     [nodes, setNodes, onNodesChange] = useNodesState(nodes);
     [edges, setEdges, onEdgesChange] = useEdgesState(edges);
-
-    const handleMessage = (text: MessageEvent<Message>) => {
-        switch (text.data.command) {
-            case 'hierarchy': {
-                void handleHierarchy(text.data.data);
-                break;
-            }
-            case 'updateNodes': {
-                void handleUpdate(text.data.data);
-                break;
-            }
-        }
-    };
+    const [menu, setMenu] = React.useState<ContextMenuProps | null>(null);
+    const ref = React.useRef<HTMLDivElement>(null);
 
     React.useEffect(() => {
         // Listener on the message from the server side.
@@ -241,34 +243,59 @@ export default function App() {
             );
             vscode.postMessage({
                 command: 'deleteNodes',
-                data: JSON.stringify({ nodesId: deleted.map((node) => node.id) }),
+                data: JSON.stringify({ nodesId: deleted.map((node) => node.id) } as DeleteMessage),
             });
             setNodes(nodes);
         },
         [nodes, edges],
     );
+
+    const onContextClose = React.useCallback(() => setMenu(null), [setMenu]);
+
+    const onNodeContextMenu = React.useCallback(
+        (event: React.MouseEvent, node: Node) => {
+            event.preventDefault();
+            if (ref.current) {
+                setMenu({
+                    node: node,
+                    position: {
+                        x: event.clientX,
+                        y: event.clientY,
+                    },
+                    onContextClose: onContextClose,
+                    onNodeDelete: onNodeDelete,
+                } as ContextMenuProps);
+            }
+        },
+        [setMenu],
+    );
+    vscode.postMessage({ command: 'rendered', data: '' } as Message);
+
     return (
         <div style={{ width: '100vw', height: '100vh' }}>
             {
                 <ReactFlow
-                    nodes={nodes}
-                    edges={edges}
-                    onNodesChange={onNodesChange}
-                    onEdgesChange={onEdgesChange}
                     fitView
-                    nodeTypes={nodeTypes}
-                    connectionLineComponent={floatingConnectionLine}
-                    edgeTypes={edgeTypes}
                     panOnDrag
                     zoomOnScroll
+                    ref={ref}
+                    nodes={nodes}
+                    edges={edges}
                     maxZoom={maxZoom}
                     minZoom={minZoom}
-                    onNodeDoubleClick={onNodeDoubleClick}
-                    onNodeMouseEnter={onNodeMouseEnter}
-                    onNodeMouseLeave={onNodeMouseLeave}
+                    nodeTypes={nodeTypes}
+                    edgeTypes={edgeTypes}
+                    onPaneClick={onContextClose}
+                    onNodesDelete={onNodeDelete}
+                    onNodesChange={onNodesChange}
+                    onEdgesChange={onEdgesChange}
                     onEdgeMouseEnter={onEdgeMouseEnter}
                     onEdgeMouseLeave={onEdgeMouseLeave}
-                    onNodesDelete={onNodeDelete}
+                    onNodeMouseEnter={onNodeMouseEnter}
+                    onNodeMouseLeave={onNodeMouseLeave}
+                    onNodeDoubleClick={onNodeDoubleClick}
+                    onNodeContextMenu={onNodeContextMenu}
+                    connectionLineComponent={floatingConnectionLine}
                 >
                     <Controls>
                         <ControlButton
@@ -277,6 +304,7 @@ export default function App() {
                             onClick={() => onLayout()}
                         />
                     </Controls>
+                    {menu && <ContextMenu {...menu} />}
                 </ReactFlow>
             }
         </div>

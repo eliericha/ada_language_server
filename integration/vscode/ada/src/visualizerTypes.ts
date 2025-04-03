@@ -1,4 +1,3 @@
-import { Node, Edge } from '@xyflow/react';
 import * as vscode from 'vscode';
 
 /**
@@ -69,31 +68,6 @@ export type NodeEdge = {
  * Represent a directed edge.
  */
 export type DirectedEdge = { src: string; dst: string; edgeDirection: RelationDirection };
-
-/**
- * Represent the smallest box that can contain all the node of a subgraph.
- */
-export type BoundingBox = {
-    minX: number;
-    maxX: number;
-    minY: number;
-    maxY: number;
-    width: number;
-    height: number;
-};
-
-/**
- * Represent a subgraph.
- */
-export type Subgraph = {
-    nodes: Node[];
-    edges: Edge[];
-};
-
-/**
- * Map used to store all the Nodes already created server side
- */
-export type SymbolsMap = Map<string, NodeHierarchy>;
 
 /**
  * Indicate the direction of the hierarchy call to make.

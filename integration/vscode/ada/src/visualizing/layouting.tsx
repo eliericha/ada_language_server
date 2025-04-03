@@ -1,7 +1,27 @@
 import { Edge, Node } from '@xyflow/react';
 import ELK, { ElkNode } from 'elkjs/lib/elk.bundled.js';
-import { BoundingBox, Direction, Subgraph } from '../visualizerTypes';
 import { currentDirection } from './App';
+import { Direction } from '../visualizerTypes';
+
+/**
+ * Represent the smallest box that can contain all the node of a subgraph.
+ */
+type BoundingBox = {
+    minX: number;
+    maxX: number;
+    minY: number;
+    maxY: number;
+    width: number;
+    height: number;
+};
+
+/**
+ * Represent a subgraph.
+ */
+type Subgraph = {
+    nodes: Node[];
+    edges: Edge[];
+};
 
 export const elkOptions = {
     'elk.algorithm': 'mrtree',

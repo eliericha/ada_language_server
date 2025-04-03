@@ -1226,12 +1226,12 @@
                 {
                     "command": "ada.visualizeTypes",
                     "group": "0_navigation@5",
-                    "when": "editorLangId == ada && config.ada.enableExperimentalFeatures"
+                    "when": "activeEditor && activePanel != workbench.panel.output && config.ada.enableExperimentalFeatures"
                 },
                 {
                     "command": "ada.visualizeCalls",
                     "group": "0_navigation@6",
-                    "when": "editorLangId == ada && config.ada.enableExperimentalFeatures"
+                    "when": "activeEditor && activePanel != workbench.panel.output && config.ada.enableExperimentalFeatures"
                 }
             ],
             "editor/title/run": [

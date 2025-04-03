@@ -3,18 +3,22 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import {
-    DirectedEdge,
     RelationDirection,
     Message,
     NodeData,
     HierarchyMessage,
-    SymbolsMap,
     NodeHierarchy,
     Hierarchy,
     NodeEdge,
     DeleteMessage,
     UpdateMessage,
+    DirectedEdge,
 } from './visualizerTypes';
+
+/**
+ * Map used to store all the Nodes already created server side
+ */
+type SymbolsMap = Map<string, NodeHierarchy>;
 
 // Store the roots of all the graph (the node that don't have parents)
 let rootNodes: NodeHierarchy[] = [];
@@ -25,51 +29,49 @@ let focusedNode: NodeHierarchy | null = null;
 let callPanel: vscode.WebviewPanel | null;
 let typePanel: vscode.WebviewPanel | null;
 
+// Helper function to display the execution time taken by a code block
+const startTimer = () => performance.now();
+const endTimer = (start: DOMHighResTimeStamp, label: string, indent: number = 0) =>
+    console.log(`${'   '.repeat(indent)}${label}: ${performance.now() - start} ms`);
+
+void startTimer;
+void endTimer;
+
 /**
- * Get TypesHierarchy information.
+ * Gather code information and aggregate them in a graph to better understand them.
  *
  * @param context - The vscode context of the extension.
+ * @param hierarchy - The type of hierarchy to visualize.
  */
-export async function startVisualizeTypes(context: vscode.ExtensionContext) {
-    // Create a new WebViewPanel which will display the graph
+export async function startVisualize(context: vscode.ExtensionContext, hierarchy: Hierarchy) {
     if (vscode.window.activeTextEditor) {
         const input = new vscode.Location(
             vscode.window.activeTextEditor?.document.uri,
             vscode.window.activeTextEditor?.selection.active,
         );
-        const middleNode = await getCodeHierarchy(input, Hierarchy.TYPES);
+        const direction =
+            hierarchy === Hierarchy.CALL ? RelationDirection.SUPER : RelationDirection.BOTH;
+        const middleNode = await getCodeHierarchy(input, hierarchy, direction);
+
+        const hierarchyType = hierarchy === Hierarchy.CALL ? 'Call' : 'Type';
+        const id = 'alsVisualizer' + hierarchyType;
+        const title = 'Visualize ' + hierarchyType + ' Hierarchy';
 
         // Create the webView only if there is something to display
         if (middleNode) {
-            setupWebView(context, 'alsVisualizerType', 'Visualize Type Hierarchy', Hierarchy.TYPES);
+            setupWebView(context, id, title, hierarchy);
             // Make sure the webView was created and initialized
-            setTimeout(() => {
-                sendMessage(middleNode.id, Hierarchy.TYPES);
-            }, 750);
-        }
-    }
-}
-/**
- * Get CallsHierarchy information.
- *
- * @param context - The vscode context of the extension.
- */
-export async function startVisualizeCalls(context: vscode.ExtensionContext) {
-    // Create a new WebViewPanel which will display the graph
-    if (vscode.window.activeTextEditor) {
-        const input = new vscode.Location(
-            vscode.window.activeTextEditor?.document.uri,
-            vscode.window.activeTextEditor?.selection.active,
-        );
-        const middleNode = await getCodeHierarchy(input, Hierarchy.CALL, RelationDirection.SUPER);
-
-        // Create the webView only if there is something to display
-        if (middleNode) {
-            setupWebView(context, 'alsVisualizerCall', 'Visualize Call Hierarchy', Hierarchy.CALL);
-            // Make sure the webView was created and initialized
-            setTimeout(() => {
-                sendMessage(middleNode.id, Hierarchy.CALL);
-            }, 750);
+            if (callPanel) {
+                // Wait for the webView to notify the end of it's rendering
+                const receive = callPanel.webview.onDidReceiveMessage((message: Message) => {
+                    if (message.command === 'rendered') {
+                        // Remove the listener as it will not be used after sending
+                        // the initial request
+                        sendMessage(middleNode.id, hierarchy);
+                        receive.dispose();
+                    }
+                });
+            }
         }
     }
 }
@@ -95,7 +97,6 @@ async function handleMessage(message: Message) {
             sendMessage(data.id, data.hierarchy);
             break;
         }
-        //TODO Dismiss node
         case 'revealNode': {
             void revealNode(message.data);
             break;
@@ -182,57 +183,12 @@ async function revealNode(id: string) {
 }
 
 /**
- * Search for a specific symbol using a range
- *
- * @param documentSymbol - The document symbol that contained the searched symbol
- * @param searchRange - The range in  which is contained the searched symbol
- * @returns A string representing the different symbols in the file hierarchy leading
- * to the searched symbol
- */
-function getFileHierarchy(documentSymbol: vscode.DocumentSymbol, searchRange: vscode.Range) {
-    let currentSymbol = documentSymbol;
-    let fileHierarchy = documentSymbol.name;
-
-    if (searchRange.contains(documentSymbol.selectionRange)) return fileHierarchy;
-    else fileHierarchy += '/';
-
-    let found = true;
-    while (found) {
-        found = false;
-        for (const child of currentSymbol.children) {
-            if (searchRange.contains(child.selectionRange)) {
-                fileHierarchy += child.name;
-                return fileHierarchy;
-            }
-            if (child.range.contains(searchRange)) {
-                fileHierarchy += child.name + '/';
-                currentSymbol = child;
-                found = true;
-                break;
-            }
-        }
-    }
-    return '';
-}
-
-/**
  * Generate an id for a symbol based on its hover information and it hierarchy inside a file.
  *
  * @param nodeLocation - The location of the node in the project
  * @returns An position-independent id for the symbol.
  */
 async function generateNodeId(nodeLocation: vscode.Location) {
-    const documentSymbols = await vscode.commands.executeCommand<vscode.DocumentSymbol[]>(
-        'vscode.executeDocumentSymbolProvider',
-        nodeLocation.uri,
-    );
-    let fileHierarchy: string = '';
-    for (const documentSymbol of documentSymbols) {
-        if (documentSymbol.range.contains(nodeLocation.range)) {
-            fileHierarchy = getFileHierarchy(documentSymbol, nodeLocation.range);
-        }
-    }
-
     const hovers = await vscode.commands.executeCommand<vscode.Hover[]>(
         'vscode.executeHoverProvider',
         nodeLocation.uri,
@@ -243,11 +199,12 @@ async function generateNodeId(nodeLocation: vscode.Location) {
         for (const content of hover.contents) {
             hoverValues +=
                 (hoverValues.length === 0 ? '' : '/') +
+                // Collapse multiple following whitespaces into one
                 (content as vscode.MarkdownString).value.replace(/\s+/g, ' ').trim();
         }
     }
 
-    const clearId = fileHierarchy + ':' + hoverValues;
+    const clearId = nodeLocation.uri.fsPath + ':' + hoverValues;
 
     // Hash the file uri and the symbol location to get the id
     const hash = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(clearId));
@@ -277,15 +234,19 @@ async function createNodeHierarchy(
               ? hierarchyItem.to
               : hierarchyItem;
 
-    const decPosition = await vscode.commands.executeCommand<vscode.Location[]>(
-        'vscode.executeDeclarationProvider',
-        item.uri,
-        item.selectionRange.start,
-    );
+    const decPosition = await vscode.commands.executeCommand<
+        vscode.Location[] | vscode.LocationLink[]
+    >('vscode.executeDeclarationProvider', item.uri, item.selectionRange.start);
 
     if (decPosition.length > 0) {
-        item.uri = decPosition[0].uri;
-        item.selectionRange = decPosition[0].range;
+        if ('uri' in decPosition[0]) {
+            item.uri = decPosition[0].uri;
+            item.selectionRange = decPosition[0].range;
+        } else {
+            item.uri = decPosition[0].targetUri;
+            if (decPosition[0].targetSelectionRange)
+                item.selectionRange = decPosition[0].targetSelectionRange;
+        }
     }
     const position =
         `Ln ${item.selectionRange.start.line},` + `Col ${item.selectionRange.start.character}`;
@@ -359,6 +320,9 @@ function convertToMessage(nodes: Set<NodeData>, edges: Set<DirectedEdge>, root: 
 /**
  * Convert all the root nodes and add them to a set of nodes and edges before
  * sending them to the client side.
+ *
+ * @param nodeId - The id of the node that was added/modified
+ * @param hierarchy - The type of hierarchy needed.
  */
 function sendMessage(nodeId: string, hierarchy: Hierarchy) {
     const nodes: Set<NodeData> = new Set();
@@ -465,7 +429,7 @@ async function getCodeHierarchy(
         middleNode = insertSymbolsMap(await createNodeHierarchy(item, hierarchy));
         middleNode.focus = true;
         focusedNode = middleNode;
-        if (direction === RelationDirection.BOTH || direction === RelationDirection.SUPER)
+        if (direction === RelationDirection.BOTH || direction === RelationDirection.SUPER) {
             await getHierarchy(
                 hierarchy ? 'vscode.provideIncomingCalls' : 'vscode.provideSupertypes',
                 item,
@@ -473,8 +437,8 @@ async function getCodeHierarchy(
                 middleNode,
                 hierarchy,
             );
-
-        if (direction === RelationDirection.BOTH || direction === RelationDirection.SUB)
+        }
+        if (direction === RelationDirection.BOTH || direction === RelationDirection.SUB) {
             await getHierarchy(
                 hierarchy ? 'vscode.provideOutgoingCalls' : 'vscode.provideSubtypes',
                 item,
@@ -482,6 +446,7 @@ async function getCodeHierarchy(
                 middleNode,
                 hierarchy,
             );
+        }
         middleNode.expanded = direction === RelationDirection.SUPER ? middleNode.expanded : true;
     }
     // Get all the nodes that does not have parents
@@ -530,8 +495,7 @@ function setupWebView(
                 if (symbolsMap.get(key)?.hierarchy === Hierarchy.TYPES) symbolsMap.delete(key);
             }
         }
-        // symbolsMap.clear();
-        // rootNodes = [];
+        rootNodes = Array.from(symbolsMap.values()).filter((node) => node.parents.length === 0);
     });
     if (hierarchy === Hierarchy.CALL) callPanel = panel;
     else typePanel = panel;
