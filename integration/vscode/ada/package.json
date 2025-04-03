@@ -1225,12 +1225,12 @@
                 {
                     "command": "ada.visualizeTypes",
                     "group": "0_navigation@5",
-                    "when": "activeEditor && editorLangId && editorHasTypeHierarchyProvider && config.ada.enableExperimentalFeatures"
+                    "when": "activeEditor && activePanel != workbench.panel.output && config.ada.enableExperimentalFeatures"
                 },
                 {
                     "command": "ada.visualizePackages",
                     "group": "0_navigation@6",
-                    "when": "activeEditor && editorLangId == ada && config.ada.enableExperimentalFeatures"
+                    "when": "activeEditor && activePanel != workbench.panel.output && config.ada.enableExperimentalFeatures"
                 }
             ],
             "editor/title/run": [

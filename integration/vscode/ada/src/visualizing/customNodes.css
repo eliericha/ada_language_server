@@ -115,3 +115,67 @@
 .background {
     background-color: var(--vscode-editor-background);
 }
+
+.hierarchy-button {
+    position: absolute;
+    border-radius: 50%;
+    border: solid 1px var(--node-border-color);
+    width: 20%;
+    aspect-ratio: 1 / 1;
+    background: var(--vscode-sideBar-background);
+    z-index: 1000;
+    color: var(--vscode-editor-foreground);
+}
+
+.context-button:hover,
+.hierarchy-button:hover {
+    transition: all 0.1s ease-in-out;
+    border-color: var(--vscode-focusBorder);
+    color: var(--vscode-activityBar-foreground);
+    background-color: color-mix(
+        in srgb,
+        var(--vscode-activityBar-background) 80%,
+        var(--vscode-foreground) 20%
+    );
+}
+
+.sub-button-down {
+    left: 40%;
+    bottom: -10%;
+}
+.sub-button-right {
+    right: -10%;
+    top: 40%;
+}
+
+.super-button-up {
+    left: 40%;
+    top: -10%;
+}
+
+.super-button-left {
+    top: 40%;
+    left: -10%;
+}
+
+.context-menu {
+    position: absolute;
+    box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+    background: var(--vscode-sideBar-background);
+    z-index: 10000;
+    width: initial;
+    display: flex;
+    flex-direction: column;
+    border-radius: 6px;
+    padding: 0.5%;
+}
+
+.context-button {
+    border: none;
+    background: var(--vscode-sideBar-background);
+    color: var(--vscode-editor-foreground);
+    text-align: left;
+    border-radius: 6px;
+    width: 100%;
+    padding: 0.5em;
+}
