@@ -46,8 +46,10 @@ command = ["bash", "-e", "-x", "-c", '"$LKT_VENV/$LKT_PYTHON" manage.py printenv
 # See https://www.msys2.org/docs/filesystem-paths/
 [[actions.'case(os)'.windows]]
 type = "pre-build"
+# TODO in the following, backslashes '\' have been escaped but in theory they
+# shouldn't have to according to TOML spec.
 command = ['bash', '-e', '-x', '-c', '''
-    sed -i -e '/^PATH=/s#\([A-Z]\):\\#/\1/#g' -e '/^PATH=/y#\\;#/:#' -e '/^PATH=/s/: export /; export /' "$LKT_ENV_FILE"
+    sed -i -e '/^PATH=/s#\([A-Z]\):\\\\#/\1/#g' -e '/^PATH=/y#\\\\;#/:#' -e '/^PATH=/s/: export /; export /' "$LKT_ENV_FILE"
 ''']
 
 [environment]
