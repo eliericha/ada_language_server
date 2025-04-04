@@ -33,7 +33,7 @@ command = ["bash", "-e", "-x", "-c", '$(echo "$LKT_PIP") install . && $(echo "$L
 
 [[actions]]
 type = "pre-build"
-command = ["bash", "-e", "-x", "-c", '"$LKT_VENV/$LKT_PYTHON" manage.py printenv | tee "$LKT_ENV_FILE"']
+command = ["bash", "-e", "-x", "-c", '"$LKT_PYTHON" manage.py printenv | tee "$LKT_ENV_FILE"']
 
 # Fix setenv.sh to be bash script for MSYS2 by replacing
 #  1) C:\ -> /C/  2) '\' -> '/' and ';' -> ':' 3) ": export" -> "; export"
