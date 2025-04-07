@@ -127,9 +127,9 @@ async function refreshNodes(nodesId: string[]) {
             const symbol = queue.pop();
             if (!symbol) continue;
             const loc: vscode.Location =
-                'location' in symbol
-                    ? symbol.location
-                    : new vscode.Location(node.location.uri, symbol.selectionRange);
+                'selectionRange' in symbol
+                    ? new vscode.Location(node.location.uri, symbol.selectionRange)
+                    : symbol.location;
 
             if (node.id === (await generateNodeId(loc))) {
                 node.location = loc;
@@ -440,7 +440,12 @@ function convertHierarchyToData(nodeHierarchy: NodeHierarchy) {
         hasParent: nodeHierarchy.hasParent,
         hasChildren: nodeHierarchy.hasChildren,
         focus: nodeHierarchy.focus,
-        string_location: nodeHierarchy.string_location,
+        string_location: {
+            path: nodeHierarchy.location.uri.fsPath,
+            position:
+                `Ln ${nodeHierarchy.location.range.start.line},` +
+                `Col ${nodeHierarchy.location.range.start.character}`,
+        },
         hierarchy: nodeHierarchy.hierarchy,
     } as NodeData;
 }

@@ -140,9 +140,7 @@ function handleUpdate(messageData: string) {
         edges = edges.filter((edge) => edge.source !== node.id && edge.target !== node.id);
         if (index === -1) continue;
         {
-            console.log(nodes);
             nodes.splice(index, 1);
-            console.log(nodes);
         }
     }
     nodes = [...nodes];

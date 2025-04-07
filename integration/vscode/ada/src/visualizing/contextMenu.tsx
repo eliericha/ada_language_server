@@ -22,10 +22,12 @@ export function ContextMenu(props: ContextMenuProps) {
             command: 'refreshNodes',
             data: JSON.stringify({ nodesId: [props.node.id] } as NodeIdsMessage),
         });
+        props.onContextClose();
     }, [props.node.id]);
 
     const deleteNode = React.useCallback(() => {
         props.onNodeDelete([props.node]);
+        props.onContextClose();
     }, [props.node]);
 
     return (
