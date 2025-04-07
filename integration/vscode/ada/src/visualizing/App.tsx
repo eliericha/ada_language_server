@@ -1,6 +1,12 @@
 import * as React from 'react';
 import ReactDOM from 'react-dom/client';
-import { DeleteMessage, Direction, Message, NodeEdge, UpdateMessage } from '../visualizerTypes';
+import {
+    NodeIdsMessage as NodeIdsMessage,
+    Direction,
+    Message,
+    NodeEdge,
+    UpdateMessage,
+} from '../visualizerTypes';
 import {
     Node,
     Edge,
@@ -11,7 +17,7 @@ import {
     addEdge,
     Controls,
     ControlButton,
-    getOutgoers,
+    SelectionMode,
 } from '@xyflow/react';
 
 import '@xyflow/react/dist/style.css';
@@ -42,6 +48,8 @@ let nodes: Node[] = [];
 let edges: Edge[] = [];
 let setNodes: React.Dispatch<React.SetStateAction<Node[]>>;
 let setEdges: React.Dispatch<React.SetStateAction<Edge[]>>;
+const nodeWidth = 250;
+const nodeHeight = 300;
 
 /**
  * Create a graph based on the JSON string passed as an arguments.
@@ -56,10 +64,13 @@ async function handleHierarchy(messageData: string) {
 
     // Remove all node that are not in the graph anymore (after a folding for example)
     nodes = nodes.filter((node) => data.nodesData.some((nodeData) => nodeData.id === node.data.id));
+    // Reset edge to ensure only new/current edges are in the graph
+    edges = [];
 
-    data.nodesData.forEach((nodeData) => {
-        const newNode = nodeFactory(0, 0, nodeData, 250, 300);
+    for (const nodeData of data.nodesData) {
+        const newNode = nodeFactory(0, 0, nodeData, nodeWidth, nodeHeight);
         const foundNode: Node | undefined = nodes.find((node) => node.id === newNode.id);
+
         // Only add node that does not already exists
         if (foundNode === undefined) {
             nodes.push(newNode);
@@ -67,20 +78,24 @@ async function handleHierarchy(messageData: string) {
         } else {
             // If the node to focus was already created we update it
             if (newNode.data.focus) foundNode.data.focus = newNode.data.focus;
+
             // Set children and parent boolean to the current value state.
             foundNode.data.hasChildren = newNode.data.hasChildren;
             foundNode.data.hasParent = newNode.data.hasParent;
         }
+
         if (foundNode !== undefined) {
             foundNode.data.expanded = newNode.data.expanded;
             if (!foundNode.data.expanded) foldedNodes.push(foundNode);
         }
+    }
+
+    data.edges.forEach(({ src, dst, edgeDirection }) => {
+        // addEdge checks if an edge src dst already exist.
+        edges = addEdge(edgeFactory(src, dst, edgeDirection), edges);
     });
 
-    data.edges.forEach(({ src, dst }) => {
-        // addEdge checks if an edge src dst already exist.
-        edges = addEdge(edgeFactory(src, dst), edges);
-    });
+    // Remove all edge coming out of a folded node
     foldedNodes.forEach((node) => (edges = edges.filter((edge) => edge.source !== node.id)));
 
     const focusIndex = nodes.findIndex((node) => node.data.focus);
@@ -88,6 +103,8 @@ async function handleHierarchy(messageData: string) {
     // Recreate the node to force an update
     if (focusIndex !== -1 && nodes.length > numNodes) nodes[focusIndex] = { ...nodes[focusIndex] };
     else if (focusIndex !== -1) nodes[focusIndex].data.focus = false;
+
+    // Recreate the nodes object to force the re render
     nodes = nodes.map((node) => {
         return { ...node };
     });
@@ -109,7 +126,7 @@ async function handleHierarchy(messageData: string) {
 
 function handleUpdate(messageData: string) {
     const data: UpdateMessage = JSON.parse(messageData) as UpdateMessage;
-    for (const node of data.nodes) {
+    for (const node of data.toUpdate) {
         const index = nodes.findIndex((searchNode) => node.id === searchNode.id);
         if (index === -1) continue;
         const originalNode = nodes[index];
@@ -117,6 +134,16 @@ function handleUpdate(messageData: string) {
             ...originalNode,
             data: node,
         };
+    }
+    for (const node of data.toDelete) {
+        const index = nodes.findIndex((searchNode) => node.id === searchNode.id);
+        edges = edges.filter((edge) => edge.source !== node.id && edge.target !== node.id);
+        if (index === -1) continue;
+        {
+            console.log(nodes);
+            nodes.splice(index, 1);
+            console.log(nodes);
+        }
     }
     nodes = [...nodes];
     setNodes(nodes);
@@ -130,6 +157,10 @@ const handleMessage = (text: MessageEvent<Message>) => {
         }
         case 'updateNodes': {
             void handleUpdate(text.data.data);
+            break;
+        }
+        case 'isRendered': {
+            vscode.postMessage({ command: 'rendered', data: '' } as Message);
             break;
         }
     }
@@ -227,23 +258,11 @@ export default function App() {
 
     const onNodeDelete = React.useCallback(
         (toDelete: Node[]) => {
-            const deleted: Node[] = [];
-            while (toDelete.length !== 0) {
-                const node = toDelete.pop();
-                if (node === undefined) continue;
-
-                deleted.push(node);
-                const outgoers: Node[] = getOutgoers(node, nodes, edges);
-                for (const outgoer of outgoers) {
-                    toDelete.push(outgoer);
-                }
-            }
-            nodes = nodes.filter(
-                (node) => !deleted.some((deletedNode) => node.id === deletedNode.id),
-            );
             vscode.postMessage({
                 command: 'deleteNodes',
-                data: JSON.stringify({ nodesId: deleted.map((node) => node.id) } as DeleteMessage),
+                data: JSON.stringify({
+                    nodesId: toDelete.map((node) => node.id),
+                } as NodeIdsMessage),
             });
             setNodes(nodes);
         },
@@ -269,13 +288,15 @@ export default function App() {
         },
         [setMenu],
     );
-    vscode.postMessage({ command: 'rendered', data: '' } as Message);
+
+    const onInit = React.useCallback(() => {
+        vscode.postMessage({ command: 'rendered', data: '' } as Message);
+    }, []);
 
     return (
         <div style={{ width: '100vw', height: '100vh' }}>
             {
                 <ReactFlow
-                    fitView
                     panOnDrag
                     zoomOnScroll
                     ref={ref}
@@ -285,6 +306,7 @@ export default function App() {
                     minZoom={minZoom}
                     nodeTypes={nodeTypes}
                     edgeTypes={edgeTypes}
+                    onInit={onInit}
                     onPaneClick={onContextClose}
                     onNodesDelete={onNodeDelete}
                     onNodesChange={onNodesChange}
@@ -296,6 +318,8 @@ export default function App() {
                     onNodeDoubleClick={onNodeDoubleClick}
                     onNodeContextMenu={onNodeContextMenu}
                     connectionLineComponent={floatingConnectionLine}
+                    selectionMode={SelectionMode.Partial}
+                    deleteKeyCode={['Delete', 'Backspace']}
                 >
                     <Controls>
                         <ControlButton

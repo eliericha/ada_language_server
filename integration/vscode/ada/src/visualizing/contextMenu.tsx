@@ -1,6 +1,7 @@
 import { XYPosition, Node, ReactFlowProvider } from '@xyflow/react';
 import React from 'react';
 import { vscode } from './App';
+import { NodeIdsMessage } from '../visualizerTypes';
 
 export type ContextMenuProps = {
     onContextClose: () => void;
@@ -17,7 +18,10 @@ export type ContextMenuProps = {
  */
 export function ContextMenu(props: ContextMenuProps) {
     const refreshNode = React.useCallback(() => {
-        vscode.postMessage({ command: 'refresh', data: props.node.id });
+        vscode.postMessage({
+            command: 'refreshNodes',
+            data: JSON.stringify({ nodesId: [props.node.id] } as NodeIdsMessage),
+        });
     }, [props.node.id]);
 
     const deleteNode = React.useCallback(() => {

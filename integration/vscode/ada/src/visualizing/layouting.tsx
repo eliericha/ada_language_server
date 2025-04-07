@@ -128,6 +128,8 @@ function getSubGraph(node: Node, nodes: Node[], edges: Edge[], onlyChilds = fals
         const currentNode = nodeQueue.pop();
         if (!currentNode) break;
 
+        if (subNodes.some((subNode) => subNode.id === currentNode.id)) continue;
+
         subNodes.push(currentNode);
         if (!onlyChilds) nodes.splice(nodes.indexOf(currentNode), 1);
 
@@ -148,7 +150,6 @@ function getSubGraph(node: Node, nodes: Node[], edges: Edge[], onlyChilds = fals
                 const otherNode = nodes.find((node) => node.id === otherId);
                 if (otherNode !== undefined) {
                     nodeQueue.push(otherNode);
-                    // getSubGraph(otherNode, subNodes, subEdges, nodes, edges);
                 }
             }
         }

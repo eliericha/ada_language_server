@@ -142,3 +142,9 @@
     width: 100%;
     padding: 0.5em;
 }
+
+.react-flow__nodesselection-rect {
+    color: transparent;
+    background-color: transparent;
+    border: transparent;
+}

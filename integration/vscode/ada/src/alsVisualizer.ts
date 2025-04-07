@@ -10,7 +10,7 @@ import {
     NodeHierarchy,
     Hierarchy,
     NodeEdge,
-    DeleteMessage,
+    NodeIdsMessage,
     UpdateMessage,
     DirectedEdge,
 } from './visualizerTypes';
@@ -53,17 +53,14 @@ export async function startVisualize(context: vscode.ExtensionContext, hierarchy
             hierarchy === Hierarchy.CALL ? RelationDirection.SUPER : RelationDirection.BOTH;
         const middleNode = await getCodeHierarchy(input, hierarchy, direction);
 
-        const hierarchyType = hierarchy === Hierarchy.CALL ? 'Call' : 'Type';
-        const id = 'alsVisualizer' + hierarchyType;
-        const title = 'Visualize ' + hierarchyType + ' Hierarchy';
-
         // Create the webView only if there is something to display
         if (middleNode) {
-            setupWebView(context, id, title, hierarchy);
+            setupWebView(context, hierarchy);
+            const panel = hierarchy === Hierarchy.CALL ? callPanel : typePanel;
             // Make sure the webView was created and initialized
-            if (callPanel) {
+            if (panel) {
                 // Wait for the webView to notify the end of it's rendering
-                const receive = callPanel.webview.onDidReceiveMessage((message: Message) => {
+                const receive = panel.webview.onDidReceiveMessage((message: Message) => {
                     if (message.command === 'rendered') {
                         // Remove the listener as it will not be used after sending
                         // the initial request
@@ -71,6 +68,8 @@ export async function startVisualize(context: vscode.ExtensionContext, hierarchy
                         receive.dispose();
                     }
                 });
+                // Check if the client has already been rendered
+                panel.webview.postMessage({ command: 'isRendered', data: '' } as Message);
             }
         }
     }
@@ -102,50 +101,207 @@ async function handleMessage(message: Message) {
             break;
         }
         case 'deleteNodes': {
-            const data = JSON.parse(message.data) as DeleteMessage;
+            const data = JSON.parse(message.data) as NodeIdsMessage;
             deleteNodes(data.nodesId);
+            break;
+        }
+        case 'refreshNodes': {
+            const data = JSON.parse(message.data) as NodeIdsMessage;
+            void refreshNodes(data.nodesId);
+            break;
         }
     }
 }
 
+async function refreshNodes(nodesId: string[]) {
+    const toUpdate: NodeHierarchy[] = [];
+    for (const nodeId of nodesId) {
+        const node = symbolsMap.get(nodeId);
+        if (!node) continue;
+        const symbols = await vscode.commands.executeCommand<
+            vscode.SymbolInformation[] | vscode.DocumentSymbol[]
+        >('vscode.executeDocumentSymbolProvider', node.location.uri);
+
+        const queue = [...symbols];
+        while (queue.length !== 0) {
+            const symbol = queue.pop();
+            if (!symbol) continue;
+            const loc: vscode.Location =
+                'location' in symbol
+                    ? symbol.location
+                    : new vscode.Location(node.location.uri, symbol.selectionRange);
+
+            if (node.id === (await generateNodeId(loc))) {
+                node.location = loc;
+                toUpdate.push(node);
+                break;
+            } else {
+                queue.push(...('children' in symbol ? symbol.children : []));
+            }
+        }
+    }
+    updateNodes(toUpdate, []);
+}
+
 /**
- * Remove nodes from the symbolMap and the nodeHierarchy. Update the node with no children left
+ * Recursively traverse the graph from a specific node to find if there is a cycle.
+ *
+ * @param initialNode - The node from which the search began.
+ * @param currNode - The node being currently tested, should be a child of the initialNode
+ * when first calling the function.
+ * @param visited - A set containing the id of all the already visited nodes.
+ * @returns True if a cycle was found, false otherwise.
+ */
+function hasCycle(
+    initialNode: NodeHierarchy,
+    currNode: NodeHierarchy,
+    visited: Set<string> = new Set(),
+) {
+    if (visited.has(currNode.id)) return true;
+    visited.add(currNode.id);
+    for (const child of currNode.children) {
+        if (child.id === initialNode.id) return true;
+        if (hasCycle(initialNode, child, visited)) return true;
+    }
+    return false;
+}
+
+/**
+ * Remove nodes from the symbolMap and the nodeHierarchy.
+ * Removes all the nodes sub hierarchy's node if they are not connected to another node that is not
+ * staged for deletion.
+ * Update the remaining node to change their parent and child list.
  *
  * @param nodeIds - The ids of the nodes to remove
  */
 function deleteNodes(nodeIds: string[]) {
-    const toUpdate: NodeHierarchy[] = [];
-    nodeIds.forEach((id) => {
-        const node = symbolsMap.get(id);
-        if (!node) return;
-        node.parents.forEach((parent) => {
-            parent.childs = parent.childs.filter((child) => child.id !== node.id);
-            if (parent.childs.length === 0) {
-                toUpdate.push(parent);
-                parent.hasChildren = null;
+    let toUpdate: NodeHierarchy[] = [];
+    let toDelete: NodeHierarchy[] = [];
+
+    for (const nodeId of nodeIds) {
+        const node = symbolsMap.get(nodeId);
+        if (!node) continue;
+
+        toDelete.push(node);
+        for (const child of node.children) {
+            // Only delete the children which are not part of a cycle with their parent
+            if (!hasCycle(node, child)) {
+                const queue: NodeHierarchy[] = [child];
+                while (queue.length !== 0) {
+                    const del = queue.pop();
+                    if (!del) continue;
+                    toDelete.push(del);
+                    queue.push(...del.children);
+                }
             }
-        });
-        symbolsMap.delete(id);
-    });
-    updateNodes(toUpdate);
+        }
+    }
+
+    // We only delete the nodes whose parents are all in the toDelete array
+    // As we can't know the order of the toDeleteArray we continue to check for nodes
+    // to exclude while there where changes in the previous iteration
+    let deleteLen;
+    let newDeleteLen;
+    do {
+        deleteLen = toDelete.length;
+        toDelete = toDelete.filter(
+            (node) =>
+                nodeIds.find((id) => node.id === id) ||
+                node.parents.every(
+                    (parent) => toDelete.find((del) => del.id === parent.id) !== undefined,
+                ),
+        );
+        newDeleteLen = toDelete.length;
+    } while (deleteLen !== newDeleteLen);
+
+    for (const node of toDelete) {
+        // Remove the reference to the node from its parent's children and
+        // from its children's parent
+        for (const child of node.children) {
+            child.parents = child.parents.filter((parent) => parent.id !== node.id);
+            if (child.parents.length === 0) {
+                child.hasChildren = null;
+                toUpdate.push(child);
+            }
+        }
+        for (const parent of node.parents) {
+            parent.children = parent.children.filter((child) => child.id !== node.id);
+            if (parent.children.length === 0) {
+                parent.hasChildren = null;
+                toUpdate.push(parent);
+            }
+        }
+        symbolsMap.delete(node.id);
+    }
+
+    // Remove node that were deleted form the array of node to update.
+    toUpdate = toUpdate.filter((node) => !toDelete.some((del) => del.id === node.id));
+    rootNodes = findRoots();
+    updateNodes(toUpdate, toDelete);
 }
 
 /**
  * Send a message to client side to update the content of certain nodes
  *
- * @param nodes - The node to updates
+ * @param toUpdate - The node to updates
  */
-function updateNodes(nodes: NodeHierarchy[]) {
-    const toSend: NodeData[] = nodes.map((node) => convertHierarchyToData(node));
-    if (toSend.length !== 0) {
-        const panel = toSend[0].hierarchy === Hierarchy.CALL ? callPanel : typePanel;
+function updateNodes(toUpdate: NodeHierarchy[], toDelete: NodeHierarchy[]) {
+    const sendUpdate: NodeData[] = toUpdate.map((node) => convertHierarchyToData(node));
+    const sendDelete: NodeData[] = toDelete.map((node) => convertHierarchyToData(node));
+    if (sendUpdate.length !== 0 || sendDelete.length !== 0) {
+        const panel =
+            (sendUpdate.length !== 0 ? sendUpdate[0] : sendDelete[0]).hierarchy === Hierarchy.CALL
+                ? callPanel
+                : typePanel;
         panel?.webview.postMessage({
             command: 'updateNodes',
             data: JSON.stringify({
-                nodes: toSend,
+                toUpdate: sendUpdate,
+                toDelete: sendDelete,
             } as UpdateMessage),
         });
     }
+}
+
+/**
+ * Explore the graph and to get all the nodes reachable from a starting node.
+ *
+ * @param startNode - The node from which to start the marking.
+ * @param allNodes  - A set of all the node id not yet marked.
+ */
+function exploreGraph(startNode: NodeHierarchy, allNodes: Set<string>) {
+    const queue: NodeHierarchy[] = [startNode];
+    while (queue.length !== 0) {
+        const node = queue.pop();
+        if (!node) continue;
+        if (!allNodes.has(node.id)) continue;
+
+        allNodes.delete(node.id);
+        queue.push(...node.children);
+    }
+}
+
+/**
+ * Find all the root of the graph (the nodes with no parents)
+ * Will also return nodes that are interconnected and not reachable by another root
+ * (for example two node that each have the other as parent and child)
+ *
+ * @returns The array of root nodes.
+ */
+function findRoots() {
+    // Get all the node without parent as root
+    const roots: NodeHierarchy[] = Array.from(symbolsMap.values()).filter(
+        (node) => node.parents.length === 0,
+    );
+    const allNodes: Set<string> = new Set(symbolsMap.keys());
+    roots.forEach((root) => exploreGraph(root, allNodes));
+
+    //The remaining ids in allNodes are roots that are inter-connected
+    for (const id of allNodes) {
+        const node = symbolsMap.get(id);
+        if (node) roots.push(node);
+    }
+    return roots;
 }
 
 /**
@@ -196,12 +352,10 @@ async function generateNodeId(nodeLocation: vscode.Location) {
     );
     let hoverValues: string = '';
     for (const hover of hovers) {
-        for (const content of hover.contents) {
-            hoverValues +=
-                (hoverValues.length === 0 ? '' : '/') +
-                // Collapse multiple following whitespaces into one
-                (content as vscode.MarkdownString).value.replace(/\s+/g, ' ').trim();
-        }
+        hoverValues +=
+            (hoverValues.length === 0 ? '' : '/') +
+            // Collapse multiple following whitespaces into one
+            (hover.contents[0] as vscode.MarkdownString).value.replace(/\s+/g, ' ').trim();
     }
 
     const clearId = nodeLocation.uri.fsPath + ':' + hoverValues;
@@ -258,7 +412,7 @@ async function createNodeHierarchy(
         label: item.name,
         kind: vscode.SymbolKind[item.kind].toLowerCase(),
         parents: [],
-        childs: [],
+        children: [],
         expanded: false,
         hasParent: null,
         hasChildren: null,
@@ -301,19 +455,28 @@ function convertHierarchyToData(nodeHierarchy: NodeHierarchy) {
 function convertToMessage(nodes: Set<NodeData>, edges: Set<DirectedEdge>, root: NodeHierarchy) {
     nodes.add(convertHierarchyToData(root));
     const queue: NodeHierarchy[] = [];
-    if (root.expanded) queue.push(...root.childs);
+    const alreadyAdded: Set<string> = new Set();
+    if (root.expanded) queue.push(...root.children);
     while (queue.length !== 0) {
         const node: NodeHierarchy = queue.splice(0, 1)[0];
-        if (nodes.has(node)) continue;
+        if (alreadyAdded.has(node.id)) continue;
+        alreadyAdded.add(node.id);
         nodes.add(convertHierarchyToData(node));
         for (const parent of node.parents) {
-            edges.add({
-                src: parent.id,
-                dst: node.id,
-                edgeDirection: RelationDirection.SUB,
-            });
+            const edge = Array.from(edges).find(
+                (edge) =>
+                    (edge.src === parent.id && edge.dst === node.id) ||
+                    (edge.src === node.id && edge.dst === parent.id),
+            );
+            if (!edge)
+                edges.add({
+                    src: parent.id,
+                    dst: node.id,
+                    edgeDirection: RelationDirection.SUB,
+                });
+            else if (edge.src === node.id) edge.edgeDirection = RelationDirection.BOTH;
         }
-        if (node.expanded) queue.push(...node.childs);
+        if (node.expanded) queue.push(...node.children);
     }
 }
 
@@ -383,24 +546,28 @@ async function getHierarchy(
         const newNodeTmp: NodeHierarchy = await createNodeHierarchy(type, hierarchy);
         const newNode = insertSymbolsMap(newNodeTmp);
         if (direction === RelationDirection.SUB) {
-            if (!middleNode.childs.some((node) => node.id === newNode.id)) {
-                middleNode.childs.push(newNode);
+            if (!middleNode.children.some((node) => node.id === newNode.id)) {
+                middleNode.children.push(newNode);
                 middleNode.hasChildren = true;
             }
-            newNode.parents.push(middleNode);
-            newNode.hasParent = true;
+            if (!newNode.parents.some((node) => node.id === middleNode.id)) {
+                newNode.parents.push(middleNode);
+                newNode.hasParent = true;
+            }
         } else {
-            middleNode.parents.push(newNode);
-            middleNode.hasParent = true;
-            if (!newNode.childs.some((node) => node.id === middleNode.id)) {
-                newNode.childs.push(middleNode);
+            if (!middleNode.parents.some((node) => node.id === newNode.id)) {
+                middleNode.parents.push(newNode);
+                middleNode.hasParent = true;
+            }
+            if (!newNode.children.some((node) => node.id === middleNode.id)) {
+                newNode.children.push(middleNode);
                 newNode.hasChildren = true;
             }
             // We check if we just created middleNode or it is a node created previously
             if (newNode === newNodeTmp) newNode.expanded = true;
         }
     }
-    if (direction === RelationDirection.SUB && middleNode.childs.length === 0)
+    if (direction === RelationDirection.SUB && middleNode.children.length === 0)
         middleNode.hasChildren = false;
     if (direction === RelationDirection.SUPER && middleNode.parents.length === 0)
         middleNode.hasParent = false;
@@ -450,7 +617,8 @@ async function getCodeHierarchy(
         middleNode.expanded = direction === RelationDirection.SUPER ? middleNode.expanded : true;
     }
     // Get all the nodes that does not have parents
-    rootNodes = Array.from(symbolsMap.values()).filter((node) => node.parents.length === 0);
+    // rootNodes = Array.from(symbolsMap.values()).filter((node) => node.parents.length === 0);
+    rootNodes = findRoots();
     return middleNode;
 }
 
@@ -459,25 +627,17 @@ async function getCodeHierarchy(
  *
  * @param context - The vscode context of the extension.
  */
-function setupWebView(
-    context: vscode.ExtensionContext,
-    id: string,
-    title: string,
-    hierarchy: Hierarchy,
-) {
+function setupWebView(context: vscode.ExtensionContext, hierarchy: Hierarchy) {
+    const hierarchyType = hierarchy === Hierarchy.CALL ? 'Call' : 'Type';
+    const id = 'alsVisualizer' + hierarchyType;
+    const title = 'Visualize ' + hierarchyType + ' Hierarchy';
+
     let panel = hierarchy === Hierarchy.CALL ? callPanel : typePanel;
     if (panel != undefined && panel != null) return;
-    panel = vscode.window.createWebviewPanel(
-        id,
-        // 'alsVisualizer',
-        title,
-        // 'Als Visualizer',
-        vscode.ViewColumn.Beside,
-        {
-            enableScripts: true,
-            retainContextWhenHidden: true,
-        },
-    );
+    panel = vscode.window.createWebviewPanel(id, title, vscode.ViewColumn.Beside, {
+        enableScripts: true,
+        retainContextWhenHidden: true,
+    });
     panel.webview.html = getWebviewContent(panel.webview, context.extensionUri);
 
     panel.webview.onDidReceiveMessage((message: Message) => {
@@ -495,7 +655,7 @@ function setupWebView(
                 if (symbolsMap.get(key)?.hierarchy === Hierarchy.TYPES) symbolsMap.delete(key);
             }
         }
-        rootNodes = Array.from(symbolsMap.values()).filter((node) => node.parents.length === 0);
+        rootNodes = findRoots();
     });
     if (hierarchy === Hierarchy.CALL) callPanel = panel;
     else typePanel = panel;

@@ -91,8 +91,8 @@ export function Rectangle(node: NodeProps<DataNode>) {
         const y = node.positionAbsoluteY + (node.height ?? 0) / 2;
 
         void setCenter(x, y, {
-            zoom: 1,
-            duration: 500,
+            zoom: 0.5,
+            duration: 250,
         });
     }
 

@@ -1,4 +1,4 @@
-import { Edge, EdgeMarker } from '@xyflow/react';
+import { Node, Edge, EdgeMarker } from '@xyflow/react';
 import { Hierarchy } from '../visualizerTypes';
 
 /**

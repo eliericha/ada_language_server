@@ -9,6 +9,7 @@ import {
 } from '@xyflow/react';
 
 import React from 'react';
+import { RelationDirection } from '../visualizerTypes';
 
 export const edgeTypes = {
     floating: floatingEdge,
@@ -20,13 +21,20 @@ export const edgeTypes = {
  * @param dst - Destination node of the edge.
  * @returns A new react flow Edge.
  */
-export function edgeFactory(src: string, dst: string) {
+export function edgeFactory(src: string, dst: string, edgeDirection: RelationDirection) {
     return {
         id: 'e' + src + '-' + dst,
         source: src,
         target: dst,
         type: 'floating',
-        markerEnd: { height: 15, width: 15, type: MarkerType.Arrow },
+        markerEnd:
+            edgeDirection === RelationDirection.BOTH || edgeDirection === RelationDirection.SUB
+                ? { height: 15, width: 15, type: MarkerType.Arrow }
+                : undefined,
+        markerStart:
+            edgeDirection === RelationDirection.BOTH || edgeDirection === RelationDirection.SUPER
+                ? { height: 15, width: 15, type: MarkerType.Arrow }
+                : undefined,
         style: { strokeWidth: 2 },
         data: {
             additionalClass: undefined,
