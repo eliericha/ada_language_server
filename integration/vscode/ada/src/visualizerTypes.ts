@@ -19,12 +19,13 @@ export type HierarchyMessage = {
     hierarchy: Hierarchy;
 };
 
-export type DeleteMessage = {
+export type NodeIdsMessage = {
     nodesId: string[];
 };
 
 export type UpdateMessage = {
-    nodes: NodeData[];
+    toUpdate: NodeData[];
+    toDelete: NodeData[];
 };
 
 /**
@@ -52,7 +53,7 @@ export type NodeData = {
 export type NodeHierarchy = NodeData & {
     location: vscode.Location;
     parents: NodeHierarchy[];
-    childs: NodeHierarchy[];
+    children: NodeHierarchy[];
 };
 
 /**

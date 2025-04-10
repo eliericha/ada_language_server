@@ -14,10 +14,27 @@ export function getNodeKind(kind: string) {
     return Hierarchy.CALL;
 }
 
-export function changeMarker(edge: Edge, color: string, additionalClass: string | undefined) {
+/**
+ * Re create the marker csv in the right color for a specific edge.
+ *
+ * @param edge - The edge to change.
+ * @param color - The color to apply on the marker.
+ * @param additionalClass - An additional class that will be added to the edge on render.
+ * @param unselect - A boolean indicating if the edge will be unselected at rerendering
+ * @returns The modified edge.
+ */
+export function changeMarker(
+    edge: Edge,
+    color: string,
+    additionalClass: string | undefined,
+    unselect = false,
+) {
     edge.data = { additionalClass: additionalClass };
 
-    if (edge.selected) return edge;
+    if (edge.selected) {
+        if (unselect) edge.selected = false;
+        else return edge;
+    }
     // Recreate the marker to generate the right svg
     // (a marker can't be modified in place)
     if (edge.markerEnd && 'width' in (edge.markerEnd as EdgeMarker)) {

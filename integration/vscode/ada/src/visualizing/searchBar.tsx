@@ -1,37 +1,21 @@
-import { useReactFlow, ReactFlowProvider } from '@xyflow/react';
+import { useReactFlow, Node } from '@xyflow/react';
 import React from 'react';
 import { NodeData } from '../visualizerTypes';
-import { focusNode } from './utils';
 
-let current: number;
-let setCurrent: React.Dispatch<React.SetStateAction<number>>;
-let filteredNodes = [];
-let setFilteredNodes: React.Dispatch<React.SetStateAction<React.JSX.Element[]>>;
-
+let timeoutId: NodeJS.Timeout | null = null;
 /**
- * Reset the state of the search bar.
- */
-export const closeSearchBar = (): void => {
-    setFilteredNodes([]);
-    setCurrent(-1);
-    const searchBar = document.getElementById('visualizer__node-search-bar');
-    if (!searchBar) return;
-    (searchBar as HTMLInputElement).value = '';
-};
-
-/**
- *  Create a search bar allowing to focus on specific node of the graph.
  *
  * @returns A div containing the search bar itself and the list that will contain the child results
  */
 export function SearchBar() {
-    const { getViewport, getNodes, getNode, setCenter } = useReactFlow();
-    [current, setCurrent] = React.useState(-1);
-    [filteredNodes, setFilteredNodes] = React.useState<React.JSX.Element[]>([]);
+    const { getNodes, getNode, setCenter } = useReactFlow();
+    const [current, setCurrent] = React.useState(-1);
+    const [filteredNodes, setFilteredNodes] = React.useState<React.JSX.Element[]>([]);
 
     /**
      * Display a dropdown list of nodes that matches the request inputted in the search bar.
      * @param event - The change event
+     *
      */
     const onChange = React.useCallback(
         (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -48,10 +32,9 @@ export function SearchBar() {
                 if (data.label.toLowerCase().indexOf(search) > -1) {
                     searchResults.push(
                         <li
-                            data-item-id={node.id}
+                            data-id={node.id}
                             onClick={onListClick}
-                            className="visualizer__node-search-item"
-                            title={(node.data as NodeData).label}
+                            className="node-search-item"
                             key={node.id}
                         >
                             {(node.data as NodeData).label}
@@ -64,15 +47,22 @@ export function SearchBar() {
         [filteredNodes],
     );
 
-    /**
-     * Handle the key press to navigate the list and handle the node focus.
-     */
+    const focusNode = (nodeId: string) => {
+        const node = getNode(nodeId);
+        if (!node) return;
+
+        void setCenter(
+            node.position.x + (node.width ?? 0) / 2,
+            node.position.y + (node.height ?? 0) / 2,
+            { duration: 500, zoom: 1 },
+        );
+    };
+
     const onKeyDown = React.useCallback(
         (event: React.KeyboardEvent<HTMLInputElement>) => {
-            const ul = document.getElementById('visualizer__node-search-list') as HTMLUListElement;
+            const ul = document.getElementById('node-search-list') as HTMLUListElement;
             const childs = ul.children;
-            if (childs.length === 0) return;
-            if (current > -1) childs[current].classList.remove('visualizer__node-search-selected');
+            if (current > -1) childs[current].classList.remove('search-selected');
             let newCurrent = current;
             // Go to the previous element in the list (go to the last element in case of underflow)
             if (event.key === 'ArrowUp') {
@@ -83,14 +73,13 @@ export function SearchBar() {
             else if (event.key === 'ArrowDown' || event.key === 'Tab') {
                 event.preventDefault();
                 newCurrent = (current + 1) % ul.childElementCount;
-                // Close the search bar when the user presses escape.
-            } else if (event.key === 'Escape') {
-                closeSearchBar();
-                return;
             }
             // Focus the current node on the graph
             else if (event.key === 'Enter' && current !== -1) {
                 event.preventDefault();
+                const nodeId = childs[current].getAttribute('data-id');
+                if (!nodeId) return;
+                focusNode(nodeId);
             }
             // If anything else is typed reset the list
             else {
@@ -100,58 +89,76 @@ export function SearchBar() {
             setCurrent(newCurrent);
             if (newCurrent === -1) return;
 
-            // Focus on the current choice
-            const nodeId = childs[newCurrent].getAttribute('data-item-id');
-            if (!nodeId) return;
-            const node = getNode(nodeId);
-            if (node) focusNode(node, getViewport(), setCenter);
-
             //Add the class to the current selected option and scroll the list to make sure
             // the element is into view
-            childs[newCurrent].classList.add('visualizer__node-search-selected');
+            childs[newCurrent].classList.add('search-selected');
             childs[newCurrent].scrollIntoView({ behavior: 'auto', block: 'nearest' });
         },
         [filteredNodes, current],
     );
 
-    // Handle the case where the user mouse when on another window.
+    // Reset the start of the search bar.
+    const handleLostFocus = (): void => {
+        setFilteredNodes([]);
+        setCurrent(-1);
+        const searchBar = document.getElementById('node-search-bar');
+        if (!searchBar) return;
+        (searchBar as HTMLInputElement).value = '';
+    };
+
+    // Handle the case the user clicks out of the search bar
+    // The timeout is added for the case where the user clicks on one of the list item to prevent
+    // the whole list to be destroyed before the action is done.
     React.useEffect(() => {
-        window.addEventListener('blur', closeSearchBar);
+        const handleChange = () => {
+            timeoutId = setTimeout(() => {
+                handleLostFocus();
+            }, 150);
+        };
+
+        window.addEventListener('change', handleChange);
 
         return () => {
-            window.removeEventListener('blur', closeSearchBar);
+            window.removeEventListener('change', handleChange);
         };
     }, []);
 
-    /**
-     * On list item click, focus on the node represented by this item.
-     */
+    // Handle the case where the user mouse when on another window.
+    React.useEffect(() => {
+        window.addEventListener('blur', handleLostFocus);
+
+        return () => {
+            window.removeEventListener('blur', handleLostFocus);
+        };
+    }, []);
+
     const onListClick = React.useCallback((event: React.MouseEvent<HTMLLIElement>) => {
         event.preventDefault();
-        const nodeId = (event.target as HTMLLIElement).getAttribute('data-item-id');
+        // Interrupt the timeout started in the change event listener so the user can click on
+        // multiple option without having to redo the search.
+        if (timeoutId) {
+            clearTimeout(timeoutId);
+            timeoutId = null;
+        }
+        const nodeId = (event.target as HTMLLIElement).getAttribute('data-id');
         if (!nodeId) return;
-        const node = getNode(nodeId);
-        if (node) focusNode(node, getViewport(), setCenter);
+        focusNode(nodeId);
     }, []);
 
     return (
-        <ReactFlowProvider>
-            <div className="visualizer__node-search">
-                <input
-                    type="search"
-                    inputMode="search"
-                    autoComplete="off"
-                    placeholder="Search symbol name"
-                    id="visualizer__node-search-bar"
-                    onChange={onChange}
-                    onKeyDown={onKeyDown}
-                />
-                <nav>
-                    <ul className="visualizer__scrollbar" id="visualizer__node-search-list">
-                        {filteredNodes}
-                    </ul>
-                </nav>
-            </div>
-        </ReactFlowProvider>
+        <div className="node-search">
+            <input
+                type="search"
+                inputMode="search"
+                autoComplete="off"
+                placeholder="Search symbol name"
+                id="node-search-bar"
+                onChange={onChange}
+                onKeyDown={onKeyDown}
+            />
+            <nav>
+                <ul id="node-search-list">{filteredNodes}</ul>
+            </nav>
+        </div>
     );
 }

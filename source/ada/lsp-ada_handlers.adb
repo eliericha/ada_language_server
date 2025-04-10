@@ -102,24 +102,24 @@ package body LSP.Ada_Handlers is
 
    subtype AlsReferenceKind_Array is LSP.Structures.AlsReferenceKind_Set;
 
-   function Is_Parent return AlsReferenceKind_Array
-   is ([LSP.Enumerations.parent => True, others => False]);
+   function Is_Parent return AlsReferenceKind_Array is
+     ([LSP.Enumerations.parent => True, others => False]);
 
-   function Is_Child return AlsReferenceKind_Array
-   is ([LSP.Enumerations.child => True, others => False]);
+   function Is_Child return AlsReferenceKind_Array is
+     ([LSP.Enumerations.child => True, others => False]);
 
    procedure Clean_Diagnostics
      (Self     : in out Message_Handler'Class;
       Document : not null LSP.Ada_Documents.Document_Access);
    --  Clean diagnostics up for the document
 
-   function To_DocumentUri
-     (X : VSS.Strings.Virtual_String) return LSP.Structures.DocumentUri
-   is (X with null record);
+   function To_DocumentUri (X : VSS.Strings.Virtual_String)
+     return LSP.Structures.DocumentUri is (X with null record);
 
    function To_DocumentUri
-     (X : LSP.Structures.URI) return LSP.Structures.DocumentUri
-   is (VSS.Strings.Virtual_String (X) with null record);
+     (X : LSP.Structures.URI)
+      return LSP.Structures.DocumentUri is
+     (VSS.Strings.Virtual_String (X) with null record);
 
    EmptyDocumentUri : constant LSP.Structures.DocumentUri :=
      To_DocumentUri (VSS.Strings.Empty_Virtual_String);
@@ -129,7 +129,9 @@ package body LSP.Ada_Handlers is
       Name : String;
       URI  : LSP.Structures.DocumentUri := EmptyDocumentUri);
 
-   procedure Log_Method_Out (Self : in out Message_Handler; Name : String);
+   procedure Log_Method_Out
+     (Self : in out Message_Handler;
+      Name : String);
    --  Save method in/out in a log file
 
    function Resolve_Name
@@ -137,29 +139,30 @@ package body LSP.Ada_Handlers is
       Id        : LSP.Structures.Integer_Or_Virtual_String;
       Context   : LSP.Ada_Contexts.Context;
       Name_Node : Libadalang.Analysis.Name;
-      Imprecise : out Boolean) return Libadalang.Analysis.Defining_Name;
+      Imprecise : out Boolean)
+      return Libadalang.Analysis.Defining_Name;
    --  Toplayer Resolve_Name based on Laltools.Common.Resolve_Name.
    --  This function is handling Imprecise and Error results during Nameres by
    --  logging them and generating Diagnostics if needed.
 
-   overriding
-   function To_LSP_Location
-     (Self : in out Message_Handler; Node : Libadalang.Analysis.Ada_Node'Class)
-      return LSP.Structures.Location
-   is (LSP.Ada_Handlers.Locations.To_LSP_Location (Self, Node));
+   overriding function To_LSP_Location
+     (Self : in out Message_Handler;
+      Node : Libadalang.Analysis.Ada_Node'Class)
+      return LSP.Structures.Location is
+        (LSP.Ada_Handlers.Locations.To_LSP_Location (Self, Node));
 
-   overriding
-   function To_LSP_Range
-     (Self : in out Message_Handler; Node : Libadalang.Analysis.Ada_Node'Class)
-      return LSP.Structures.A_Range
-   is (LSP.Ada_Handlers.Locations.To_LSP_Range (Self, Node));
+   overriding function To_LSP_Range
+     (Self  : in out Message_Handler;
+      Node   : Libadalang.Analysis.Ada_Node'Class)
+      return LSP.Structures.A_Range is
+        (LSP.Ada_Handlers.Locations.To_LSP_Range (Self, Node));
 
-   overriding
-   function To_LSP_Range
+   overriding function To_LSP_Range
      (Self  : in out Message_Handler;
       Unit  : Libadalang.Analysis.Analysis_Unit;
-      Token : Libadalang.Common.Token_Reference) return LSP.Structures.A_Range
-   is (LSP.Ada_Handlers.Locations.To_LSP_Range (Self, Unit, Token));
+      Token : Libadalang.Common.Token_Reference)
+      return LSP.Structures.A_Range is
+        (LSP.Ada_Handlers.Locations.To_LSP_Range (Self, Unit, Token));
 
    overriding function From_LSP_Range
      (Self : in out Message_Handler;
@@ -257,9 +260,9 @@ package body LSP.Ada_Handlers is
    -- Contexts_For_File --
    -----------------------
 
-   overriding
-   function Contexts_For_File
-     (Self : Message_Handler; File : GNATCOLL.VFS.Virtual_File)
+   overriding function Contexts_For_File
+     (Self : Message_Handler;
+      File : GNATCOLL.VFS.Virtual_File)
       return LSP.Ada_Context_Sets.Context_Lists.List
    is
       Is_Runtime_File : constant Boolean :=
@@ -288,8 +291,7 @@ package body LSP.Ada_Handlers is
               Self.Contexts.Get_Best_Context
                 (Self.To_URI (File.Display_Full_Name));
          begin
-            return
-              (if Fallback_Context /= null then [Fallback_Context] else []);
+            return (if Fallback_Context /= null then [Fallback_Context] else []);
          end;
       else
          return Contexts;
@@ -300,8 +302,7 @@ package body LSP.Ada_Handlers is
    -- Contexts_For_Position --
    ---------------------------
 
-   overriding
-   function Contexts_For_Position
+   overriding function Contexts_For_Position
      (Self : in out Message_Handler;
       Pos  : LSP.Structures.TextDocumentPositionParams'Class)
       return LSP.Ada_Context_Sets.Context_Lists.List
@@ -326,13 +327,12 @@ package body LSP.Ada_Handlers is
    begin
 
       if not Name_Node.Is_Null then
-         Def_Name :=
-           Resolve_Name
-             (Self      => Self,
-              Id        => (False, "Getting context for Position"),
-              Context   => Best_Context.all,
-              Name_Node => Name_Node,
-              Imprecise => Ignored);
+         Def_Name := Resolve_Name
+           (Self      => Self,
+            Id        => (False, "Getting context for Position"),
+            Context   => Best_Context.all,
+            Name_Node => Name_Node,
+            Imprecise => Ignored);
 
          if not Def_Name.Is_Null then
             --  The decl can be found, use the file where it was defined
@@ -350,10 +350,8 @@ package body LSP.Ada_Handlers is
    ----------
 
    procedure Free (Self : in out Internal_Document_Access) is
-      procedure Unchecked_Free is new
-        Ada.Unchecked_Deallocation
-          (LSP.Ada_Documents.Document,
-           Internal_Document_Access);
+      procedure Unchecked_Free is new Ada.Unchecked_Deallocation
+        (LSP.Ada_Documents.Document, Internal_Document_Access);
    begin
       Self.Cleanup;
       Unchecked_Free (Self);
@@ -363,9 +361,9 @@ package body LSP.Ada_Handlers is
    -- Get_Open_Document --
    -----------------------
 
-   overriding
-   function Get_Open_Document
-     (Self : in out Message_Handler; URI : LSP.Structures.DocumentUri)
+   overriding function Get_Open_Document
+     (Self  : in out Message_Handler;
+      URI   : LSP.Structures.DocumentUri)
       return LSP.Ada_Documents.Document_Access
    is
       File : constant GNATCOLL.VFS.Virtual_File := Self.To_File (URI);
@@ -373,9 +371,8 @@ package body LSP.Ada_Handlers is
       Project_Loading.Ensure_Project_Loaded (Self);
 
       if Self.Open_Documents.Contains (File) then
-         return
-           LSP.Ada_Documents.Document_Access
-             (Self.Open_Documents.Element (File));
+         return LSP.Ada_Documents.Document_Access
+           (Self.Open_Documents.Element (File));
       else
          return null;
       end if;
@@ -386,15 +383,16 @@ package body LSP.Ada_Handlers is
    -----------------------
 
    function Get_Project_Stamp
-     (Self : Message_Handler'Class) return Project_Stamp
-   is (Self.Project_Stamp);
+     (Self : Message_Handler'Class)
+      return Project_Stamp is (Self.Project_Stamp);
 
    -------------------------------
    -- Get_Open_Document_Version --
    -------------------------------
 
    function Get_Open_Document_Version
-     (Self : in out Message_Handler; URI : LSP.Structures.DocumentUri)
+     (Self : in out Message_Handler;
+      URI  : LSP.Structures.DocumentUri)
       return LSP.Structures.OptionalVersionedTextDocumentIdentifier
    is
       use type LSP.Ada_Documents.Document_Access;
@@ -429,30 +427,32 @@ package body LSP.Ada_Handlers is
    -- Imprecise_Resolve_Name --
    ----------------------------
 
-   overriding
-   function Imprecise_Resolve_Name
-     (Self : in out Message_Handler; Name_Node : Libadalang.Analysis.Name)
+   overriding function Imprecise_Resolve_Name
+     (Self      : in out Message_Handler;
+      Name_Node : Libadalang.Analysis.Name)
       return Libadalang.Analysis.Defining_Name
    is
-      Trace : constant GNATCOLL.Traces.Trace_Handle :=
+      Trace     : constant GNATCOLL.Traces.Trace_Handle :=
         LSP.GNATCOLL_Tracers.Handle (Self.Tracer.all);
 
-      Ref_Kind : Libadalang.Common.Ref_Result_Kind;
+      Ref_Kind  : Libadalang.Common.Ref_Result_Kind;
    begin
       if Name_Node.Is_Null then
          return Libadalang.Analysis.No_Defining_Name;
       end if;
 
-      return
-        Laltools.Common.Resolve_Name (Name_Node, Trace, Ref_Kind => Ref_Kind);
+      return Laltools.Common.Resolve_Name
+        (Name_Node,
+         Trace,
+         Ref_Kind => Ref_Kind);
    end Imprecise_Resolve_Name;
 
    ---------------------------------
    -- Increment_Project_Timestamp --
    ---------------------------------
 
-   overriding
-   procedure Increment_Project_Timestamp (Self : in out Message_Handler) is
+   overriding procedure Increment_Project_Timestamp
+     (Self : in out Message_Handler) is
    begin
       Self.Project_Stamp := Self.Project_Stamp + 1;
    end Increment_Project_Timestamp;
@@ -471,11 +471,12 @@ package body LSP.Ada_Handlers is
       Self.File_Monitor :=
         new LSP.Servers.FS_Watch.FS_Watch_Monitor (Self.Server);
       Self.Workspace_Diagnostic_Sources :=
-        [new LSP.Ada_Handlers.Project_Diagnostics.Diagnostic_Source
-               (Self'Unchecked_Access),
+        [
+           new LSP.Ada_Handlers.Project_Diagnostics.Diagnostic_Source
+                 (Self'Unchecked_Access),
 
-         new LSP.Ada_Handlers.Alire_Diagnostics.Diagnostic_Source
-               (Self'Unchecked_Access)];
+           new LSP.Ada_Handlers.Alire_Diagnostics.Diagnostic_Source
+                 (Self'Unchecked_Access)];
 
       Self.Load_Config_Files (CLI_Config_File);
    end Initialize;
@@ -485,8 +486,8 @@ package body LSP.Ada_Handlers is
    ----------------------
 
    function Is_Open_Document
-     (Self : Message_Handler; File : GNATCOLL.VFS.Virtual_File) return Boolean
-   is
+     (Self : Message_Handler;
+      File : GNATCOLL.VFS.Virtual_File) return Boolean is
    begin
       return Self.Open_Documents.Contains (File);
    end Is_Open_Document;
@@ -495,15 +496,15 @@ package body LSP.Ada_Handlers is
    -- Is_Shutdown --
    -----------------
 
-   function Is_Shutdown (Self : Message_Handler'Class) return Boolean
-   is (Self.Shutdown);
+   function Is_Shutdown
+     (Self : Message_Handler'Class) return Boolean is (Self.Shutdown);
 
    -----------------------
    -- Load_Config_Files --
    -----------------------
 
    procedure Load_Config_Files
-     (Self            : in out Message_Handler;
+     (Self : in out Message_Handler;
       CLI_Config_File : GNATCOLL.VFS.Virtual_File)
    is
       use LSP.Env;
@@ -586,7 +587,9 @@ package body LSP.Ada_Handlers is
    -- Log_Method_Out --
    --------------------
 
-   procedure Log_Method_Out (Self : in out Message_Handler; Name : String) is
+   procedure Log_Method_Out
+     (Self : in out Message_Handler;
+      Name : String) is
    begin
       Self.Tracer.Trace ("Out Message_Handler " & Name);
    end Log_Method_Out;
@@ -595,8 +598,7 @@ package body LSP.Ada_Handlers is
    -- On_AlsCheckSyntax_Request --
    -------------------------------
 
-   overriding
-   procedure On_AlsCheckSyntax_Request
+   overriding procedure On_AlsCheckSyntax_Request
      (Self  : in out Message_Handler;
       Id    : LSP.Structures.Integer_Or_Virtual_String;
       Value : LSP.Structures.AlsCheckSyntaxParams)
@@ -605,12 +607,12 @@ package body LSP.Ada_Handlers is
       function "+"
         (Item : VSS.Strings.Virtual_String'Class)
          return Ada.Strings.UTF_Encoding.UTF_8_String
-      renames VSS.Strings.Conversions.To_UTF_8_String;
+         renames VSS.Strings.Conversions.To_UTF_8_String;
 
       function "+"
         (Item : VSS.Strings.Virtual_String'Class)
          return Ada.Strings.Unbounded.Unbounded_String
-      renames VSS.Strings.Conversions.To_Unbounded_UTF_8_String;
+         renames VSS.Strings.Conversions.To_Unbounded_UTF_8_String;
 
       Response : LSP.Structures.AlsCheckSyntaxResult;
 
@@ -665,8 +667,7 @@ package body LSP.Ada_Handlers is
    -- On_CodeAction_Request --
    ---------------------------
 
-   overriding
-   procedure On_CodeAction_Request
+   overriding procedure On_CodeAction_Request
      (Self  : in out Message_Handler;
       Id    : LSP.Structures.Integer_Or_Virtual_String;
       Value : LSP.Structures.CodeActionParams)
@@ -777,16 +778,15 @@ package body LSP.Ada_Handlers is
 
          procedure Change_Parameters_Default_Value_Code_Action is
             use Langkit_Support.Slocs;
-            use LAL_Refactor
-                  .Subprogram_Signature
-                  .Change_Parameters_Default_Value;
+            use LAL_Refactor.Subprogram_Signature.
+                  Change_Parameters_Default_Value;
             use LSP.Ada_Handlers.Refactor.Change_Parameters_Default_Value;
 
             Span : constant Source_Location_Range :=
-              (Langkit_Support.Slocs.Line_Number (Value.a_range.start.line)
-               + 1,
-               Langkit_Support.Slocs.Line_Number (Value.a_range.an_end.line)
-               + 1,
+              (Langkit_Support.Slocs.Line_Number
+                 (Value.a_range.start.line) + 1,
+               Langkit_Support.Slocs.Line_Number
+                 (Value.a_range.an_end.line) + 1,
                Column_Number (Value.a_range.start.character) + 1,
                Column_Number (Value.a_range.an_end.character) + 1);
 
@@ -794,7 +794,8 @@ package body LSP.Ada_Handlers is
 
          begin
             if Is_Change_Parameters_Default_Value_Available
-                 (Unit => Node.Unit, Parameters_Source_Location_Range => Span)
+                 (Unit                             => Node.Unit,
+                  Parameters_Source_Location_Range => Span)
             then
                Change_Parameters_Default_Value_Command.Append_Code_Action
                  (Context         => Context,
@@ -818,10 +819,10 @@ package body LSP.Ada_Handlers is
             use LSP.Ada_Handlers.Refactor.Change_Parameters_Type;
 
             Span : constant Source_Location_Range :=
-              (Langkit_Support.Slocs.Line_Number (Value.a_range.start.line)
-               + 1,
-               Langkit_Support.Slocs.Line_Number (Value.a_range.an_end.line)
-               + 1,
+              (Langkit_Support.Slocs.Line_Number
+                 (Value.a_range.start.line) + 1,
+               Langkit_Support.Slocs.Line_Number
+                 (Value.a_range.an_end.line) + 1,
                Column_Number (Value.a_range.start.character) + 1,
                Column_Number (Value.a_range.an_end.character) + 1);
 
@@ -862,10 +863,10 @@ package body LSP.Ada_Handlers is
               Value.a_range.start = Value.a_range.an_end;
 
             Section_To_Extract_SLOC : constant Source_Location_Range :=
-              (Langkit_Support.Slocs.Line_Number (Value.a_range.start.line)
-               + 1,
-               Langkit_Support.Slocs.Line_Number (Value.a_range.an_end.line)
-               + 1,
+              (Langkit_Support.Slocs.Line_Number
+                 (Value.a_range.start.line) + 1,
+               Langkit_Support.Slocs.Line_Number
+                 (Value.a_range.an_end.line) + 1,
                Column_Number (Value.a_range.start.character) + 1,
                Column_Number (Value.a_range.an_end.character) + 1);
 
@@ -876,9 +877,9 @@ package body LSP.Ada_Handlers is
          begin
             if not Single_Location then
                if Is_Extract_Subprogram_Available
-                    (Node.Unit,
-                     Section_To_Extract_SLOC,
-                     Available_Subprogram_Kinds)
+                 (Node.Unit,
+                  Section_To_Extract_SLOC,
+                  Available_Subprogram_Kinds)
                then
                   if Available_Subprogram_Kinds (Ada_Subp_Kind_Procedure) then
                      Extract_Subprogram_Command.Append_Code_Action
@@ -959,9 +960,9 @@ package body LSP.Ada_Handlers is
             use LAL_Refactor.Auto_Import;
             use LSP.Structures;
 
-            function Units_Provider return Analysis_Unit_Array
-            is (Self.Project_Predefined_Units (Context.all)
-                & Context.Analysis_Units);
+            function Units_Provider return Analysis_Unit_Array is
+              (Self.Project_Predefined_Units (Context.all)
+               & Context.Analysis_Units);
             --  Concatenates user units with predefined units
 
             Single_Location : constant Boolean :=
@@ -1019,10 +1020,10 @@ package body LSP.Ada_Handlers is
             use LSP.Ada_Handlers.Refactor.Introduce_Parameter;
 
             Span : constant Source_Location_Range :=
-              (Langkit_Support.Slocs.Line_Number (Value.a_range.start.line)
-               + 1,
-               Langkit_Support.Slocs.Line_Number (Value.a_range.an_end.line)
-               + 1,
+              (Langkit_Support.Slocs.Line_Number
+                 (Value.a_range.start.line) + 1,
+               Langkit_Support.Slocs.Line_Number
+                 (Value.a_range.an_end.line) + 1,
                Column_Number (Value.a_range.start.character) + 1,
                Column_Number (Value.a_range.an_end.character) + 1);
 
@@ -1030,7 +1031,8 @@ package body LSP.Ada_Handlers is
 
          begin
             if Is_Introduce_Parameter_Available
-                 (Unit => Node.Unit, SLOC_Range => Span)
+                 (Unit       => Node.Unit,
+                  SLOC_Range => Span)
             then
                Introduce_Parameter_Command.Append_Code_Action
                  (Context         => Context,
@@ -1068,8 +1070,8 @@ package body LSP.Ada_Handlers is
             procedure Append_Command (Node : Libadalang.Analysis.Ada_Node) is
                use LSP.Ada_Handlers.Named_Parameters_Commands;
 
-               Named_Parameters_Command :
-                 LSP.Ada_Handlers.Named_Parameters_Commands.Command;
+               Named_Parameters_Command : LSP.Ada_Handlers.
+                 Named_Parameters_Commands.Command;
 
             begin
                Named_Parameters_Command.Append_Suggestion
@@ -1078,7 +1080,7 @@ package body LSP.Ada_Handlers is
                   Where               => LSP.Utils.Get_Node_Location (Node),
                   Versioned_Documents => Self.Client.Versioned_Documents);
 
-               Done := True;
+               Done  := True;
                Found := True;
             end Append_Command;
 
@@ -1086,8 +1088,7 @@ package body LSP.Ada_Handlers is
             while not Done and then not Aux_Node.Is_Null loop
                case Aux_Node.Kind is
                   when Libadalang.Common.Ada_Stmt
-                     | Libadalang.Common.Ada_Basic_Decl
-                  =>
+                     | Libadalang.Common.Ada_Basic_Decl =>
 
                      Done := True;
 
@@ -1105,15 +1106,14 @@ package body LSP.Ada_Handlers is
 
                      begin
                         if not List.Is_Null
-                          and then List.Kind
-                                   in Libadalang.Common.Ada_Basic_Assoc_List
+                          and then List.Kind in
+                                     Libadalang.Common.Ada_Basic_Assoc_List
                           and then Has_Assoc_Without_Designator
                                      (List.As_Basic_Assoc_List)
                         then
                            Append_Command (List);
                         end if;
                      end;
-
                   when others =>
                      null;
                end case;
@@ -1139,8 +1139,8 @@ package body LSP.Ada_Handlers is
             Single_Location : constant Boolean :=
               Value.a_range.start = Value.a_range.an_end;
             Location        : constant Source_Location :=
-              (Langkit_Support.Slocs.Line_Number (Value.a_range.start.line)
-               + 1,
+              (Langkit_Support.Slocs.Line_Number
+                 (Value.a_range.start.line) + 1,
                Column_Number (Value.a_range.start.character) + 1);
 
             Pull_Up_Declaration_Command :
@@ -1151,9 +1151,9 @@ package body LSP.Ada_Handlers is
               and then Is_Pull_Up_Declaration_Available (Node.Unit, Location)
             then
                Pull_Up_Declaration_Command.Append_Code_Action
-                 (Context         => Context,
-                  Commands_Vector => Result,
-                  Where           =>
+                 (Context                     => Context,
+                  Commands_Vector             => Result,
+                  Where                       =>
                     (uri     => Value.textDocument.uri,
                      a_range => Value.a_range,
                      alsKind => LSP.Constants.Empty));
@@ -1173,8 +1173,8 @@ package body LSP.Ada_Handlers is
             use Langkit_Support.Slocs;
 
             Location : constant Source_Location :=
-              (Langkit_Support.Slocs.Line_Number (Value.a_range.start.line)
-               + 1,
+              (Langkit_Support.Slocs.Line_Number
+                 (Value.a_range.start.line) + 1,
                Column_Number (Value.a_range.start.character) + 1);
 
             Replace_Type_Command :
@@ -1261,16 +1261,15 @@ package body LSP.Ada_Handlers is
                --  This code action is not available when a range of text is
                --  selected.
 
-               Single_Location : constant Boolean :=
+               Single_Location             : constant Boolean :=
                  Value.a_range.start = Value.a_range.an_end;
-               Location        : constant Source_Location :=
-                 (if Single_Location
-                  then
+               Location                    : constant Source_Location :=
+                 (if Single_Location then
                     (Langkit_Support.Slocs.Line_Number
-                       (Value.a_range.start.line)
-                     + 1,
+                         (Value.a_range.start.line) + 1,
                      Column_Number (Value.a_range.start.character) + 1)
-                  else No_Source_Location);
+                  else
+                     No_Source_Location);
 
                Requires_Full_Specification : Boolean;
 
@@ -1279,7 +1278,9 @@ package body LSP.Ada_Handlers is
             begin
                if Single_Location
                  and then Is_Add_Parameter_Available
-                            (Node.Unit, Location, Requires_Full_Specification)
+                   (Node.Unit,
+                    Location,
+                    Requires_Full_Specification)
                then
                   Add_Parameter_Commad.Append_Code_Action
                     (Context                     => Context,
@@ -1319,7 +1320,7 @@ package body LSP.Ada_Handlers is
 
          begin
             if Is_Remove_Parameter_Available
-                 (Node, Target_Subp, Parameter_Indices_Range)
+              (Node, Target_Subp, Parameter_Indices_Range)
             then
                Remove_Parameter_Command.Append_Code_Action
                  (Context            => Context,
@@ -1344,16 +1345,16 @@ package body LSP.Ada_Handlers is
 
          begin
             if Is_Move_Parameter_Available
-                 (Node, Target_Subp, Parameter_Index, Move_Directions)
+              (Node, Target_Subp, Parameter_Index, Move_Directions)
             then
                for Direction in Move_Direction_Type loop
                   if Move_Directions (Direction) then
                      Move_Parameter_Command.Append_Code_Action
-                       (Context         => Context,
-                        Commands_Vector => Result,
-                        Target_Subp     => Target_Subp,
-                        Parameter_Index => Parameter_Index,
-                        Move_Direction  => Direction);
+                       (Context          => Context,
+                        Commands_Vector  => Result,
+                        Target_Subp      => Target_Subp,
+                        Parameter_Index  => Parameter_Index,
+                        Move_Direction   => Direction);
                   end if;
                end loop;
 
@@ -1374,10 +1375,7 @@ package body LSP.Ada_Handlers is
 
          begin
             if Is_Change_Mode_Available
-                 (Node,
-                  Target_Subp,
-                  Target_Parameters_Indices,
-                  Mode_Alternatives)
+              (Node, Target_Subp, Target_Parameters_Indices, Mode_Alternatives)
             then
                for Alternative of Mode_Alternatives loop
                   Change_Parameter_Mode_Command.Append_Code_Action
@@ -1430,7 +1428,8 @@ package body LSP.Ada_Handlers is
          Found : Boolean := False;
 
          function Process_Type_Expr
-           (TE : Libadalang.Analysis.Type_Expr) return Boolean;
+           (TE : Libadalang.Analysis.Type_Expr)
+            return Boolean;
          --  Returns True if TE is associated to an access of a subprogram
 
          -----------------------
@@ -1438,7 +1437,8 @@ package body LSP.Ada_Handlers is
          -----------------------
 
          function Process_Type_Expr
-           (TE : Libadalang.Analysis.Type_Expr) return Boolean
+           (TE : Libadalang.Analysis.Type_Expr)
+            return Boolean
          is
             TD : Libadalang.Analysis.Base_Type_Decl;
             --  If TE is not an anonymous type then we'll need to know its
@@ -1449,7 +1449,9 @@ package body LSP.Ada_Handlers is
                when Ada_Subtype_Indication_Range =>
                   TD := TE.As_Subtype_Indication.P_Designated_Type_Decl;
 
-                  if TD.Is_Null or else not (TD.Kind in Ada_Type_Decl) then
+                  if TD.Is_Null
+                    or else not (TD.Kind in Ada_Type_Decl)
+                  then
                      return False;
                   end if;
 
@@ -1465,23 +1467,17 @@ package body LSP.Ada_Handlers is
                         --  call Process_Type_Expr to check the type of the
                         --  components of the array.
 
-                        return
-                          Process_Type_Expr
-                            (TD
-                               .As_Type_Decl
-                               .F_Type_Def
-                               .As_Array_Type_Def
-                               .F_Component_Type
-                               .F_Type_Expr);
+                        return Process_Type_Expr
+                          (TD.As_Type_Decl.F_Type_Def.As_Array_Type_Def.
+                             F_Component_Type.F_Type_Expr);
 
                      when others =>
                         return False;
                   end case;
 
                when Ada_Anonymous_Type_Range =>
-                  return
-                    TE.As_Anonymous_Type.F_Type_Decl.F_Type_Def.Kind
-                    in Ada_Access_To_Subp_Def_Range;
+                  return TE.As_Anonymous_Type.F_Type_Decl.F_Type_Def.Kind in
+                    Ada_Access_To_Subp_Def_Range;
 
                when others =>
                   return False;
@@ -1491,8 +1487,8 @@ package body LSP.Ada_Handlers is
 
       begin
          for J of Node loop
-            if J.Kind in Libadalang.Common.Ada_Param_Assoc
-              and then J.As_Param_Assoc.F_Designator.Is_Null
+            if J.Kind in Libadalang.Common.Ada_Param_Assoc and then
+              J.As_Param_Assoc.F_Designator.Is_Null
             then
                Found := True;
                exit;
@@ -1511,7 +1507,6 @@ package body LSP.Ada_Handlers is
             case Expr.Kind is
                when Libadalang.Common.Ada_Call_Expr =>
                   Name := Expr.As_Call_Expr.F_Name;
-
                when others =>
                   return False;
             end case;
@@ -1529,19 +1524,17 @@ package body LSP.Ada_Handlers is
 
             case Decl.Kind is
                when Libadalang.Common.Ada_Base_Subp_Body
-                  | Libadalang.Common.Ada_Basic_Subp_Decl
-               =>
+                  | Libadalang.Common.Ada_Basic_Subp_Decl =>
                   return True;
 
                when Libadalang.Common.Ada_Param_Spec_Range =>
                   return Process_Type_Expr (Decl.As_Param_Spec.F_Type_Expr);
 
                when Libadalang.Common.Ada_Component_Decl_Range =>
-                  return
-                    Process_Type_Expr
-                      (Decl.As_Component_Decl.F_Component_Def.F_Type_Expr);
+                  return Process_Type_Expr
+                    (Decl.As_Component_Decl.F_Component_Def.F_Type_Expr);
 
-               when Libadalang.Common.Ada_Object_Decl_Range =>
+               when  Libadalang.Common.Ada_Object_Decl_Range =>
                   --  This can either be an object which type is an access
                   --  to a subprogram or an array of accesses to
                   --  subprograms.
@@ -1589,10 +1582,8 @@ package body LSP.Ada_Handlers is
                 (GNATCOLL.VFS.Create_From_UTF8
                    (URIs.Conversions.To_File
                       (VSS.Strings.Conversions.To_UTF_8_String
-                         (Self.Client.Root),
-                       Normalize => True))
-                   .Join ("default.gpr")
-                   .Display_Full_Name);
+                           (Self.Client.Root), Normalize => True)).Join
+                     ("default.gpr").Display_Full_Name);
          begin
             for Item of Value.context.diagnostics loop
                if Item.source = Project_Diagnostics_Source_ID then
@@ -1614,8 +1605,7 @@ package body LSP.Ada_Handlers is
    -- On_Completion_Request --
    ---------------------------
 
-   overriding
-   procedure On_Completion_Request
+   overriding procedure On_Completion_Request
      (Self  : in out Message_Handler;
       Id    : LSP.Structures.Integer_Or_Virtual_String;
       Value : LSP.Structures.CompletionParams)
@@ -1625,13 +1615,13 @@ package body LSP.Ada_Handlers is
       --  be to return only results that are available for all
       --  project contexts.
 
-      Context : constant LSP.Ada_Context_Sets.Context_Access :=
+      Context  : constant LSP.Ada_Context_Sets.Context_Access :=
         Self.Contexts.Get_Best_Context (Value.textDocument.uri);
 
       Document : constant LSP.Ada_Documents.Document_Access :=
         Get_Open_Document (Self, Value.textDocument.uri);
 
-      Names : LSP.Ada_Completions.Completion_Maps.Map;
+      Names    : LSP.Ada_Completions.Completion_Maps.Map;
 
       --  If lazy computation for the 'detail' and 'documentation' fields is
       --  supported by the client, set the Compute_Doc_And_Details flag to
@@ -1642,29 +1632,26 @@ package body LSP.Ada_Handlers is
       P1 : aliased LSP.Ada_Completions.Aspects.Aspect_Completion_Provider;
       P2 : aliased LSP.Ada_Completions.Pragmas.Pragma_Completion_Provider;
       P3 : aliased LSP.Ada_Completions.Keywords.Keyword_Completion_Provider;
-      P4 :
-        aliased LSP.Ada_Completions.Attributes.Attributes_Completion_Provider;
+      P4 : aliased
+        LSP.Ada_Completions.Attributes.Attributes_Completion_Provider;
 
-      P5 :
-        aliased LSP.Ada_Completions.Names.Name_Completion_Provider
-                  (Self.Configuration.Use_Completion_Snippets
-                   and then Self.Client.Completion_SnippetSupport);
+      P5 : aliased LSP.Ada_Completions.Names.Name_Completion_Provider
+        (Self.Configuration.Use_Completion_Snippets
+         and then Self.Client.Completion_SnippetSupport);
 
-      P6        :
-        aliased LSP.Ada_Handlers.Invisibles.Invisible_Completion_Provider
-                  (Self'Access, Context);
-      P7        :
-        aliased LSP.Ada_Completions.Parameters.Parameter_Completion_Provider
-                  (Handler => Self'Unchecked_Access,
-                   Context => Context,
-                   Document => Document,
-                   Compute_Doc_And_Details => Compute_Doc_And_Details,
-                   Named_Notation_Threshold =>
-                     Self.Configuration.Named_Notation_Threshold);
-      P8        :
-        aliased LSP.Ada_Completions.End_Names.End_Name_Completion_Provider;
-      P9        :
-        aliased LSP.Ada_Completions.Use_Clauses.Use_Clause_Completion_Provider;
+      P6 : aliased LSP.Ada_Handlers.Invisibles.Invisible_Completion_Provider
+        (Self'Access, Context);
+      P7 : aliased
+        LSP.Ada_Completions.Parameters.Parameter_Completion_Provider
+          (Handler                  => Self'Unchecked_Access,
+           Context                  => Context,
+           Document                 => Document,
+           Compute_Doc_And_Details  => Compute_Doc_And_Details,
+           Named_Notation_Threshold =>
+             Self.Configuration.Named_Notation_Threshold);
+      P8 : aliased LSP.Ada_Completions.End_Names.End_Name_Completion_Provider;
+      P9 : aliased
+        LSP.Ada_Completions.Use_Clauses.Use_Clause_Completion_Provider;
       Providers : constant LSP.Ada_Completions.Completion_Provider_List :=
         [P1'Unchecked_Access,
          P2'Unchecked_Access,
@@ -1680,8 +1667,8 @@ package body LSP.Ada_Handlers is
       Token : Libadalang.Common.Token_Reference;
       Node  : Libadalang.Analysis.Ada_Node;
 
-      Response :
-        LSP.Structures.Completion_Result (Kind => LSP.Structures.Variant_2);
+      Response : LSP.Structures.Completion_Result
+        (Kind => LSP.Structures.Variant_2);
    begin
       Response.Variant_2.isIncomplete := False;
 
@@ -1721,8 +1708,7 @@ package body LSP.Ada_Handlers is
    -- On_Completion_Resolve_Request --
    -----------------------------------
 
-   overriding
-   procedure On_Completion_Resolve_Request
+   overriding procedure On_Completion_Resolve_Request
      (Self  : in out Message_Handler;
       Id    : LSP.Structures.Integer_Or_Virtual_String;
       Value : LSP.Structures.CompletionItem)
@@ -1745,14 +1731,12 @@ package body LSP.Ada_Handlers is
 
       C := Value.data.First;
       Location := LSP.Structures.LSPAny_Vectors.From_Any (C);
-      Context := Self.Contexts.Get_Best_Context (Location.uri);
-      Node :=
-        Get_Node_At
-          (Self,
-           Context.all,
-           LSP.Structures.TextDocumentPositionParams'
-             (textDocument => (uri => Location.uri),
-              position     => Location.a_range.start));
+      Context  := Self.Contexts.Get_Best_Context (Location.uri);
+      Node     := Get_Node_At
+        (Self, Context.all,
+         LSP.Structures.TextDocumentPositionParams'
+           (textDocument => (uri => Location.uri),
+            position     => Location.a_range.start));
 
       --  Retrieve the Basic_Decl from the completion item's SLOC
       while not Node.Is_Null
@@ -1793,9 +1777,9 @@ package body LSP.Ada_Handlers is
 
             Response.documentation :=
               (Is_Set => True,
-               Value  =>
-                 LSP.Structures.Virtual_String_Or_MarkupContent'
-                   (Is_Virtual_String => True, Virtual_String => Loc_Text));
+               Value  => LSP.Structures.Virtual_String_Or_MarkupContent'
+                 (Is_Virtual_String => True,
+                  Virtual_String    => Loc_Text));
          end;
       end if;
 
@@ -1806,8 +1790,7 @@ package body LSP.Ada_Handlers is
    -- On_DidChangeWatchedFiles_Notification --
    -------------------------------------------
 
-   overriding
-   procedure On_DidChangeWatchedFiles_Notification
+   overriding procedure On_DidChangeWatchedFiles_Notification
      (Self  : in out Message_Handler;
       Value : LSP.Structures.DidChangeWatchedFilesParams)
    is
@@ -1846,7 +1829,8 @@ package body LSP.Ada_Handlers is
       -- Process_Created_File --
       --------------------------
 
-      procedure Process_Created_File is
+      procedure Process_Created_File
+      is
          use VSS.Strings.Conversions;
 
          function Is_A_Source (Self : LSP.Ada_Contexts.Context) return Boolean
@@ -1872,17 +1856,15 @@ package body LSP.Ada_Handlers is
          --  to the project source directories.
 
          if Contexts.Is_Empty then
-            for Context
-              of Self.Contexts.Each_Context (Has_Dir'Unrestricted_Access)
+            for Context of Self.Contexts.Each_Context
+              (Has_Dir'Unrestricted_Access)
             loop
                Context.Include_File (File);
                Context.Index_File (File);
 
                Self.Tracer.Trace
-                 ("Included "
-                  & File.Display_Base_Name
-                  & " in context "
-                  & To_UTF_8_String (Context.Id));
+                 ("Included " & File.Display_Base_Name
+                  & " in context " & To_UTF_8_String (Context.Id));
             end loop;
 
          else
@@ -1922,10 +1904,8 @@ package body LSP.Ada_Handlers is
          case Change.a_type is
             when LSP.Enumerations.Created =>
                Process_Created_File;
-
             when LSP.Enumerations.Deleted =>
                Process_Deleted_File;
-
             when LSP.Enumerations.Changed =>
                Process_Changed_File;
          end case;
@@ -1936,8 +1916,7 @@ package body LSP.Ada_Handlers is
    -- On_DidChangeWorkspaceFolders_Notification --
    -----------------------------------------------
 
-   overriding
-   procedure On_DidChangeWorkspaceFolders_Notification
+   overriding procedure On_DidChangeWorkspaceFolders_Notification
      (Self  : in out Message_Handler;
       Value : LSP.Structures.DidChangeWorkspaceFoldersParams)
    is
@@ -1962,7 +1941,9 @@ package body LSP.Ada_Handlers is
          Contexts : constant LSP.Ada_Context_Sets.Context_Lists.List :=
            Self.Contexts_For_URI (URI);
 
-         function Has_Dir (Context : LSP.Ada_Contexts.Context) return Boolean
+         function Has_Dir
+           (Context : LSP.Ada_Contexts.Context)
+            return Boolean
          is (Context.List_Source_Directories.Contains (File.Dir));
          --  Return True if File is in a source directory of the project held
          --  by Context.
@@ -1978,17 +1959,15 @@ package body LSP.Ada_Handlers is
          --  to the the project source directories.
 
          if Contexts.Is_Empty then
-            for Context
-              of Self.Contexts.Each_Context (Has_Dir'Unrestricted_Access)
+            for Context of Self.Contexts.Each_Context
+              (Has_Dir'Unrestricted_Access)
             loop
                Context.Include_File (File);
                Context.Index_File (File);
 
                Self.Tracer.Trace
-                 ("Included "
-                  & File.Display_Base_Name
-                  & " in context "
-                  & To_UTF_8_String (Context.Id));
+                 ("Included " & File.Display_Base_Name
+                  & " in context " & To_UTF_8_String (Context.Id));
             end loop;
 
          else
@@ -2020,13 +1999,13 @@ package body LSP.Ada_Handlers is
    begin
       --  Look through each change, filtering non Ada source files
       for Change of Value.event.added loop
-         URI := To_DocumentUri (Change.uri);
+         URI  := To_DocumentUri (Change.uri);
          File := Self.To_File (URI);
          Process_Created_File;
       end loop;
 
       for Change of Value.event.removed loop
-         URI := To_DocumentUri (Change.uri);
+         URI  := To_DocumentUri (Change.uri);
          File := Self.To_File (URI);
          Process_Deleted_File;
       end loop;
@@ -2036,8 +2015,7 @@ package body LSP.Ada_Handlers is
    -- On_DidClose_Notification --
    ------------------------------
 
-   overriding
-   procedure On_DidClose_Notification
+   overriding procedure On_DidClose_Notification
      (Self  : in out Message_Handler;
       Value : LSP.Structures.DidCloseTextDocumentParams)
    is
@@ -2058,7 +2036,8 @@ package body LSP.Ada_Handlers is
          end loop;
 
          --  Clean diagnostics up on closing document
-         Self.Clean_Diagnostics (LSP.Ada_Documents.Document_Access (Document));
+         Self.Clean_Diagnostics
+           (LSP.Ada_Documents.Document_Access (Document));
 
          Free (Document);
 
@@ -2077,10 +2056,9 @@ package body LSP.Ada_Handlers is
    -- On_DidCreateFiles_Notification --
    ------------------------------------
 
-   overriding
-   procedure On_DidCreateFiles_Notification
-     (Self : in out Message_Handler; Value : LSP.Structures.CreateFilesParams)
-   is
+   overriding procedure On_DidCreateFiles_Notification
+     (Self  : in out Message_Handler;
+      Value : LSP.Structures.CreateFilesParams) is
    begin
       Self.Log_Method_In ("On_DidCreateFiles_Notification");
 
@@ -2095,10 +2073,9 @@ package body LSP.Ada_Handlers is
    -- On_DidDeleteFiles_Notification --
    ------------------------------------
 
-   overriding
-   procedure On_DidDeleteFiles_Notification
-     (Self : in out Message_Handler; Value : LSP.Structures.DeleteFilesParams)
-   is
+   overriding procedure On_DidDeleteFiles_Notification
+     (Self  : in out Message_Handler;
+      Value : LSP.Structures.DeleteFilesParams) is
    begin
       Self.Log_Method_In ("On_DidDeleteFiles_Notification");
 
@@ -2113,8 +2090,7 @@ package body LSP.Ada_Handlers is
    -- On_DidOpen_Notification --
    -----------------------------
 
-   overriding
-   procedure On_DidOpen_Notification
+   overriding procedure On_DidOpen_Notification
      (Self  : in out Message_Handler;
       Value : LSP.Structures.DidOpenTextDocumentParams)
    is
@@ -2171,10 +2147,9 @@ package body LSP.Ada_Handlers is
    -- On_DidRenameFiles_Notification --
    ------------------------------------
 
-   overriding
-   procedure On_DidRenameFiles_Notification
-     (Self : in out Message_Handler; Value : LSP.Structures.RenameFilesParams)
-   is
+   overriding procedure On_DidRenameFiles_Notification
+     (Self  : in out Message_Handler;
+      Value : LSP.Structures.RenameFilesParams) is
    begin
       Self.Log_Method_In ("On_DidRenameFiles_Notification");
 
@@ -2189,8 +2164,7 @@ package body LSP.Ada_Handlers is
    -- On_DocumentHighlight_Request --
    ----------------------------------
 
-   overriding
-   procedure On_DocumentHighlight_Request
+   overriding procedure On_DocumentHighlight_Request
      (Self  : in out Message_Handler;
       Id    : LSP.Structures.Integer_Or_Virtual_String;
       Value : LSP.Structures.DocumentHighlightParams)
@@ -2252,7 +2226,9 @@ package body LSP.Ada_Handlers is
          end Append_To_Response;
 
       begin
-         if Document = null or Defining_Name.Is_Null or Self.Is_Canceled.all
+         if Document = null
+           or Defining_Name.Is_Null
+           or Self.Is_Canceled.all
          then
             return;
          end if;
@@ -2291,7 +2267,7 @@ package body LSP.Ada_Handlers is
             return (Is_Set => True, Value => LSP.Enumerations.Write);
 
          else
-            return (Is_Set => True, Value => LSP.Enumerations.Read);
+            return (Is_Set => True, Value  => LSP.Enumerations.Read);
          end if;
       end Get_Highlight_Kind;
 
@@ -2304,8 +2280,8 @@ package body LSP.Ada_Handlers is
    -- On_Exits_Notification --
    ---------------------------
 
-   overriding
-   procedure On_Exits_Notification (Self : in out Message_Handler) is
+   overriding procedure On_Exits_Notification
+     (Self : in out Message_Handler) is
    begin
       LSP.Servers.Server'Class (Self.Sender.all).Stop;
    end On_Exits_Notification;
@@ -2314,8 +2290,7 @@ package body LSP.Ada_Handlers is
    -- On_Formatting_Request --
    ---------------------------
 
-   overriding
-   procedure On_Formatting_Request
+   overriding procedure On_Formatting_Request
      (Self  : in out Message_Handler;
       Id    : LSP.Structures.Integer_Or_Virtual_String;
       Value : LSP.Structures.DocumentFormattingParams)
@@ -2362,8 +2337,7 @@ package body LSP.Ada_Handlers is
    -- On_Implementation_Request --
    -------------------------------
 
-   overriding
-   procedure On_Implementation_Request
+   overriding procedure On_Implementation_Request
      (Self  : in out Message_Handler;
       Id    : LSP.Structures.Integer_Or_Virtual_String;
       Value : LSP.Structures.ImplementationParams)
@@ -2377,8 +2351,8 @@ package body LSP.Ada_Handlers is
       Vector : LSP.Structures.Location_Vector renames Response.Variant_1;
       Filter : LSP.Locations.File_Span_Sets.Set;
 
-      Display_Method_Policy :
-        constant LSP.Enumerations.AlsDisplayMethodAncestryOnNavigationPolicy :=
+      Display_Method_Policy : constant
+        LSP.Enumerations.AlsDisplayMethodAncestryOnNavigationPolicy :=
           (if Value.alsDisplayMethodAncestryOnNavigation.Is_Set
            then Value.alsDisplayMethodAncestryOnNavigation.Value
            else Self.Configuration.Display_Method_Ancestry_Policy);
@@ -2392,9 +2366,8 @@ package body LSP.Ada_Handlers is
 
       procedure Resolve_In_Context (C : LSP.Ada_Context_Sets.Context_Access) is
 
-         use all type LSP
-                        .Enumerations
-                        .AlsDisplayMethodAncestryOnNavigationPolicy;
+         use all type LSP.Enumerations
+           .AlsDisplayMethodAncestryOnNavigationPolicy;
 
          use Libadalang.Common;
 
@@ -2412,7 +2385,8 @@ package body LSP.Ada_Handlers is
 
          procedure Update_Response
            (Bodies : Laltools.Common.Bodies_List.List;
-            Kinds  : AlsReferenceKind_Array) is
+            Kinds  : AlsReferenceKind_Array)
+         is
          begin
             for E of Bodies loop
                Self.Append_Location (Vector, Filter, E, Kinds);
@@ -2430,13 +2404,12 @@ package body LSP.Ada_Handlers is
             return;
          end if;
 
-         Definition :=
-           Resolve_Name
-             (Self      => Self,
-              Id        => Id,
-              Context   => C.all,
-              Name_Node => Name_Node,
-              Imprecise => Imprecise);
+         Definition := Resolve_Name
+           (Self      => Self,
+            Id        => Id,
+            Context   => C.all,
+            Name_Node => Name_Node,
+            Imprecise => Imprecise);
 
          --  If we didn't find a definition, give up for this context
          if Definition.Is_Null then
@@ -2454,10 +2427,12 @@ package body LSP.Ada_Handlers is
          --  Display overriding/overridden subprograms depending on the
          --  displayMethodAncestryOnNavigation flag.
          if Display_Method_Policy in Definition_Only | Always
-           or else (Display_Method_Policy = Usage_And_Abstract_Only
-                    and then Decl.Kind in Ada_Abstract_Subp_Decl_Range)
+           or else
+             (Display_Method_Policy = Usage_And_Abstract_Only
+                     and then Decl.Kind in Ada_Abstract_Subp_Decl_Range)
          then
-            for Subp of C.Find_All_Base_Declarations (Decl, Imprecise) loop
+            for Subp of C.Find_All_Base_Declarations (Decl, Imprecise)
+            loop
                Update_Response
                  (Laltools.Common.List_Bodies_Of
                     (Subp.P_Defining_Name, Trace, Ignore),
@@ -2497,8 +2472,7 @@ package body LSP.Ada_Handlers is
    -- On_IncomingCalls_Request --
    ------------------------------
 
-   overriding
-   procedure On_IncomingCalls_Request
+   overriding procedure On_IncomingCalls_Request
      (Self  : in out Message_Handler;
       Id    : LSP.Structures.Integer_Or_Virtual_String;
       Value : LSP.Structures.CallHierarchyIncomingCallsParams)
@@ -2509,9 +2483,10 @@ package body LSP.Ada_Handlers is
       --  Process the subprogram found in one context and append corresponding
       --  calls to Response.
 
-      Response : LSP.Structures.CallHierarchyIncomingCall_Vector;
+      Response   : LSP.Structures.CallHierarchyIncomingCall_Vector;
 
-      Item : LSP.Structures.CallHierarchyItem renames Value.item;
+      Item : LSP.Structures.CallHierarchyItem renames
+        Value.item;
 
       Position : constant LSP.Structures.TextDocumentPositionParams :=
         (textDocument => (uri => Item.uri),
@@ -2556,19 +2531,17 @@ package body LSP.Ada_Handlers is
    -- On_Initialize_Request --
    ---------------------------
 
-   overriding
-   procedure On_Initialize_Request
+   overriding procedure On_Initialize_Request
      (Self  : in out Message_Handler;
       Id    : LSP.Structures.Integer_Or_Virtual_String;
       Value : LSP.Structures.InitializeParams)
    is
-      procedure Free is new
-        Ada.Unchecked_Deallocation
-          (LSP.File_Monitors.File_Monitor'Class,
-           LSP.File_Monitors.File_Monitor_Access);
+      procedure Free is new Ada.Unchecked_Deallocation
+        (LSP.File_Monitors.File_Monitor'Class,
+         LSP.File_Monitors.File_Monitor_Access);
 
-      Response        : LSP.Structures.InitializeResult;
-      Log_Info        : LSP.Structures.LogMessageParams;
+      Response : LSP.Structures.InitializeResult;
+      Log_Info : LSP.Structures.LogMessageParams;
       Token_Types     : LSP.Structures.Virtual_String_Vector;
       Token_Motifiers : LSP.Structures.Virtual_String_Vector;
    begin
@@ -2583,21 +2556,21 @@ package body LSP.Ada_Handlers is
 
       Self.Client.Initialize (Value);
 
-      Self.Highlighter.Initialize (Self.Client, Token_Types, Token_Motifiers);
+      Self.Highlighter.Initialize
+        (Self.Client, Token_Types, Token_Motifiers);
 
-      Response.capabilities :=
-        Self.Client.To_Server_Capabilities
-          (Self.Incremental_Text_Changes,
-           LSP.Ada_Commands.All_Commands,
-           Token_Types,
-           Token_Motifiers);
+      Response.capabilities := Self.Client.To_Server_Capabilities
+        (Self.Incremental_Text_Changes,
+         LSP.Ada_Commands.All_Commands,
+         Token_Types,
+         Token_Motifiers);
 
       if Self.Client.didChangeWatchedFiles_dynamicRegistration then
          Free (Self.File_Monitor);
 
          Self.File_Monitor :=
            new LSP.Client_Side_File_Monitors.File_Monitor
-                 (Self'Unchecked_Access);
+             (Self'Unchecked_Access);
       end if;
 
       --  If settings were given in initializationOptions, parse and apply them.
@@ -2641,10 +2614,9 @@ package body LSP.Ada_Handlers is
             Self.Set_Configuration (New_Configuration);
          end;
 
-      --  We don't load the project here because we can't send progress
-      --  notifications to the client before receiving the 'initialized'
-      --  notification. See On_Initialized_Notification.
-
+         --  We don't load the project here because we can't send progress
+         --  notifications to the client before receiving the 'initialized'
+         --  notification. See On_Initialized_Notification.
       end if;
 
       if Value.workDoneToken.Is_Set then
@@ -2665,10 +2637,9 @@ package body LSP.Ada_Handlers is
    -- On_Initialized_Notification --
    ---------------------------------
 
-   overriding
-   procedure On_Initialized_Notification
-     (Self : in out Message_Handler; Value : LSP.Structures.InitializedParams)
-   is
+   overriding procedure On_Initialized_Notification
+     (Self  : in out Message_Handler;
+      Value : LSP.Structures.InitializedParams) is
    begin
       --  The client is notifying us that it has initialized. It is good at
       --  this stage to load a project so that subsequent requests, e.g.
@@ -2699,8 +2670,7 @@ package body LSP.Ada_Handlers is
    -- On_OnTypeFormatting_Request --
    ---------------------------------
 
-   overriding
-   procedure On_OnTypeFormatting_Request
+   overriding procedure On_OnTypeFormatting_Request
      (Self  : in out Message_Handler;
       Id    : LSP.Structures.Integer_Or_Virtual_String;
       Value : LSP.Structures.DocumentOnTypeFormattingParams)
@@ -2756,11 +2726,9 @@ package body LSP.Ada_Handlers is
             return;
          end if;
 
-         if Value.ch
-           /= LSP
-                .Ada_Configurations
-                .On_Type_Formatting_Settings
-                .firstTriggerCharacter
+         if Value.ch /=
+           LSP.Ada_Configurations.On_Type_Formatting_Settings
+             .firstTriggerCharacter
          then
             Self.Tracer.Trace
               ("Trigger character ch is not a new line - exiting earlier");
@@ -2796,7 +2764,7 @@ package body LSP.Ada_Handlers is
       begin
          Response.Append
            (LSP.Structures.TextEdit'
-              (a_range => (start => Value.position, an_end => Value.position),
+              (a_range => (start  => Value.position, an_end => Value.position),
                newText => Indentation * VSS.Characters.Latin.Space));
       end Handle_Document_With_Diagnostics;
 
@@ -2807,8 +2775,8 @@ package body LSP.Ada_Handlers is
       procedure Handle_Document_Without_Diagnostics is
 
          function Is_Between
-           (Position : LSP.Structures.Position; Span : LSP.Structures.A_Range)
-            return Boolean;
+           (Position : LSP.Structures.Position;
+            Span     : LSP.Structures.A_Range) return Boolean;
          --  Checks if Position is between Span
 
          ----------------
@@ -2816,7 +2784,8 @@ package body LSP.Ada_Handlers is
          ----------------
 
          function Is_Between
-           (Position : LSP.Structures.Position; Span : LSP.Structures.A_Range)
+           (Position : LSP.Structures.Position;
+            Span     : LSP.Structures.A_Range)
             return Boolean
          is ((Position.line = Span.start.line
               and then Position.character >= Span.start.character)
@@ -2846,12 +2815,12 @@ package body LSP.Ada_Handlers is
              (Libadalang.Slocs.Make_Range
                 (Libadalang.Slocs.Start_Sloc
                    (Libadalang.Common.Sloc_Range
-                      (Libadalang.Common.Data
-                         (Formatting_Region.Start_Token))),
+                        (Libadalang.Common.Data
+                             (Formatting_Region.Start_Token))),
                  Libadalang.Slocs.Start_Sloc
                    (Libadalang.Common.Sloc_Range
-                      (Libadalang.Common.Data
-                         (Formatting_Region.End_Token)))));
+                        (Libadalang.Common.Data
+                             (Formatting_Region.End_Token)))));
          --  This is the span that would be formatted based on the cursor
          --  position.
 
@@ -2863,7 +2832,8 @@ package body LSP.Ada_Handlers is
             Response.Append
               (LSP.Structures.TextEdit'
                  (a_range =>
-                    (start => Value.position, an_end => Value.position),
+                      (start  => Value.position,
+                       an_end => Value.position),
                   newText => Indentation * ' '));
 
             return;
@@ -2881,13 +2851,15 @@ package body LSP.Ada_Handlers is
             Response.Append
               (LSP.Structures.TextEdit'
                  (a_range =>
-                    (start => Value.position, an_end => Value.position),
+                      (start  => Value.position,
+                       an_end => Value.position),
                   newText => Indentation * ' '));
 
             return;
          end if;
 
-         Self.Tracer.Trace ("Formatting previous node and adding indentation");
+         Self.Tracer.Trace
+           ("Formatting previous node and adding indentation");
 
          declare
             Success : Boolean;
@@ -2916,7 +2888,7 @@ package body LSP.Ada_Handlers is
             Response.Append
               (LSP.Structures.TextEdit'
                  (a_range =>
-                    (start => Value.position, an_end => Value.position),
+                    (start  => Value.position, an_end => Value.position),
                   newText => Indentation * ' '));
          end;
       end Handle_Document_Without_Diagnostics;
@@ -2933,8 +2905,7 @@ package body LSP.Ada_Handlers is
    -- On_OutgoingCalls_Request --
    ------------------------------
 
-   overriding
-   procedure On_OutgoingCalls_Request
+   overriding procedure On_OutgoingCalls_Request
      (Self  : in out Message_Handler;
       Id    : LSP.Structures.Integer_Or_Virtual_String;
       Value : LSP.Structures.CallHierarchyOutgoingCallsParams)
@@ -2945,9 +2916,10 @@ package body LSP.Ada_Handlers is
       --  Process the subprogram found in one context and append corresponding
       --  calls to Response.
 
-      Response : LSP.Structures.CallHierarchyOutgoingCall_Vector;
+      Response   : LSP.Structures.CallHierarchyOutgoingCall_Vector;
 
-      Item : LSP.Structures.CallHierarchyItem renames Value.item;
+      Item : LSP.Structures.CallHierarchyItem renames
+        Value.item;
 
       Position : constant LSP.Structures.TextDocumentPositionParams :=
         (textDocument => (uri => Item.uri),
@@ -2992,15 +2964,14 @@ package body LSP.Ada_Handlers is
    -- On_PrepareCallHierarchy_Request --
    -------------------------------------
 
-   overriding
-   procedure On_PrepareCallHierarchy_Request
+   overriding procedure On_PrepareCallHierarchy_Request
      (Self  : in out Message_Handler;
       Id    : LSP.Structures.Integer_Or_Virtual_String;
       Value : LSP.Structures.CallHierarchyPrepareParams)
    is
-      Response : LSP.Structures.CallHierarchyItem_Vector;
+      Response  : LSP.Structures.CallHierarchyItem_Vector;
 
-      C : constant LSP.Ada_Context_Sets.Context_Access :=
+      C    : constant LSP.Ada_Context_Sets.Context_Access :=
         Self.Contexts.Get_Best_Context (Value.textDocument.uri);
       --  For the PrepareCallHierarchy request, we're only interested in the
       --  "best" response value, not in the list of values for all contexts
@@ -3039,7 +3010,8 @@ package body LSP.Ada_Handlers is
                  (name           => VSS.Strings.To_Virtual_String (Node.Text),
                   kind           => Utils.Get_Decl_Kind (Decl),
                   tags           => <>,
-                  detail         => Utils.Node_Location_Image (Node),
+                  detail         =>
+                    Utils.Node_Location_Image (Node),
                   uri            => Location.uri,
                   a_range        => Span,
                   selectionRange => Location.a_range,
@@ -3058,8 +3030,7 @@ package body LSP.Ada_Handlers is
    -- On_PrepareRename_Request --
    ------------------------------
 
-   overriding
-   procedure On_PrepareRename_Request
+   overriding procedure On_PrepareRename_Request
      (Self  : in out Message_Handler;
       Id    : LSP.Structures.Integer_Or_Virtual_String;
       Value : LSP.Structures.PrepareRenameParams)
@@ -3071,7 +3042,7 @@ package body LSP.Ada_Handlers is
       --  For the prepareRename request, we're only interested in the "best"
       --  context to check that we are able to rename the name.
 
-      Name_Node : constant Libadalang.Analysis.Name :=
+      Name_Node  : constant Libadalang.Analysis.Name :=
         Laltools.Common.Get_Node_As_Name
           (Self.Get_Node_At (Context.all, Value));
 
@@ -3080,13 +3051,12 @@ package body LSP.Ada_Handlers is
       Imprecise : Boolean := False;
    begin
       if not Name_Node.Is_Null then
-         Defining_Name :=
-           Resolve_Name
-             (Self      => Self,
-              Id        => Id,
-              Context   => Context.all,
-              Name_Node => Name_Node,
-              Imprecise => Imprecise);
+         Defining_Name := Resolve_Name
+           (Self      => Self,
+            Id        => Id,
+            Context   => Context.all,
+            Name_Node => Name_Node,
+            Imprecise => Imprecise);
       end if;
 
       if not Name_Node.Is_Null
@@ -3108,8 +3078,7 @@ package body LSP.Ada_Handlers is
    -- On_RangeFormatting_Request --
    --------------------------------
 
-   overriding
-   procedure On_RangeFormatting_Request
+   overriding procedure On_RangeFormatting_Request
      (Self  : in out Message_Handler;
       Id    : LSP.Structures.Integer_Or_Virtual_String;
       Value : LSP.Structures.DocumentRangeFormattingParams)
@@ -3172,8 +3141,7 @@ package body LSP.Ada_Handlers is
    -- On_Rename_Request --
    -----------------------
 
-   overriding
-   procedure On_Rename_Request
+   overriding procedure On_Rename_Request
      (Self  : in out Message_Handler;
       Id    : LSP.Structures.Integer_Or_Virtual_String;
       Value : LSP.Structures.RenameParams)
@@ -3181,7 +3149,8 @@ package body LSP.Ada_Handlers is
       Response : LSP.Structures.WorkspaceEdit_Or_Null (Is_Null => False);
 
       Position : constant LSP.Structures.TextDocumentPositionParams :=
-        (textDocument => Value.textDocument, position => Value.position);
+        (textDocument => Value.textDocument,
+         position => Value.position);
 
       Filter : LSP.Ada_Handlers.Renaming.Edit_Sets.Set;
       --  When iterating over all contexts (and therefore all projects), it's
@@ -3201,10 +3170,10 @@ package body LSP.Ada_Handlers is
               (Self,
                C,
                Name_Node,
-               New_Name => Value.newName,
-               Filter   => Filter,
-               Result   => Response.Value,
-               Errors   => Errors);
+               New_Name   => Value.newName,
+               Filter     => Filter,
+               Result     => Response.Value,
+               Errors     => Errors);
 
             if not Errors.Is_Empty then
                declare
@@ -3216,10 +3185,10 @@ package body LSP.Ada_Handlers is
                     Template.Format
                       (LSP.Formatters.Texts.Image (Name_Node.Text));
 
-                  Diagnostic : LSP.Structures.Diagnostic;
-                  Loc        : constant LSP.Structures.Location :=
+                  Diagnostic  : LSP.Structures.Diagnostic;
+                  Loc         : constant LSP.Structures.Location :=
                     Self.To_LSP_Location (Name_Node);
-                  Document   : constant LSP.Ada_Documents.Document_Access :=
+                  Document    : constant LSP.Ada_Documents.Document_Access :=
                     Get_Open_Document (Self, Loc.uri);
                begin
                   if Document /= null then
@@ -3254,9 +3223,9 @@ package body LSP.Ada_Handlers is
                      Self.Publish_Diagnostics
                        (Document          => Document,
                         Other_Diagnostics =>
-                          (LSP.Structures.Diagnostic_Vectors.Vector'
-                             ([Diagnostic])
-                           with null record));
+                            (LSP.Structures.Diagnostic_Vectors.Vector'
+                               ([Diagnostic])
+                             with null record));
                   end if;
                   exit;
                end;
@@ -3268,7 +3237,9 @@ package body LSP.Ada_Handlers is
          Self.Sender.On_Rename_Response (Id, Response);
       else
          Self.Sender.On_Error_Response
-           (Id, (code => LSP.Constants.RequestFailed, message => <>));
+           (Id,
+            (code    => LSP.Constants.RequestFailed,
+             message => <>));
       end if;
    end On_Rename_Request;
 
@@ -3276,8 +3247,7 @@ package body LSP.Ada_Handlers is
    -- On_Server_Notification --
    ----------------------------
 
-   overriding
-   procedure On_Server_Notification
+   overriding procedure On_Server_Notification
      (Self  : in out Message_Handler;
       Value : LSP.Server_Notifications.Server_Notification'Class) is
    begin
@@ -3292,16 +3262,15 @@ package body LSP.Ada_Handlers is
          Self.Tracer.Trace_Exception
            (E,
             VSS.Strings.Conversions.To_Virtual_String
-              ("Exception while handling "
-               & Ada.Tags.Expanded_Name (Value'Tag)));
+              ("Exception while handling " & Ada.Tags.Expanded_Name (Value'Tag)));
 
-         if LSP.Env.Testing then
-            Self.Sender.On_LogMessage_Notification
-              ((LSP.Enumerations.Error,
-                VSS.Strings.Conversions.To_Virtual_String
-                  ("Exception while handling "
-                   & Ada.Tags.Expanded_Name (Value'Tag))));
-         end if;
+      if LSP.Env.Testing then
+         Self.Sender.On_LogMessage_Notification
+           ((LSP.Enumerations.Error,
+               VSS.Strings.Conversions.To_Virtual_String
+                 ("Exception while handling "
+                  & Ada.Tags.Expanded_Name (Value'Tag))));
+      end if;
 
       when E : others =>
          --  Errors other than Property_Error indicate real problems to
@@ -3320,16 +3289,15 @@ package body LSP.Ada_Handlers is
          Self.Tracer.Trace_Exception
            (E,
             VSS.Strings.Conversions.To_Virtual_String
-              ("Exception while handling "
-               & Ada.Tags.Expanded_Name (Value'Tag)));
+              ("Exception while handling " & Ada.Tags.Expanded_Name (Value'Tag)));
 
-         if LSP.Env.Testing then
-            Self.Sender.On_LogMessage_Notification
-              ((LSP.Enumerations.Error,
-                VSS.Strings.Conversions.To_Virtual_String
-                  ("Exception while handling "
-                   & Ada.Tags.Expanded_Name (Value'Tag))));
-         end if;
+      if LSP.Env.Testing then
+         Self.Sender.On_LogMessage_Notification
+           ((LSP.Enumerations.Error,
+               VSS.Strings.Conversions.To_Virtual_String
+                 ("Exception while handling "
+                  & Ada.Tags.Expanded_Name (Value'Tag))));
+      end if;
 
    end On_Server_Notification;
 
@@ -3337,8 +3305,7 @@ package body LSP.Ada_Handlers is
    -- On_Server_Request --
    -----------------------
 
-   overriding
-   procedure On_Server_Request
+   overriding procedure On_Server_Request
      (Self  : in out Message_Handler;
       Value : LSP.Server_Requests.Server_Request'Class)
    is
@@ -3375,8 +3342,7 @@ package body LSP.Ada_Handlers is
          Self.Tracer.Trace_Exception
            (E,
             VSS.Strings.Conversions.To_Virtual_String
-              ("Exception while handling "
-               & Ada.Tags.Expanded_Name (Value'Tag)));
+              ("Exception while handling " & Ada.Tags.Expanded_Name (Value'Tag)));
 
          --  Send an empty response to the client to mask the error.
          declare
@@ -3387,20 +3353,19 @@ package body LSP.Ada_Handlers is
 
          if LSP.Env.Testing then
             Self.Sender.On_LogMessage_Notification
-              ((LSP.Enumerations.Error,
-                VSS.Strings.Conversions.To_Virtual_String
+            ((LSP.Enumerations.Error,
+                  VSS.Strings.Conversions.To_Virtual_String
                   ("Exception while handling "
-                   & Ada.Tags.Expanded_Name (Value'Tag))));
+                     & Ada.Tags.Expanded_Name (Value'Tag))));
          end if;
 
       when E : others =>
          declare
-            Msg_Prefix : constant String :=
-              "Exception while handling " & Ada.Tags.Expanded_Name (Value'Tag);
-            Message    : constant VSS.Strings.Virtual_String :=
+            Msg_Prefix : constant String := "Exception while handling "
+               & Ada.Tags.Expanded_Name (Value'Tag);
+            Message : constant VSS.Strings.Virtual_String :=
               VSS.Strings.Conversions.To_Virtual_String
-                (Msg_Prefix
-                 & Ada.Characters.Latin_1.LF
+                (Msg_Prefix & Ada.Characters.Latin_1.LF
                  & Ada.Exceptions.Exception_Information (E));
 
          begin
@@ -3410,16 +3375,17 @@ package body LSP.Ada_Handlers is
             --  Send an error response to the client.
             Self.Sender.On_Error_Response
               (Value.Id,
-               (code => LSP.Enumerations.InternalError, message => Message));
+               (code    => LSP.Enumerations.InternalError,
+                message => Message));
 
          end;
 
          if LSP.Env.Testing then
             Self.Sender.On_LogMessage_Notification
-              ((LSP.Enumerations.Error,
-                VSS.Strings.Conversions.To_Virtual_String
+            ((LSP.Enumerations.Error,
+                  VSS.Strings.Conversions.To_Virtual_String
                   ("Exception while handling "
-                   & Ada.Tags.Expanded_Name (Value'Tag))));
+                     & Ada.Tags.Expanded_Name (Value'Tag))));
          end if;
    end On_Server_Request;
 
@@ -3427,8 +3393,7 @@ package body LSP.Ada_Handlers is
    -- On_Shutdown_Request --
    -------------------------
 
-   overriding
-   procedure On_Shutdown_Request
+   overriding procedure On_Shutdown_Request
      (Self : in out Message_Handler;
       Id   : LSP.Structures.Integer_Or_Virtual_String)
    is
@@ -3443,8 +3408,7 @@ package body LSP.Ada_Handlers is
    -- On_SignatureHelp_Request --
    ------------------------------
 
-   overriding
-   procedure On_SignatureHelp_Request
+   overriding procedure On_SignatureHelp_Request
      (Self  : in out Message_Handler;
       Id    : LSP.Structures.Integer_Or_Virtual_String;
       Value : LSP.Structures.SignatureHelpParams)
@@ -3483,9 +3447,9 @@ package body LSP.Ada_Handlers is
 
             if not Name_Node.Is_Null
               and then not Name_Node.P_Name_Designated_Type.Is_Null
-              --  Does the cast make sense?
-              --   and then Active_Position = 0
-              --  Do we have the previous signatures?
+            --  Does the cast make sense?
+            --   and then Active_Position = 0
+            --  Do we have the previous signatures?
               and then Value.context.Is_Set
               and then Value.context.Value.activeSignatureHelp.Is_Set
             then
@@ -3569,8 +3533,7 @@ package body LSP.Ada_Handlers is
    -- On_Symbol_Request --
    -----------------------
 
-   overriding
-   procedure On_Symbol_Request
+   overriding procedure On_Symbol_Request
      (Self  : in out Message_Handler;
       Id    : LSP.Structures.Integer_Or_Virtual_String;
       Value : LSP.Structures.WorkspaceSymbolParams)
@@ -3621,7 +3584,8 @@ package body LSP.Ada_Handlers is
 
       procedure Send_Partial_Response is
          P : LSP.Structures.Symbol_Progress_Report (LSP.Structures.Variant_1);
-         V : LSP.Structures.SymbolInformation_Vector renames P.Variant_1;
+         V : LSP.Structures.SymbolInformation_Vector renames
+           P.Variant_1;
       begin
          if Self.Is_Canceled.all then
             return;
@@ -3631,14 +3595,15 @@ package body LSP.Ada_Handlers is
          Names.Clear;
 
          Self.Sender.On_Symbol_Partial_Result
-           (Token => Value.partialResultToken.Value, Value => P);
+           (Token => Value.partialResultToken.Value,
+            Value => P);
 
          Partial_Response_Sended := True;
       end Send_Partial_Response;
 
       use type LSP.Structures.Boolean_Optional;
 
-      Pattern : constant LSP.Search.Search_Pattern'Class :=
+      Pattern  : constant LSP.Search.Search_Pattern'Class :=
         LSP.Search.Build
           (Pattern        => Value.query,
            Case_Sensitive => Value.case_sensitive = LSP.Constants.True,
@@ -3660,7 +3625,9 @@ package body LSP.Ada_Handlers is
 
          exit when Self.Is_Canceled.all;
 
-         if Value.partialResultToken.Is_Set and then Names.Length > 100 then
+         if Value.partialResultToken.Is_Set
+           and then Names.Length > 100
+         then
             Send_Partial_Response;
          end if;
       end loop;
@@ -3681,7 +3648,9 @@ package body LSP.Ada_Handlers is
 
          exit when Self.Is_Canceled.all;
 
-         if Value.partialResultToken.Is_Set and then Names.Length > 100 then
+         if Value.partialResultToken.Is_Set
+           and then Names.Length > 100
+         then
             Send_Partial_Response;
          end if;
       end loop;
@@ -3700,17 +3669,16 @@ package body LSP.Ada_Handlers is
    -- On_TypeDefinition_Request --
    -------------------------------
 
-   overriding
-   procedure On_TypeDefinition_Request
+   overriding procedure On_TypeDefinition_Request
      (Self  : in out Message_Handler;
       Id    : LSP.Structures.Integer_Or_Virtual_String;
       Value : LSP.Structures.TypeDefinitionParams)
    is
 
-      Response  : LSP.Structures.Definition_Result (LSP.Structures.Variant_1);
-      Vector    : LSP.Structures.Location_Vector renames Response.Variant_1;
-      Filter    : LSP.Locations.File_Span_Sets.Set;
-      Imprecise : Boolean := False;
+      Response   : LSP.Structures.Definition_Result (LSP.Structures.Variant_1);
+      Vector     : LSP.Structures.Location_Vector renames Response.Variant_1;
+      Filter     : LSP.Locations.File_Span_Sets.Set;
+      Imprecise  : Boolean := False;
 
       procedure Resolve_In_Context (C : LSP.Ada_Context_Sets.Context_Access);
       --  Utility function to gather results on one context
@@ -3720,7 +3688,7 @@ package body LSP.Ada_Handlers is
       ------------------------
 
       procedure Resolve_In_Context (C : LSP.Ada_Context_Sets.Context_Access) is
-         Name_Node : constant Libadalang.Analysis.Name :=
+         Name_Node  : constant Libadalang.Analysis.Name :=
            Laltools.Common.Get_Node_As_Name (Self.Get_Node_At (C.all, Value));
 
          Definition : Libadalang.Analysis.Defining_Name;
@@ -3783,7 +3751,8 @@ package body LSP.Ada_Handlers is
    ------------------------------
 
    function Project_Predefined_Units
-     (Self : in out Message_Handler; Context : LSP.Ada_Contexts.Context)
+     (Self    : in out Message_Handler;
+      Context : LSP.Ada_Contexts.Context)
       return Libadalang.Analysis.Analysis_Unit_Array
    is
       use Libadalang.Analysis;
@@ -3806,8 +3775,7 @@ package body LSP.Ada_Handlers is
    -- Publish_Diagnostics --
    -------------------------
 
-   overriding
-   procedure Publish_Diagnostics
+   overriding procedure Publish_Diagnostics
      (Self              : in out Message_Handler;
       Document          : not null LSP.Ada_Documents.Document_Access;
       Other_Diagnostics : LSP.Structures.Diagnostic_Vector :=
@@ -3854,9 +3822,9 @@ package body LSP.Ada_Handlers is
             Self.Sender.On_PublishDiagnostics_Notification
               (LSP.Structures.PublishDiagnosticsParams'
                  (uri    =>
-                    (VSS.Strings.Conversions.To_Virtual_String
-                       (URIs.Conversions.From_File (File.Display_Full_Name))
-                     with null record),
+                      (VSS.Strings.Conversions.To_Virtual_String
+                           (URIs.Conversions.From_File (File.Display_Full_Name))
+                       with null record),
                   others => <>));
          end loop;
 
@@ -3875,7 +3843,7 @@ package body LSP.Ada_Handlers is
                Diag.uri :=
                  (VSS.Strings.Conversions.To_Virtual_String
                     (URIs.Conversions.From_File
-                       (Target_File.Display_Full_Name))
+                         (Target_File.Display_Full_Name))
                   with null record);
                Self.Sender.On_PublishDiagnostics_Notification (Diag);
 
@@ -3889,8 +3857,7 @@ package body LSP.Ada_Handlers is
    -- Refresh_Diagnostics --
    -------------------------
 
-   overriding
-   procedure Refresh_Diagnostics (Self : in out Message_Handler) is
+   overriding procedure Refresh_Diagnostics (Self : in out  Message_Handler) is
    begin
       for Document of Self.Open_Documents loop
          Self.Publish_Diagnostics
@@ -3905,8 +3872,7 @@ package body LSP.Ada_Handlers is
    -- Reload_Project --
    --------------------
 
-   overriding
-   procedure Reload_Project (Self : in out Message_Handler) is
+   overriding procedure Reload_Project (Self : in out Message_Handler) is
    begin
       LSP.Ada_Handlers.Project_Loading.Reload_Project (Self);
    end Reload_Project;
@@ -3920,7 +3886,8 @@ package body LSP.Ada_Handlers is
       Id        : LSP.Structures.Integer_Or_Virtual_String;
       Context   : LSP.Ada_Contexts.Context;
       Name_Node : Libadalang.Analysis.Name;
-      Imprecise : out Boolean) return Libadalang.Analysis.Defining_Name
+      Imprecise : out Boolean)
+      return Libadalang.Analysis.Defining_Name
    is
       Definition  : Libadalang.Analysis.Defining_Name;
       Result_Kind : Libadalang.Common.Ref_Result_Kind;
@@ -3940,18 +3907,18 @@ package body LSP.Ada_Handlers is
       end if;
 
       --  Find the definition
-      Definition :=
-        Laltools.Common.Resolve_Name (Name_Node, Trace, Result_Kind);
+      Definition := Laltools.Common.Resolve_Name
+        (Name_Node, Trace, Result_Kind);
 
       if Result_Kind in Libadalang.Common.Error then
          declare
             use type LSP.Ada_Documents.Document_Access;
-            Err_Msg    : constant String :=
+            Err_Msg     : constant String :=
               "Failed to resolve " & Name_Node.Image;
-            Diagnostic : LSP.Structures.Diagnostic;
-            Loc        : constant LSP.Structures.Location :=
+            Diagnostic  : LSP.Structures.Diagnostic;
+            Loc         : constant LSP.Structures.Location :=
               Self.To_LSP_Location (Name_Node);
-            Document   : constant LSP.Ada_Documents.Document_Access :=
+            Document    : constant LSP.Ada_Documents.Document_Access :=
               Get_Open_Document (Self, Loc.uri);
          begin
             if Document /= null then
@@ -4022,8 +3989,7 @@ package body LSP.Ada_Handlers is
    -- Send_Messages --
    -------------------
 
-   overriding
-   procedure Send_Messages
+   overriding procedure Send_Messages
      (Self     : Message_Handler;
       Show     : Boolean;
       Messages : VSS.String_Vectors.Virtual_String_Vector;
@@ -4034,9 +4000,8 @@ package body LSP.Ada_Handlers is
       use VSS.Strings;
       Prefix : constant VSS.Strings.Virtual_String :=
         (if File /= No_File
-         then
-           VSS.Strings.Virtual_String (Self.To_URI (File.Display_Full_Name))
-           & ": "
+         then VSS.Strings.Virtual_String
+           (Self.To_URI (File.Display_Full_Name)) & ": "
          else "");
    begin
       for Message of Messages loop
@@ -4045,7 +4010,8 @@ package body LSP.Ada_Handlers is
               ((Severity, Prefix & Message));
          end if;
 
-         Self.Sender.On_LogMessage_Notification ((Severity, Prefix & Message));
+         Self.Sender.On_LogMessage_Notification
+           ((Severity, Prefix & Message));
          Self.Tracer.Trace_Text (Message);
       end loop;
    end Send_Messages;
@@ -4054,8 +4020,7 @@ package body LSP.Ada_Handlers is
    -- Set_Configuration --
    -----------------------
 
-   overriding
-   procedure Set_Configuration
+   overriding procedure Set_Configuration
      (Self  : in out Message_Handler;
       Value : LSP.Ada_Configurations.Configuration'Class) is
    begin
@@ -4089,7 +4054,8 @@ package body LSP.Ada_Handlers is
    function To_Workspace_Edit
      (Self   : in out Message_Handler'Class;
       Edits  : LAL_Refactor.Refactoring_Edits;
-      Rename : Boolean := False) return LSP.Structures.WorkspaceEdit
+      Rename : Boolean := False)
+      return LSP.Structures.WorkspaceEdit
    is
       File_URI   : LSP.Structures.DocumentUri;
       Text_Edits : LSP.Structures.TextEdit_Vector;
@@ -4097,14 +4063,15 @@ package body LSP.Ada_Handlers is
       use LAL_Refactor;
       use LSP.Structures;
 
-      Text_Edits_Cursor : Text_Edit_Ordered_Maps.Cursor :=
+      Text_Edits_Cursor     : Text_Edit_Ordered_Maps.Cursor :=
         Edits.Text_Edits.First;
 
       function To_TextEdit
-        (E : LAL_Refactor.Text_Edit) return LSP.Structures.TextEdit
-      is (LSP.Structures.TextEdit'
-            (LSP.Utils.To_Range (E.Location),
-             VSS.Strings.Conversions.To_Virtual_String (E.Text)));
+        (E : LAL_Refactor.Text_Edit)
+         return LSP.Structures.TextEdit is
+        (LSP.Structures.TextEdit'
+           (LSP.Utils.To_Range (E.Location),
+            VSS.Strings.Conversions.To_Virtual_String (E.Text)));
 
    begin
       return WE : LSP.Structures.WorkspaceEdit do
@@ -4138,13 +4105,12 @@ package body LSP.Ada_Handlers is
                   end loop;
 
                   WE.documentChanges.Append
-                    (documentChanges_OfWorkspaceEdit_Item'
-                       ((Kind      => Variant_1,
-                         Variant_1 =>
-                           TextDocumentEdit'
-                             (textDocument =>
-                                Self.Get_Open_Document_Version (File_URI),
-                              edits        => Annotaded_Edits))));
+                    (documentChanges_OfWorkspaceEdit_Item'(
+                     (Kind     => Variant_1,
+                      Variant_1 => TextDocumentEdit'
+                        (textDocument => Self.Get_Open_Document_Version
+                           (File_URI),
+                         edits        => Annotaded_Edits))));
                end;
             else
                WE.changes.Insert (File_URI, Text_Edits);
@@ -4167,24 +4133,21 @@ package body LSP.Ada_Handlers is
          then
             for File_Creation of Edits.File_Creations loop
                WE.documentChanges.Append
-                 (documentChanges_OfWorkspaceEdit_Item'
-                    ((Kind   => create,
-                      create =>
-                        CreateFile'
-                          (uri    =>
-                             Self.To_URI
-                               (Ada.Strings.Unbounded.To_String
-                                  (File_Creation.Filepath)),
-                           others => <>))));
+                 (documentChanges_OfWorkspaceEdit_Item'(
+                  (Kind   => create,
+                   create => CreateFile'
+                     (uri    => Self.To_URI
+                        (Ada.Strings.Unbounded.To_String
+                             (File_Creation.Filepath)),
+                      others => <>))));
 
                declare
                   Annotaded_Edits : TextEdit_Or_AnnotatedTextEdit_Vector;
-                  Content         : constant TextEdit :=
-                    TextEdit'
-                      (a_range => ((0, 0), (0, 0)),
-                       newText =>
-                         VSS.Strings.Conversions.To_Virtual_String
-                           (File_Creation.Content));
+                  Content : constant TextEdit := TextEdit'
+                    (a_range    => ((0, 0), (0, 0)),
+                     newText =>
+                       VSS.Strings.Conversions.To_Virtual_String
+                         (File_Creation.Content));
 
                begin
                   Annotaded_Edits.Append
@@ -4192,11 +4155,11 @@ package body LSP.Ada_Handlers is
                        (Is_TextEdit => True, TextEdit => Content));
 
                   WE.documentChanges.Append
-                    (documentChanges_OfWorkspaceEdit_Item'
-                       ((Kind      => Variant_1,
-                         Variant_1 =>
-                           TextDocumentEdit'
-                             (edits => Annotaded_Edits, others => <>))));
+                    (documentChanges_OfWorkspaceEdit_Item'(
+                     (Kind     => Variant_1,
+                      Variant_1 => TextDocumentEdit'
+                        (edits => Annotaded_Edits,
+                         others => <>))));
                end;
             end loop;
          end if;
@@ -4205,29 +4168,29 @@ package body LSP.Ada_Handlers is
 
          if Self.Client.Versioned_Documents then
             for Item of Edits.File_Deletions loop
-               File_URI :=
-                 Self.To_URI (Ada.Strings.Unbounded.To_String (Item));
+               File_URI := Self.To_URI
+                 (Ada.Strings.Unbounded.To_String (Item));
 
                if Rename and then Self.Client.Resource_Rename_Supported then
 
                   WE.documentChanges.Append
-                    (documentChanges_OfWorkspaceEdit_Item'
-                       ((Kind   => LSP.Structures.rename,
-                         rename =>
-                           LSP.Structures.RenameFile'
-                             (oldUri => File_URI,
-                              newUri => File_URI & ".bak",
-                              others => <>))));
+                    (documentChanges_OfWorkspaceEdit_Item'(
+                     (Kind   => LSP.Structures.rename,
+                      rename => LSP.Structures.RenameFile'
+                        (oldUri => File_URI,
+                         newUri => File_URI & ".bak",
+                         others => <>))));
 
-               elsif not Rename and then Self.Client.Resource_Delete_Supported
+               elsif not Rename
+                 and then Self.Client.Resource_Delete_Supported
                then
 
                   WE.documentChanges.Append
-                    (documentChanges_OfWorkspaceEdit_Item'
-                       ((Kind   => LSP.Structures.delete,
-                         delete =>
-                           LSP.Structures.DeleteFile'
-                             (uri => File_URI, others => <>))));
+                    (documentChanges_OfWorkspaceEdit_Item'(
+                     (Kind   => LSP.Structures.delete,
+                      delete => LSP.Structures.DeleteFile'
+                        (uri    => File_URI,
+                         others => <>))));
 
                end if;
             end loop;
@@ -4240,19 +4203,16 @@ package body LSP.Ada_Handlers is
          then
             for File_Rename of Edits.File_Renames loop
                WE.documentChanges.Append
-                 (documentChanges_OfWorkspaceEdit_Item'
-                    ((Kind   => LSP.Structures.rename,
-                      rename =>
-                        LSP.Structures.RenameFile'
-                          (oldUri =>
-                             Self.To_URI
-                               (Ada.Strings.Unbounded.To_String
-                                  (File_Rename.Filepath)),
-                           newUri =>
-                             Self.To_URI
-                               (Ada.Strings.Unbounded.To_String
-                                  (File_Rename.New_Name)),
-                           others => <>))));
+                 (documentChanges_OfWorkspaceEdit_Item'(
+                  (Kind   => LSP.Structures.rename,
+                   rename => LSP.Structures.RenameFile'
+                     (oldUri => Self.To_URI
+                        (Ada.Strings.Unbounded.To_String
+                             (File_Rename.Filepath)),
+                      newUri => Self.To_URI
+                        (Ada.Strings.Unbounded.To_String
+                             (File_Rename.New_Name)),
+                      others => <>))));
             end loop;
          end if;
       end return;
@@ -4262,12 +4222,11 @@ package body LSP.Ada_Handlers is
    -- Trace_Exception --
    ---------------------
 
-   overriding
-   procedure Trace_Exception
+   overriding procedure Trace_Exception
      (Self    : Message_Handler;
       Error   : Ada.Exceptions.Exception_Occurrence;
-      Message : VSS.Strings.Virtual_String := VSS.Strings.Empty_Virtual_String)
-   is
+      Message : VSS.Strings.Virtual_String :=
+        VSS.Strings.Empty_Virtual_String) is
    begin
       Self.Tracer.Trace_Exception (Error, Message);
    end Trace_Exception;
@@ -4276,9 +4235,8 @@ package body LSP.Ada_Handlers is
    -- Get_Trace_Handle --
    ----------------------
 
-   overriding
-   function Get_Trace_Handle
-     (Self : Message_Handler) return GNATCOLL.Traces.Trace_Handle
-   is (LSP.GNATCOLL_Tracers.Handle (Self.Tracer.all));
+   overriding function Get_Trace_Handle (Self : Message_Handler)
+     return GNATCOLL.Traces.Trace_Handle is
+       (LSP.GNATCOLL_Tracers.Handle (Self.Tracer.all));
 
 end LSP.Ada_Handlers;
