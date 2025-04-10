@@ -20,7 +20,7 @@ import {
  */
 type SymbolsMap = Map<string, NodeHierarchy>;
 
-// Store the roots of all the graph (the node that don't have parents)
+// Store the roots of all the graphs (the node that don't have parents)
 let rootNodes: NodeHierarchy[] = [];
 const symbolsMap: SymbolsMap = new Map();
 // The node that will be focused when updating the graph
@@ -457,16 +457,20 @@ function convertHierarchyToData(nodeHierarchy: NodeHierarchy) {
  * @param edges - The set of edges that will contain the converted edges.
  * @param root - The NodeHierarchy object that will be converted.
  */
-function convertToMessage(nodes: Set<NodeData>, edges: Set<DirectedEdge>, root: NodeHierarchy) {
-    nodes.add(convertHierarchyToData(root));
+function convertToMessage(
+    nodes: NodeData[],
+    edges: DirectedEdge[],
+    root: NodeHierarchy,
+    alreadyAdded: Set<string>,
+) {
+    nodes.push(convertHierarchyToData(root));
     const queue: NodeHierarchy[] = [];
-    const alreadyAdded: Set<string> = new Set();
     if (root.expanded) queue.push(...root.children);
     while (queue.length !== 0) {
         const node: NodeHierarchy = queue.splice(0, 1)[0];
         if (alreadyAdded.has(node.id)) continue;
         alreadyAdded.add(node.id);
-        nodes.add(convertHierarchyToData(node));
+        nodes.push(convertHierarchyToData(node));
         for (const parent of node.parents) {
             const edge = Array.from(edges).find(
                 (edge) =>
@@ -474,7 +478,7 @@ function convertToMessage(nodes: Set<NodeData>, edges: Set<DirectedEdge>, root: 
                     (edge.src === node.id && edge.dst === parent.id),
             );
             if (!edge)
-                edges.add({
+                edges.push({
                     src: parent.id,
                     dst: node.id,
                     edgeDirection: RelationDirection.SUB,
@@ -493,18 +497,19 @@ function convertToMessage(nodes: Set<NodeData>, edges: Set<DirectedEdge>, root: 
  * @param hierarchy - The type of hierarchy needed.
  */
 function sendMessage(nodeId: string, hierarchy: Hierarchy) {
-    const nodes: Set<NodeData> = new Set();
-    const edges: Set<DirectedEdge> = new Set();
+    const nodes: NodeData[] = [];
+    const edges: DirectedEdge[] = [];
+    const alreadyAdded: Set<string> = new Set();
     for (const root of rootNodes) {
-        if (root.hierarchy === hierarchy) convertToMessage(nodes, edges, root);
+        if (root.hierarchy === hierarchy) convertToMessage(nodes, edges, root, alreadyAdded);
     }
-    if (nodes.size !== 0) {
+    if (nodes.length !== 0) {
         const panel = hierarchy === Hierarchy.CALL ? callPanel : typePanel;
         panel?.webview.postMessage({
             command: 'hierarchy',
             data: JSON.stringify({
-                nodesData: [...nodes],
-                edges: [...edges],
+                nodesData: nodes,
+                edges: edges,
                 mainNodeId: nodeId,
             } as NodeEdge),
         });

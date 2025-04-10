@@ -18,6 +18,10 @@ import {
     Controls,
     ControlButton,
     SelectionMode,
+    useReactFlow,
+    Background,
+    Panel,
+    useOnSelectionChange,
 } from '@xyflow/react';
 
 import '@xyflow/react/dist/style.css';
@@ -28,6 +32,7 @@ import { nodeFactory, nodeTypes } from './customNodes';
 import { elkOptions, layoutSubgraph, layoutSubgraphs } from './layouting';
 import { changeMarker } from './utils';
 import { ContextMenu, ContextMenuProps } from './contextMenu';
+import { SearchBar } from './searchBar';
 
 /**
  * Current direction of the graph layout.
@@ -51,6 +56,11 @@ let setEdges: React.Dispatch<React.SetStateAction<Edge[]>>;
 const nodeWidth = 250;
 const nodeHeight = 300;
 
+type Graph = {
+    nodes: Node[];
+    edges: Edge[];
+};
+
 /**
  * Create a graph based on the JSON string passed as an arguments.
  *
@@ -58,7 +68,7 @@ const nodeHeight = 300;
  */
 async function handleHierarchy(messageData: string) {
     const data: NodeEdge = JSON.parse(messageData) as NodeEdge;
-    const foldedNodes: Node[] = [];
+    // const foldedNodes: Node[] = [];
     let subGraphNode: Node | undefined = undefined;
     const numNodes = nodes.length;
 
@@ -69,24 +79,17 @@ async function handleHierarchy(messageData: string) {
 
     for (const nodeData of data.nodesData) {
         const newNode = nodeFactory(0, 0, nodeData, nodeWidth, nodeHeight);
-        const foundNode: Node | undefined = nodes.find((node) => node.id === newNode.id);
+        const foundNodeIndex = nodes.findIndex((node) => node.id === newNode.id);
 
         // Only add node that does not already exists
-        if (foundNode === undefined) {
+        if (foundNodeIndex === -1) {
             nodes.push(newNode);
-            if (!newNode.data.expanded) foldedNodes.push(newNode);
         } else {
-            // If the node to focus was already created we update it
-            if (newNode.data.focus) foundNode.data.focus = newNode.data.focus;
-
-            // Set children and parent boolean to the current value state.
-            foundNode.data.hasChildren = newNode.data.hasChildren;
-            foundNode.data.hasParent = newNode.data.hasParent;
-        }
-
-        if (foundNode !== undefined) {
-            foundNode.data.expanded = newNode.data.expanded;
-            if (!foundNode.data.expanded) foldedNodes.push(foundNode);
+            // Update the content of the node
+            nodes[foundNodeIndex] = {
+                ...nodes[foundNodeIndex],
+                data: newNode.data,
+            };
         }
     }
 
@@ -94,9 +97,6 @@ async function handleHierarchy(messageData: string) {
         // addEdge checks if an edge src dst already exist.
         edges = addEdge(edgeFactory(src, dst, edgeDirection), edges);
     });
-
-    // Remove all edge coming out of a folded node
-    foldedNodes.forEach((node) => (edges = edges.filter((edge) => edge.source !== node.id)));
 
     const focusIndex = nodes.findIndex((node) => node.data.focus);
     // Focus only if the number of nodes increased
@@ -124,6 +124,11 @@ async function handleHierarchy(messageData: string) {
     setNodes(nodes);
 }
 
+/**
+ * Update the graph by deleting node and updating node data.
+ *
+ * @param messageData - The data containing the data of the node to delete and to update.
+ */
 function handleUpdate(messageData: string) {
     const data: UpdateMessage = JSON.parse(messageData) as UpdateMessage;
     for (const node of data.toUpdate) {
@@ -147,6 +152,11 @@ function handleUpdate(messageData: string) {
     setNodes(nodes);
 }
 
+/**
+ * Dispatch the message received according to the command passed as a field to the message.
+ *
+ * @param text - A message received by the client
+ */
 const handleMessage = (text: MessageEvent<Message>) => {
     switch (text.data.command) {
         case 'hierarchy': {
@@ -163,6 +173,7 @@ const handleMessage = (text: MessageEvent<Message>) => {
         }
     }
 };
+
 /**
  * Main function that configure and render the graph.
  * @returns A div containing the react flow graph's viewPort.
@@ -174,7 +185,9 @@ export default function App() {
     [nodes, setNodes, onNodesChange] = useNodesState(nodes);
     [edges, setEdges, onEdgesChange] = useEdgesState(edges);
     const [menu, setMenu] = React.useState<ContextMenuProps | null>(null);
+    const [selected, setSelected] = React.useState<Edge[]>([]);
     const ref = React.useRef<HTMLDivElement>(null);
+    const { setCenter } = useReactFlow();
 
     React.useEffect(() => {
         // Listener on the message from the server side.
@@ -222,6 +235,7 @@ export default function App() {
         setEdges(edges);
     }, []);
 
+    // Unhighlight the edges linked to the node when stop hovering.
     const onNodeMouseLeave = React.useCallback((event: React.MouseEvent, node: Node) => {
         void event;
         // If a timeout is active clears it
@@ -234,26 +248,35 @@ export default function App() {
         setEdges(edges);
     }, []);
 
-    const onEdgeMouseEnter = React.useCallback((event: React.MouseEvent, edge: Edge) => {
-        void event;
-        edge = changeMarker(edge, 'var(--vscode-focusBorder)', 'highlight');
+    // Highlight the marker of the edge when hovering the edge.
+    const onEdgeMouseEnter = React.useCallback(
+        (event: React.MouseEvent, edge: Edge) => {
+            void event;
+            edge = changeMarker(edge, 'var(--vscode-focusBorder)', 'highlight');
 
-        edges[edges.findIndex((searchEdge) => searchEdge.id === edge.id)] = { ...edge };
-        // Refresh the array to force re rendering
-        edges = [...edges];
-        setEdges(edges);
-    }, []);
+            edges[edges.findIndex((searchEdge) => searchEdge.id === edge.id)] = { ...edge };
+            // Refresh the array to force re rendering
+            edges = [...edges];
+            setEdges(edges);
+        },
+        [edges],
+    );
 
-    const onEdgeMouseLeave = React.useCallback((event: React.MouseEvent, edge: Edge) => {
-        void event;
-        edge = changeMarker(edge, '', undefined);
+    // Unhighlight the marker of the edge when hovering the edge.
+    const onEdgeMouseLeave = React.useCallback(
+        (event: React.MouseEvent, edge: Edge) => {
+            void event;
+            edge = changeMarker(edge, '', undefined);
 
-        edges[edges.findIndex((searchEdge) => searchEdge.id === edge.id)] = edge;
-        // Refresh the array to force re rendering
-        edges = [...edges];
-        setEdges(edges);
-    }, []);
+            edges[edges.findIndex((searchEdge) => searchEdge.id === edge.id)] = edge;
+            // Refresh the array to force re rendering
+            edges = [...edges];
+            setEdges(edges);
+        },
+        [edges],
+    );
 
+    // Send a delete message with the id of the main node to remove to the server side.
     const onNodeDelete = React.useCallback(
         (toDelete: Node[]) => {
             vscode.postMessage({
@@ -267,18 +290,41 @@ export default function App() {
         [nodes, edges],
     );
 
+    //Close the node context menu.
     const onContextClose = React.useCallback(() => setMenu(null), [setMenu]);
 
+    // Close the node context menu and clear the node search bar on pane click
+    const onPaneClick = React.useCallback(() => {
+        const searchBar = document.getElementById('node-search-bar');
+        if (!searchBar) return;
+        (searchBar as HTMLInputElement).value = '';
+        const event = new Event('change', { bubbles: true });
+        searchBar.dispatchEvent(event);
+
+        onContextClose();
+    }, []);
+
+    // Create the context menu and position it on the close to the mouse position.
     const onNodeContextMenu = React.useCallback(
         (event: React.MouseEvent, node: Node) => {
             event.preventDefault();
             if (ref.current) {
+                const pane = ref.current.getBoundingClientRect();
+
                 setMenu({
                     node: node,
-                    position: {
-                        x: event.clientX,
-                        y: event.clientY,
-                    },
+                    // Handle the case where the mouse is close to a border (displace the context
+                    // menu to another quadrant)
+                    top: event.clientY < pane.height - nodeHeight ? event.clientY : undefined,
+                    left: event.clientX < pane.width - nodeWidth ? event.clientX : undefined,
+                    right:
+                        event.clientX >= pane.width - nodeWidth
+                            ? pane.width - event.clientX
+                            : undefined,
+                    bottom:
+                        event.clientY >= pane.height - nodeHeight
+                            ? pane.height - event.clientY
+                            : undefined,
                     onContextClose: onContextClose,
                     onNodeDelete: onNodeDelete,
                 } as ContextMenuProps);
@@ -287,10 +333,35 @@ export default function App() {
         [setMenu],
     );
 
+    // Send a message to server side when initialized to indicate it can start sending information.
     const onInit = React.useCallback(() => {
         vscode.postMessage({ command: 'rendered', data: '' } as Message);
     }, []);
 
+    // Set the view to the center of the webView.
+    const onCenter = React.useCallback(() => {
+        void setCenter(0, 0, { zoom: minZoom, duration: 1000 });
+    }, []);
+
+    const onChange = React.useCallback(
+        ({ nodes: selectedNodes, edges: selectedEdges }: Graph) => {
+            void selectedNodes;
+            for (const oldEdge of selected) {
+                if (!selectedEdges.some((edge) => edge.id === oldEdge.id)) {
+                    const edge = changeMarker(oldEdge, '', undefined, true);
+                    edges[edges.findIndex((searchEdge) => searchEdge.id === edge.id)] = edge;
+                    edges = [...edges];
+                    setEdges(edges);
+                }
+            }
+            setSelected(selectedEdges);
+        },
+        [selected],
+    );
+
+    useOnSelectionChange({
+        onChange,
+    });
     return (
         <div style={{ width: '100vw', height: '100vh' }}>
             {
@@ -305,7 +376,7 @@ export default function App() {
                     nodeTypes={nodeTypes}
                     edgeTypes={edgeTypes}
                     onInit={onInit}
-                    onPaneClick={onContextClose}
+                    onPaneClick={onPaneClick}
                     onNodesDelete={onNodeDelete}
                     onNodesChange={onNodesChange}
                     onEdgesChange={onEdgesChange}
@@ -318,6 +389,7 @@ export default function App() {
                     connectionLineComponent={floatingConnectionLine}
                     selectionMode={SelectionMode.Partial}
                     deleteKeyCode={['Delete', 'Backspace']}
+                    className="colors"
                 >
                     <Controls>
                         <ControlButton
@@ -325,8 +397,17 @@ export default function App() {
                             title="Layout the graph"
                             onClick={() => onLayout()}
                         />
+                        <ControlButton
+                            className="codicon codicon-record bottom-button"
+                            title="Center the view"
+                            onClick={onCenter}
+                        />
                     </Controls>
                     {menu && <ContextMenu {...menu} />}
+                    <Background size={3} gap={56} />
+                    <Panel position="top-right">
+                        <SearchBar />
+                    </Panel>
                 </ReactFlow>
             }
         </div>

@@ -51,35 +51,37 @@ export function nodeFactory(
  */
 export function Rectangle(node: NodeProps<DataNode>) {
     const data = node.data;
-    const [expand, setExpand] = React.useState<boolean>(data.expanded);
+    // const [expand, setExpand] = React.useState<boolean>(data.expanded);
     const { setCenter } = useReactFlow();
 
-    /**
-     * Dynamically assign class to DOM element to take into account, layouting direction,
-     *  type of data being displayed....
-     */
+    // Dynamically assign class to DOM element to take into account, layouting direction,
+    //  type of data being displayed....
     const color = 'var(--vscode-symbolIcon-' + data.kind + 'Foreground';
     const nodeClass = 'rectangle hoverable ' + (node.selected ? 'selected' : '');
     const iconClass = 'icon codicon codicon-symbol-' + data.kind;
+
     const subButtonClass =
         'icon codicon codicon-' +
         (data.hasChildren === null
             ? data.hierarchy === Hierarchy.CALL
                 ? 'call-outgoing'
                 : 'type-hierarchy-sub'
-            : expand
+            : data.expanded
               ? 'chevron-down'
               : 'chevron-right') +
         ' hierarchy-button sub-button-' +
         (currentDirection === Direction.RIGHT ? 'right' : 'down');
+
     const superButtonClass =
         'icon codicon codicon-' +
         (node.data.hierarchy === Hierarchy.CALL ? 'call-incoming' : 'type-hierarchy-super') +
         ' hierarchy-button super-button-' +
         (currentDirection === Direction.RIGHT ? 'left' : 'up');
+
     const superButtonTitle =
         (node.data.expanded ? 'Hide ' : 'Display ') +
         (node.data.hierarchy === Hierarchy.CALL ? 'incoming calls' : 'supertypes');
+
     const subButtonTitle =
         (node.data.expanded ? 'Hide ' : 'Display ') +
         (node.data.hierarchy === Hierarchy.CALL ? 'outgoing calls' : 'subtypes');
@@ -104,15 +106,12 @@ export function Rectangle(node: NodeProps<DataNode>) {
                 data: JSON.stringify({
                     id: data.id,
                     direction: direction,
-                    expand: direction === RelationDirection.SUB ? !expand : expand,
+                    expand: direction === RelationDirection.SUB ? !data.expanded : data.expanded,
                     hierarchy: getNodeKind(data.kind),
                 } as HierarchyMessage),
             });
-            if (direction === RelationDirection.SUB) {
-                setExpand(!expand);
-            }
         },
-        [expand],
+        [data.id, data.kind, data.expanded],
     );
 
     return (
