@@ -73,8 +73,8 @@ body {
 .visualizer__invis {
     height: 0;
     width: 0;
-    top: 25%;
-    bottom: 25%;
+    /* top: 25%; */
+    /* bottom: 25%; */
     opacity: 0;
 }
 

@@ -121,8 +121,24 @@ export function Rectangle(node: NodeProps<DataNode>) {
 
     return (
         <div className={nodeClass}>
-            <Handle className="visualizer__invis" type="target" position={Position.Top} />
-            <Handle className="visualizer__invis" type="source" position={Position.Bottom} />
+            <Handle
+                className="visualizer__invis"
+                type="target"
+                position={currentDirection === Direction.RIGHT ? Position.Left : Position.Top}
+                style={{
+                    top: currentDirection === Direction.RIGHT ? undefined : '1%',
+                    left: currentDirection === Direction.RIGHT ? '1%' : undefined,
+                }}
+            />
+            <Handle
+                className="visualizer__invis"
+                type="source"
+                position={currentDirection === Direction.RIGHT ? Position.Right : Position.Bottom}
+                style={{
+                    bottom: currentDirection === Direction.RIGHT ? undefined : '1%',
+                    right: currentDirection === Direction.RIGHT ? '1%' : undefined,
+                }}
+            />
             <div className="visualizer__node_title">
                 <span className={iconClass} style={{ color: color }}></span>
                 <div className="visualizer__text" title={data.label}>
