@@ -18,6 +18,7 @@
             fallback: {},
             modules: ['node_modules'],
         },
+        watchOptions: { ignored: /node_modules/ },
         module: {
             rules: [
                 {

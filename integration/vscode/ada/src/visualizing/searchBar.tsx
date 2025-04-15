@@ -1,21 +1,22 @@
-import { useReactFlow, Node } from '@xyflow/react';
+import { useReactFlow, ReactFlowProvider } from '@xyflow/react';
 import React from 'react';
 import { NodeData } from '../visualizerTypes';
 
 let timeoutId: NodeJS.Timeout | null = null;
+
 /**
+ *  Create a search bar allowing to focus on specific node of the graph.
  *
  * @returns A div containing the search bar itself and the list that will contain the child results
  */
 export function SearchBar() {
-    const { getNodes, getNode, setCenter } = useReactFlow();
+    const { getViewport, getNodes, getNode, setCenter } = useReactFlow();
     const [current, setCurrent] = React.useState(-1);
     const [filteredNodes, setFilteredNodes] = React.useState<React.JSX.Element[]>([]);
 
     /**
      * Display a dropdown list of nodes that matches the request inputted in the search bar.
      * @param event - The change event
-     *
      */
     const onChange = React.useCallback(
         (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -34,7 +35,7 @@ export function SearchBar() {
                         <li
                             data-id={node.id}
                             onClick={onListClick}
-                            className="node-search-item"
+                            className="visualizer__node-search-item"
                             key={node.id}
                         >
                             {(node.data as NodeData).label}
@@ -47,22 +48,37 @@ export function SearchBar() {
         [filteredNodes],
     );
 
-    const focusNode = (nodeId: string) => {
+    /**
+     * Focus the graph on a specific node and animate the camera movement toward this node.
+     *
+     * @param nodeId - The id of the node to focus on.
+     * @param baseSpeed - The base speed at which to go toward the node.
+     * @param minDuration - The minimal duration of the displacement animation.
+     * @param maxDuration  - The maximal duration of the displacement animation.
+     */
+    const focusNode = (nodeId: string, baseSpeed = 1, minDuration = 750, maxDuration = 3000) => {
         const node = getNode(nodeId);
         if (!node) return;
+        const newX = node.position.x + (node.width ?? 0) / 2;
+        const newY = node.position.y + (node.height ?? 0) / 2;
+        const { x, y, zoom } = getViewport();
+        const regX = (-x + window.innerWidth / 2) / zoom;
+        const regY = (-y + window.innerHeight / 2) / zoom;
 
-        void setCenter(
-            node.position.x + (node.width ?? 0) / 2,
-            node.position.y + (node.height ?? 0) / 2,
-            { duration: 500, zoom: 1 },
-        );
+        const distance = Math.sqrt(Math.pow(regX - newX, 2) + Math.pow(regY - newY, 2));
+        const duration = Math.max(Math.min(distance * baseSpeed, maxDuration), minDuration);
+        void setCenter(newX, newY, { duration: duration, zoom: 1 });
     };
 
+    /**
+     * Handle the key press to navigate the list and handle the node focus.
+     */
     const onKeyDown = React.useCallback(
         (event: React.KeyboardEvent<HTMLInputElement>) => {
-            const ul = document.getElementById('node-search-list') as HTMLUListElement;
+            const ul = document.getElementById('visualizer__node-search-list') as HTMLUListElement;
             const childs = ul.children;
-            if (current > -1) childs[current].classList.remove('search-selected');
+            if (childs.length === 0) return;
+            if (current > -1) childs[current].classList.remove('visualizer__search-selected');
             let newCurrent = current;
             // Go to the previous element in the list (go to the last element in case of underflow)
             if (event.key === 'ArrowUp') {
@@ -77,9 +93,6 @@ export function SearchBar() {
             // Focus the current node on the graph
             else if (event.key === 'Enter' && current !== -1) {
                 event.preventDefault();
-                const nodeId = childs[current].getAttribute('data-id');
-                if (!nodeId) return;
-                focusNode(nodeId);
             }
             // If anything else is typed reset the list
             else {
@@ -89,31 +102,39 @@ export function SearchBar() {
             setCurrent(newCurrent);
             if (newCurrent === -1) return;
 
+            // Focus on the current choice
+            const nodeId = childs[newCurrent].getAttribute('data-id');
+            if (!nodeId) return;
+            focusNode(nodeId);
+
             //Add the class to the current selected option and scroll the list to make sure
             // the element is into view
-            childs[newCurrent].classList.add('search-selected');
+            childs[newCurrent].classList.add('visualizer__search-selected');
             childs[newCurrent].scrollIntoView({ behavior: 'auto', block: 'nearest' });
         },
         [filteredNodes, current],
     );
 
-    // Reset the start of the search bar.
+    /**
+     * Reset the state of the search bar.
+     */
     const handleLostFocus = (): void => {
         setFilteredNodes([]);
         setCurrent(-1);
-        const searchBar = document.getElementById('node-search-bar');
+        const searchBar = document.getElementById('visualizer__node-search-bar');
         if (!searchBar) return;
         (searchBar as HTMLInputElement).value = '';
     };
 
     // Handle the case the user clicks out of the search bar
-    // The timeout is added for the case where the user clicks on one of the list item to prevent
-    // the whole list to be destroyed before the action is done.
+    // The timeout is added to handle the case where the user clicks on a list item to avoid the
+    // whole list to be deleted. The timeout will be cleared in the `onListClick` function called
+    // just after this one in the event loop.
     React.useEffect(() => {
         const handleChange = () => {
             timeoutId = setTimeout(() => {
                 handleLostFocus();
-            }, 150);
+            }, 50);
         };
 
         window.addEventListener('change', handleChange);
@@ -132,6 +153,9 @@ export function SearchBar() {
         };
     }, []);
 
+    /**
+     * On list item click, focus on the node represented by this item.
+     */
     const onListClick = React.useCallback((event: React.MouseEvent<HTMLLIElement>) => {
         event.preventDefault();
         // Interrupt the timeout started in the change event listener so the user can click on
@@ -146,19 +170,21 @@ export function SearchBar() {
     }, []);
 
     return (
-        <div className="node-search">
-            <input
-                type="search"
-                inputMode="search"
-                autoComplete="off"
-                placeholder="Search symbol name"
-                id="node-search-bar"
-                onChange={onChange}
-                onKeyDown={onKeyDown}
-            />
-            <nav>
-                <ul id="node-search-list">{filteredNodes}</ul>
-            </nav>
-        </div>
+        <ReactFlowProvider>
+            <div className="visualizer__node-search">
+                <input
+                    type="search"
+                    inputMode="search"
+                    autoComplete="off"
+                    placeholder="Search symbol name"
+                    id="visualizer__node-search-bar"
+                    onChange={onChange}
+                    onKeyDown={onKeyDown}
+                />
+                <nav>
+                    <ul id="visualizer__node-search-list">{filteredNodes}</ul>
+                </nav>
+            </div>
+        </ReactFlowProvider>
     );
 }

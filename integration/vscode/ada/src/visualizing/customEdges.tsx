@@ -17,6 +17,7 @@ export const edgeTypes = {
 
 /**
  * Return a new react flow edge.
+ *
  * @param src - Source node of the edge.
  * @param dst - Destination node of the edge.
  * @returns A new react flow Edge.
@@ -45,6 +46,7 @@ export function edgeFactory(src: string, dst: string, edgeDirection: RelationDir
 /**
  * Get the intersection point between the edge (center intersectionNode -\> targetNode)
  * and the outer border of the intersection Node.
+ *
  * Used to determine where to place the beginning of the edge for a better visual.
  *
  * @param intersectionNode - The source node of the edge for which we search the intersection.
@@ -66,10 +68,8 @@ function getNodeIntersection(intersectionNode: InternalNode, targetNode: Interna
     )
         return undefined;
 
-    /**
-     * The algorithm is more precisely explained here
-     * https://math.stackexchange.com/questions/1724792/an-algorithm-for-finding-the-intersection-point-between-a-center-of-vision-and-a
-     */
+    // The algorithm is more precisely explained here
+    // https://math.stackexchange.com/questions/1724792/an-algorithm-for-finding-the-intersection-point-between-a-center-of-vision-and-a
     const w = measure.width / 2;
     const h = measure.height / 2;
 

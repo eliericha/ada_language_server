@@ -30,7 +30,7 @@ import 'vscode-webview';
 import { edgeFactory, edgeTypes, floatingConnectionLine } from './customEdges';
 import { nodeFactory, nodeTypes } from './customNodes';
 import { elkOptions, layoutSubgraph, layoutSubgraphs } from './layouting';
-import { changeMarker } from './utils';
+import { changeMarker, waitingBar } from './utils';
 import { ContextMenu, ContextMenuProps } from './contextMenu';
 import { SearchBar } from './searchBar';
 
@@ -104,7 +104,7 @@ async function handleHierarchy(messageData: string) {
     if (focusIndex !== -1 && nodes.length > numNodes) nodes[focusIndex] = { ...nodes[focusIndex] };
     else if (focusIndex !== -1) nodes[focusIndex].data.focus = false;
 
-    // Recreate the nodes object to force the re render
+    // Recreate the nodes object to force the re-render
     nodes = nodes.map((node) => {
         return { ...node };
     });
@@ -122,6 +122,7 @@ async function handleHierarchy(messageData: string) {
     }
     setEdges(edges);
     setNodes(nodes);
+    waitingBar(true);
 }
 
 /**
@@ -134,22 +135,25 @@ function handleUpdate(messageData: string) {
     for (const node of data.toUpdate) {
         const index = nodes.findIndex((searchNode) => node.id === searchNode.id);
         if (index === -1) continue;
-        const originalNode = nodes[index];
+        // Recreate the node object with the new data.
         nodes[index] = {
-            ...originalNode,
+            ...nodes[index],
             data: node,
         };
     }
     for (const node of data.toDelete) {
         const index = nodes.findIndex((searchNode) => node.id === searchNode.id);
+        // Remove the edge that come from or to the node to delete.
         edges = edges.filter((edge) => edge.source !== node.id && edge.target !== node.id);
         if (index === -1) continue;
         {
             nodes.splice(index, 1);
         }
     }
+    // Recreate the nodes object to force the re-render
     nodes = [...nodes];
     setNodes(nodes);
+    waitingBar(true);
 }
 
 /**
@@ -176,6 +180,7 @@ const handleMessage = (text: MessageEvent<Message>) => {
 
 /**
  * Main function that configure and render the graph.
+ *
  * @returns A div containing the react flow graph's viewPort.
  */
 export default function App() {
@@ -197,7 +202,9 @@ export default function App() {
         };
     }, []);
 
-    // Callback to relayout the graph.
+    /**
+     * Relayout the whole graph in the opposite direction than the current one.
+     */
     const onLayout = React.useCallback(() => {
         currentDirection = currentDirection === Direction.RIGHT ? Direction.DOWN : Direction.RIGHT;
 
@@ -210,10 +217,13 @@ export default function App() {
         });
     }, [nodes, edges]);
 
-    // Reveal the symbol represented by the node in the code.
+    /**
+     * Reveal the symbol represented by the node in the code.
+     */
     const onNodeDoubleClick = React.useCallback(
         (event: React.MouseEvent, node: Node) => {
-            if ((event.target as Element).className.includes('hierarchy-button')) return;
+            if ((event.target as Element).className.includes('visualizer__hierarchy-button'))
+                return;
             void event;
             vscode.postMessage({
                 command: 'revealNode',
@@ -223,23 +233,28 @@ export default function App() {
         [nodes],
     );
 
-    // Highlight all edges linked to the node when hovered.
+    /**
+     * Highlight all edges linked to the node when hovered.
+     */
     const onNodeMouseEnter = React.useCallback((event: React.MouseEvent, node: Node) => {
         void event;
-        // Add a timeout to let CSS the time to update the hover state
         edges = edges.map((edge) => {
             if (edge.target === node.id || edge.source === node.id)
-                edge = changeMarker(edge, 'var(--vscode-focusBorder)', 'highlight');
+                edge = changeMarker(
+                    edge,
+                    'var(--visualizer-border-color-focused)',
+                    'visualizer__highlight',
+                );
             return edge;
         });
         setEdges(edges);
     }, []);
 
-    // Unhighlight the edges linked to the node when stop hovering.
+    /**
+     * Unhighlight the edges linked to the node when stop hovering.
+     */
     const onNodeMouseLeave = React.useCallback((event: React.MouseEvent, node: Node) => {
         void event;
-        // If a timeout is active clears it
-        // (or the edges can color themselves after the mouse left the node)
         edges = edges.map((edge) => {
             if (edge.target === node.id || edge.source === node.id)
                 edge = changeMarker(edge, '', undefined);
@@ -248,11 +263,17 @@ export default function App() {
         setEdges(edges);
     }, []);
 
-    // Highlight the marker of the edge when hovering the edge.
+    /**
+     * Highlight the marker of the edge when hovering the edge.
+     */
     const onEdgeMouseEnter = React.useCallback(
         (event: React.MouseEvent, edge: Edge) => {
             void event;
-            edge = changeMarker(edge, 'var(--vscode-focusBorder)', 'highlight');
+            edge = changeMarker(
+                edge,
+                'var(--visualizer-border-color-focused)',
+                'visualizer__highlight',
+            );
 
             edges[edges.findIndex((searchEdge) => searchEdge.id === edge.id)] = { ...edge };
             // Refresh the array to force re rendering
@@ -262,7 +283,9 @@ export default function App() {
         [edges],
     );
 
-    // Unhighlight the marker of the edge when hovering the edge.
+    /**
+     * Unhighlight the marker of the edge when hovering the edge.
+     */
     const onEdgeMouseLeave = React.useCallback(
         (event: React.MouseEvent, edge: Edge) => {
             void event;
@@ -276,9 +299,12 @@ export default function App() {
         [edges],
     );
 
-    // Send a delete message with the id of the main node to remove to the server side.
+    /**
+     * Send a delete message with the id of the main node to remove to the server side.
+     */
     const onNodeDelete = React.useCallback(
         (toDelete: Node[]) => {
+            waitingBar();
             vscode.postMessage({
                 command: 'deleteNodes',
                 data: JSON.stringify({
@@ -290,12 +316,16 @@ export default function App() {
         [nodes, edges],
     );
 
-    //Close the node context menu.
+    /**
+     * Close the node context menu.
+     */
     const onContextClose = React.useCallback(() => setMenu(null), [setMenu]);
 
-    // Close the node context menu and clear the node search bar on pane click
+    /**
+     * Close the node context menu and clear the node search bar on pane click
+     */
     const onPaneClick = React.useCallback(() => {
-        const searchBar = document.getElementById('node-search-bar');
+        const searchBar = document.getElementById('visualizer__node-search-bar');
         if (!searchBar) return;
         (searchBar as HTMLInputElement).value = '';
         const event = new Event('change', { bubbles: true });
@@ -304,7 +334,9 @@ export default function App() {
         onContextClose();
     }, []);
 
-    // Create the context menu and position it on the close to the mouse position.
+    /**
+     * Create the context menu and position it on the close to the mouse position.
+     */
     const onNodeContextMenu = React.useCallback(
         (event: React.MouseEvent, node: Node) => {
             event.preventDefault();
@@ -333,16 +365,23 @@ export default function App() {
         [setMenu],
     );
 
-    // Send a message to server side when initialized to indicate it can start sending information.
+    /**
+     * Send a message to server side when initialized to indicate it can start sending information.
+     */
     const onInit = React.useCallback(() => {
         vscode.postMessage({ command: 'rendered', data: '' } as Message);
     }, []);
 
-    // Set the view to the center of the webView.
+    /**
+     * Set the view to the center of the webView.
+     */
     const onCenter = React.useCallback(() => {
         void setCenter(0, 0, { zoom: minZoom, duration: 1000 });
     }, []);
 
+    /**
+     * Handle the unselection of the edge to remove their edge marker.
+     */
     const onChange = React.useCallback(
         ({ nodes: selectedNodes, edges: selectedEdges }: Graph) => {
             void selectedNodes;
@@ -359,9 +398,11 @@ export default function App() {
         [selected],
     );
 
+    // Hook called when the user select or unselect nodes or edges.
     useOnSelectionChange({
         onChange,
     });
+
     return (
         <div style={{ width: '100vw', height: '100vh' }}>
             {
@@ -389,7 +430,7 @@ export default function App() {
                     connectionLineComponent={floatingConnectionLine}
                     selectionMode={SelectionMode.Partial}
                     deleteKeyCode={['Delete', 'Backspace']}
-                    className="colors"
+                    className="visualizer__colors"
                 >
                     <Controls>
                         <ControlButton
@@ -398,7 +439,7 @@ export default function App() {
                             onClick={() => onLayout()}
                         />
                         <ControlButton
-                            className="codicon codicon-record bottom-button"
+                            className="codicon codicon-record visualizer__bottom-button"
                             title="Center the view"
                             onClick={onCenter}
                         />

@@ -4,6 +4,7 @@ import { Hierarchy } from '../visualizerTypes';
 /**
  * Helper function to return the type of Hierarchy needing to be called depending on the kind of
  * the node.
+ *
  * As vscode cannot be imported here, it can't be used to compare the kind parameter.
  *
  * @param kind - the symbol kind of a node.
@@ -52,4 +53,30 @@ export function changeMarker(
         if (color.length === 0) delete edge.markerStart.color;
     }
     return { ...edge };
+}
+
+/**
+ *  Display or remove a waiting bar to indicate to the user that the extensions is processing data.
+ *
+ * @param stop - True to remove the bar, False to enable it
+ */
+export function waitingBar(stop: boolean = false) {
+    const panes = document.getElementsByClassName('react-flow__pane');
+    if (panes.length === 0) return;
+    const pane = panes[0];
+    if (!stop) {
+        const element = document.createElement('div');
+        const childArr = Array.from(pane.children);
+
+        // There can only be a single instance of the waiting bar
+        if (!childArr.some((child) => child.classList.contains('visualizer__wait'))) {
+            element.classList.add('visualizer__wait');
+            pane.appendChild(element);
+        }
+    } else {
+        const load = document.getElementsByClassName('visualizer__wait');
+        if (load.length !== 0) {
+            pane.removeChild(load[0]);
+        }
+    }
 }

@@ -8,7 +8,7 @@ import {
     NodeIdsMessage,
     RelationDirection,
 } from '../visualizerTypes';
-import { getNodeKind } from './utils';
+import { getNodeKind, waitingBar } from './utils';
 
 export type ContextMenuProps = {
     onContextClose: () => void;
@@ -40,7 +40,11 @@ export function ContextMenu(props: ContextMenuProps) {
         };
     }, []);
 
+    /**
+     * Send a refresh node request to the server side.
+     */
     const refreshNode = React.useCallback(() => {
+        waitingBar();
         vscode.postMessage({
             command: 'refreshNodes',
             data: JSON.stringify({ nodesId: [props.node.id] } as NodeIdsMessage),
@@ -48,15 +52,22 @@ export function ContextMenu(props: ContextMenuProps) {
         props.onContextClose();
     }, [props.node.id]);
 
+    /**
+     * Send a delete node request to the server side.
+     */
     const deleteNode = React.useCallback(() => {
         props.onNodeDelete([props.node]);
         props.onContextClose();
     }, [props.node]);
 
+    /**
+     * Send a hierarchy request to the server side.
+     */
     const requestHierarchy = React.useCallback(
         ({ direction = RelationDirection.SUPER }) => {
             const kind = (props.node.data as NodeData).kind;
             const hierarchy = getNodeKind(kind);
+            waitingBar();
             vscode.postMessage({
                 command: 'requestHierarchy',
                 data: JSON.stringify({
@@ -88,23 +99,23 @@ export function ContextMenu(props: ContextMenuProps) {
                     right: props.right,
                     bottom: props.bottom,
                 }}
-                className="context-menu"
+                className="visualizer__context-menu"
                 onMouseLeave={props.onContextClose}
             >
-                <button className="context-button" onClick={refreshNode}>
+                <button className="visualizer__context-button" onClick={refreshNode}>
                     Refresh Node
                 </button>
-                <button className="context-button" onClick={deleteNode}>
+                <button className="visualizer__context-button" onClick={deleteNode}>
                     Delete Node
                 </button>
                 <button
-                    className="context-button"
+                    className="visualizer__context-button"
                     onClick={() => requestHierarchy({ direction: RelationDirection.SUB })}
                 >
                     {subContent}
                 </button>
                 <button
-                    className="context-button"
+                    className="visualizer__context-button"
                     onClick={() => requestHierarchy({ direction: RelationDirection.SUPER })}
                 >
                     {superContent}

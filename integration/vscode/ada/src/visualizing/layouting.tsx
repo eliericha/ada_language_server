@@ -111,6 +111,7 @@ export const getLayoutedElements = async (
 /**
  * Extract all the nodes and edges forming a subgraph from the nodes and edges array, starting from
  * a specific node
+ *
  * This is a recursive function.
  *
  * @param node - The node that mark the subgraph to extract.
@@ -216,7 +217,6 @@ function getBoundingBox(nodes: Node[]) {
  * Helper function to check if the current subgraph is overlapping
  * with any other subgraphs.
  *
-
  * @param y - The y position of the subgraph.
  * @param width - The width of the subgraph.
  * @param height - The height of the subgraph.
@@ -294,6 +294,7 @@ function findNonOverlappingPosition(
 
 /**
  * Extract the subgraph currNode is part of, layout it, place it somewhere with no overlapping.
+ *
  * This function change nodes and edges in place.
  *
  * @param currNode - The node from which will be extracted the subgraph that will be layouted.

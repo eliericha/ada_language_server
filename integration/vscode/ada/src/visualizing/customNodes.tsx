@@ -9,7 +9,7 @@ import {
     Hierarchy,
 } from '../visualizerTypes';
 import { currentDirection, vscode } from './App';
-import { getNodeKind } from './utils';
+import { getNodeKind, waitingBar } from './utils';
 
 type DataNode = Node<NodeData, 'data'>;
 
@@ -20,6 +20,7 @@ const nodeString: string[] = ['rectangle'];
 
 /**
  * Return a new react flow node
+ *
  * @param x - x position of the node
  * @param y - y position of the node
  * @param data - Data stored by the node
@@ -57,7 +58,10 @@ export function Rectangle(node: NodeProps<DataNode>) {
     // Dynamically assign class to DOM element to take into account, layouting direction,
     //  type of data being displayed....
     const color = 'var(--vscode-symbolIcon-' + data.kind + 'Foreground';
-    const nodeClass = 'rectangle hoverable ' + (node.selected ? 'selected' : '');
+    const nodeClass =
+        'visualizer__rectangle' +
+        (node.selected ? ' visualizer__selected ' : '') +
+        (!data.inProject ? ' visualizer__out-of-project' : '');
     const iconClass = 'icon codicon codicon-symbol-' + data.kind;
 
     const subButtonClass =
@@ -69,13 +73,13 @@ export function Rectangle(node: NodeProps<DataNode>) {
             : data.expanded
               ? 'chevron-down'
               : 'chevron-right') +
-        ' hierarchy-button sub-button-' +
+        ' visualizer__hierarchy-button visualizer__sub-button-' +
         (currentDirection === Direction.RIGHT ? 'right' : 'down');
 
     const superButtonClass =
         'icon codicon codicon-' +
         (node.data.hierarchy === Hierarchy.CALL ? 'call-incoming' : 'type-hierarchy-super') +
-        ' hierarchy-button super-button-' +
+        ' visualizer__hierarchy-button visualizer__super-button-' +
         (currentDirection === Direction.RIGHT ? 'left' : 'up');
 
     const superButtonTitle =
@@ -101,6 +105,7 @@ export function Rectangle(node: NodeProps<DataNode>) {
     // Callback to get super or sub types
     const requestHierarchy = React.useCallback(
         ({ direction = RelationDirection.SUPER }) => {
+            waitingBar();
             vscode.postMessage({
                 command: 'requestHierarchy',
                 data: JSON.stringify({
@@ -116,15 +121,15 @@ export function Rectangle(node: NodeProps<DataNode>) {
 
     return (
         <div className={nodeClass}>
-            <Handle className="invis" type="target" position={Position.Top} />
-            <Handle className="invis" type="source" position={Position.Bottom} />
-            <div className="title">
+            <Handle className="visualizer__invis" type="target" position={Position.Top} />
+            <Handle className="visualizer__invis" type="source" position={Position.Bottom} />
+            <div className="visualizer__node_title">
                 <span className={iconClass} style={{ color: color }}></span>
-                <div className="text" title={data.label}>
+                <div className="visualizer__text" title={data.label}>
                     {data.label}
                 </div>
             </div>
-            <div className="body" title={data.label}>
+            <div className="visualizer__node_body" title={data.label}>
                 <div>File : {data.string_location.path.split('/').at(-1)}</div>
                 <div>Position : {data.string_location.position}</div>
             </div>
@@ -132,13 +137,19 @@ export function Rectangle(node: NodeProps<DataNode>) {
                 className={subButtonClass}
                 title={subButtonTitle}
                 style={{ display: data.hasChildren === false ? 'none' : 'inherit' }}
-                onClick={() => requestHierarchy({ direction: RelationDirection.SUB })}
+                onClick={(event) => {
+                    event.preventDefault();
+                    requestHierarchy({ direction: RelationDirection.SUB });
+                }}
             ></button>
             <button
                 className={superButtonClass}
                 title={superButtonTitle}
                 style={{ display: data.hasParent === null ? 'inherit' : 'none' }}
-                onClick={() => requestHierarchy({ direction: RelationDirection.SUPER })}
+                onClick={(event) => {
+                    event.preventDefault();
+                    requestHierarchy({ direction: RelationDirection.SUPER });
+                }}
             ></button>
         </div>
     );

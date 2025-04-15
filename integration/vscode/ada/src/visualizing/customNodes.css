@@ -1,26 +1,26 @@
-.colors {
-    --node-border-color: gray;
-    --item-selected: var(--vscode-activityBar-foreground);
-    --item-background-selected: var(--vscode-activityBar-background);
-    --item-background: var(--vscode-sideBar-background);
-    --text-color: var(--vscode-editor-foreground);
-    --view-port-background: var(--vscode-editor-background);
-    --border-color: var(--vscode-focusBorder);
-    --foreground-color: var(--vscode-foreground);
-    --control-button-color: var(--vscode-panelTitle-activeForeground);
-    --control-button-separator: var(--vscode-button-secondaryBackground);
-    --control-button-hover-background: var(--vscode-panelSection-border);
-    --search-bar-shadow: var(--vscode-activityBar-dropBorder);
+.visualizer__colors {
+    --visualizer-border-color: gray;
+    --visualizer-item-selected: var(--vscode-activityBar-foreground);
+    --visualizer-item-background-selected: var(--vscode-activityBar-background);
+    --visualizer-item-background: var(--vscode-sideBar-background);
+    --visualizer-text-color: var(--vscode-editor-foreground);
+    --visualizer-view-port-background: var(--vscode-editor-background);
+    --visualizer-border-color-focused: var(--vscode-focusBorder);
+    --visualizer-foreground-color: var(--vscode-foreground);
+    --visualizer-control-button-color: var(--vscode-panelTitle-activeForeground);
+    --visualizer-control-button-separator: var(--vscode-button-secondaryBackground);
+    --visualizer-control-button-hover-background: var(--vscode-panelSection-border);
+    --visualizer-search-bar-shadow: var(--vscode-activityBar-dropBorder);
 }
 
-.rectangle {
+.visualizer__rectangle {
     height: inherit;
     width: inherit;
     position: relative;
-    border: solid 1px var(--node-border-color);
+    border: solid 1px var(--visualizer-border-color);
     border-radius: 6px;
-    background: var(--item-background);
-    color: var(--text-color);
+    background: var(--visualizer-item-background);
+    color: var(--visualizer-text-color);
     box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
 }
 
@@ -28,7 +28,7 @@ body {
     padding: 0%;
 }
 
-.body {
+.visualizer__node_body {
     vertical-align: middle;
     position: absolute;
     display: inline-block;
@@ -45,7 +45,7 @@ body {
     font-size: 16px;
 }
 
-.title {
+.visualizer__node_title {
     display: flex;
     flex-direction: row;
     justify-content: center;
@@ -54,7 +54,7 @@ body {
     border-bottom: inherit;
 }
 
-.text {
+.visualizer__text {
     margin-left: 3px;
     margin-bottom: 10px;
     text-align: center;
@@ -64,13 +64,13 @@ body {
     overflow: hidden;
 }
 
-.icon {
+.visualizer__icon {
     margin-bottom: 10px;
     transform: translateY(10%);
 }
 
 /* Make the node handle invisible and retract them a bit in the node so that the edge goes into it*/
-.invis {
+.visualizer__invis {
     height: 0;
     width: 0;
     top: 25%;
@@ -78,72 +78,77 @@ body {
     opacity: 0;
 }
 
-.rectangle.selected,
-.rectangle.hoverable:hover {
+.visualizer__rectangle.visualizer__selected,
+.visualizer__rectangle:hover {
     transition: all 0.1s ease-in-out;
-    border-color: var(--border-color);
-    color: var(--item-selected);
-    background-color: var(--item-background-selected);
+    border-color: var(--visualizer-border-color-focused);
+    color: var(--visualizer-item-selected);
+    background-color: var(--visualizer-item-background-selected);
+    opacity: unset;
 }
 
-.highlight,
+.visualizer__out-of-project {
+    opacity: 0.6;
+}
+
+.visualizer__highlight,
 .react-flow__edge.selectable:hover .react-flow__edge-path:hover,
 .react-flow__edge.selectable.selected .react-flow__edge-path {
-    stroke: var(--border-color);
+    stroke: var(--visualizer-border-color-focused);
 }
 
-.background {
-    background-color: var(--view-port-background);
+.visualizer__background {
+    background-color: var(--visualizer-view-port-background);
     cursor: default;
 }
 
-.hierarchy-button {
+.visualizer__hierarchy-button {
     position: absolute;
     border-radius: 50%;
-    border: solid 1px var(--node-border-color);
+    border: solid 1px var(--visualizer-border-color);
     width: 20%;
     aspect-ratio: 1 / 1;
-    background: var(--item-background);
+    background: var(--visualizer-item-background);
     z-index: 1000;
-    color: var(--text-color);
+    color: var(--visualizer-text-color);
     cursor: pointer;
 }
 
-.context-button:hover,
-.hierarchy-button:hover {
+.visualizer__context-button:hover,
+.visualizer__hierarchy-button:hover {
     transition: all 0.1s ease-in-out;
-    border-color: var(--border-color);
-    color: var(--item-selected);
+    border-color: var(--visualizer-border-color-focused);
+    color: var(--visualizer-item-selected);
     background-color: color-mix(
         in srgb,
-        var(--item-background-selected) 80%,
-        var(--foreground-color) 20%
+        var(--visualizer-item-background-selected) 80%,
+        var(--visualizer-foreground-color) 20%
     );
 }
 
-.sub-button-down {
+.visualizer__sub-button-down {
     left: 40%;
     bottom: -10%;
 }
-.sub-button-right {
+.visualizer__sub-button-right {
     right: -10%;
     top: 40%;
 }
 
-.super-button-up {
+.visualizer__super-button-up {
     left: 40%;
     top: -10%;
 }
 
-.super-button-left {
+.visualizer__super-button-left {
     top: 40%;
     left: -10%;
 }
 
-.context-menu {
+.visualizer__context-menu {
     position: absolute;
     box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
-    background: var(--item-background);
+    background: var(--visualizer-item-background);
     z-index: 10000;
     width: initial;
     display: flex;
@@ -152,10 +157,10 @@ body {
     padding: 0.5%;
 }
 
-.context-button {
+.visualizer__context-button {
     border: none;
-    background: var(--item-background);
-    color: var(--text-color);
+    background: var(--visualizer-item-background);
+    color: var(--visualizer-text-color);
     text-align: left;
     border-radius: 6px;
     width: 100%;
@@ -169,16 +174,16 @@ body {
 }
 
 .react-flow__controls-button {
-    background: var(--item-background-selected);
-    color: var(--control-button-color);
-    border-bottom: 1px solid var(--control-button-separator);
+    background: var(--visualizer-item-background-selected);
+    color: var(--visualizer-control-button-color);
+    border-bottom: 1px solid var(--visualizer-control-button-separator);
     box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
 }
 
 .react-flow__controls-button:hover {
     transition: all 0.1s ease-in-out;
-    background: var(--control-button-hover-background);
-    color: var(--item-selected);
+    background: var(--visualizer-control-button-hover-background);
+    color: var(--visualizer-item-selected);
 }
 
 .react-flow__controls-zoomin {
@@ -186,28 +191,28 @@ body {
     border-top-right-radius: 6px;
 }
 
-.bottom-button {
+.visualizer__bottom-button {
     border-bottom-left-radius: 6px;
     border-bottom-right-radius: 6px;
 }
 
-#node-search-bar {
+#visualizer__node-search-bar {
     border-radius: 6px;
-    border: solid 1px var(--node-border-color);
+    border: solid 1px var(--visualizer-border-color);
     padding-left: 5%;
     height: 1.5vh;
     width: 100%;
 }
 
-#node-search-bar:hover,
-#node-search-bar:focus {
+#visualizer__node-search-bar:hover,
+#visualizer__node-search-bar:focus {
     transition: all 0.1s ease-in-out;
-    border: solid 1px var(--item-selected);
-    box-shadow: 0px 0px 0px 2.5px var(--search-bar-shadow);
-    outline: 1px solid var(--item-selected);
+    border: solid 1px var(--visualizer-item-selected);
+    box-shadow: 0px 0px 0px 2.5px var(--visualizer-search-bar-shadow);
+    outline: 1px solid var(--visualizer-item-selected);
 }
 
-.node-search-item {
+.visualizer__node-search-item {
     padding: 1%;
     padding-left: 5%;
     white-space: nowrap;
@@ -217,20 +222,20 @@ body {
     height: 1.5vh;
 }
 
-.node-search-item:hover,
-.search-selected {
-    color: var(--item-selected);
+.visualizer__node-search-item:hover,
+.visualizer__search-selected {
+    color: var(--visualizer-item-selected);
     background-color: color-mix(
         in srgb,
-        var(--item-background-selected) 80%,
-        var(--foreground-color) 20%
+        var(--visualizer-item-background-selected) 80%,
+        var(--visualizer-foreground-color) 20%
     );
 }
 
-#node-search-list {
+#visualizer__node-search-list {
     position: relative;
     list-style: none;
-    color: var(--text-color);
+    color: var(--visualizer-text-color);
     padding: 2%;
     padding-top: 3%;
     margin: 0px;
@@ -240,10 +245,33 @@ body {
     overflow-y: scroll;
 }
 
-#node-search-list:has(li) {
-    background: var(--item-background);
+#visualizer__node-search-list:has(li) {
+    background: var(--visualizer-item-background);
 }
 
-.node-search {
+.visualizer__node-search {
     width: 100%;
+}
+
+.visualizer__wait {
+    position: absolute;
+    --visualizer-load-width: 100px;
+    width: var(--visualizer-load-width);
+    background-color: var(--visualizer-border-color-focused);
+    height: 3px;
+    animation: linear infinite;
+    animation-name: run;
+    animation-duration: 5s;
+}
+
+@keyframes run {
+    0% {
+        left: 0%;
+    }
+    50% {
+        left: calc(100% - var(--visualizer-load-width));
+    }
+    100% {
+        left: 0%;
+    }
 }
