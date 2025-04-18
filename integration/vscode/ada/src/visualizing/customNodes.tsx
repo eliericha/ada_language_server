@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Handle, Node, NodeProps, Position, useReactFlow } from '@xyflow/react';
+import { Handle, Node, NodeProps, Position, useReactFlow, XYPosition } from '@xyflow/react';
 import './customNodes.css';
 import {
     Direction,
@@ -16,6 +16,7 @@ type DataNode = Node<NodeData, 'data'>;
 export const nodeTypes = {
     rectangle: Rectangle,
 };
+
 const nodeString: string[] = ['rectangle'];
 
 /**
@@ -45,6 +46,69 @@ export function nodeFactory(
 }
 
 /**
+ * Animate the movement of the node from their original locations to their new locations.
+ *
+ * @param movingNodes - The array of node that need to move to their new positions.
+ * @param setNodes - The function to set the nodes' state of the graph.
+ */
+export function moveNodes(
+    movingNodes: Node[],
+    setNodes: (payload: Node[] | ((nodes: Node[]) => Node[])) => void,
+) {
+    const newPositions: XYPosition[] = [];
+    const parents: HTMLDivElement[] = [];
+    setNodes(movingNodes);
+    const notFound: Node[] = [...movingNodes];
+    //Wait for all the nodes to be rendered so that their parents are created and can be getted.
+    const interval = setInterval(() => {
+        for (let i = 0; i < notFound.length; i++) {
+            const newNode = notFound[i];
+            const parent = document.querySelector(`[data-id='${newNode.id}'`) as HTMLDivElement;
+
+            if (parent) {
+                parents.push(parent);
+                parent.style.transition = 'transform 200ms ease-out';
+                notFound.splice(i--, 1);
+                // Unselect all the nodes ( the nodes can automatically selected when
+                // clicking on one of their buttons)
+                parent.blur();
+                newNode.selected = false;
+
+                //Either they have a new position or the just stay to their original position.
+                if (newNode.data.newPosition) {
+                    newPositions.push(newNode.data.newPosition as XYPosition);
+                    newNode.data.newPosition = undefined;
+                } else {
+                    newPositions.push(newNode.position);
+                }
+            }
+        }
+        // Become true when all the parents where gotten
+        if (parents.length === movingNodes.length) {
+            setTimeout(() => {
+                for (let i = 0; i < movingNodes.length; i++) {
+                    movingNodes[i].position = newPositions[i];
+                }
+                // Recreates the nodes objects to force the re-rendering.
+                const nodes = movingNodes.map((node) => {
+                    return { ...node };
+                });
+
+                setNodes(nodes);
+                //Remove the transition animation.
+                setTimeout(() => {
+                    for (const parent of parents) {
+                        parent.style.transition = 'inherit';
+                    }
+                }, 200);
+            }, 100);
+            // Stop the interval loop
+            clearInterval(interval);
+        }
+    }, 10);
+}
+
+/**
  * Customize a basic node, adding it childs, style and interactions
  *
  * @param node - The base node to customize
@@ -62,10 +126,10 @@ export function Rectangle(node: NodeProps<DataNode>) {
         'visualizer__rectangle' +
         (node.selected ? ' visualizer__selected ' : '') +
         (!data.inProject ? ' visualizer__out-of-project' : '');
-    const iconClass = 'icon codicon codicon-symbol-' + data.kind;
+    const iconClass = 'visualizer__icon codicon codicon-symbol-' + data.kind;
 
     const subButtonClass =
-        'icon codicon codicon-' +
+        'codicon codicon-' +
         (data.hasChildren === null
             ? data.hierarchy === Hierarchy.CALL
                 ? 'call-outgoing'
@@ -74,13 +138,24 @@ export function Rectangle(node: NodeProps<DataNode>) {
               ? 'chevron-down'
               : 'chevron-right') +
         ' visualizer__hierarchy-button visualizer__sub-button-' +
+        (currentDirection === Direction.RIGHT ? 'right' : 'down') +
+        (!data.inProject ? ' visualizer__out-of-project' : '');
+
+    const subButtonBackgroundClass =
+        'visualizer__button-background ' +
+        'visualizer__sub-button-' +
         (currentDirection === Direction.RIGHT ? 'right' : 'down');
 
     const superButtonClass =
-        'icon codicon codicon-' +
+        'codicon codicon-' +
         (node.data.hierarchy === Hierarchy.CALL ? 'call-incoming' : 'type-hierarchy-super') +
         ' visualizer__hierarchy-button visualizer__super-button-' +
         (currentDirection === Direction.RIGHT ? 'left' : 'up');
+    const superButtonBackgroundClass =
+        'visualizer__button-background ' +
+        'visualizer__super-button-' +
+        (currentDirection === Direction.RIGHT ? 'left' : 'up') +
+        (!data.inProject ? ' visualizer__out-of-project' : '');
 
     const superButtonTitle =
         (node.data.expanded ? 'Hide ' : 'Display ') +
@@ -120,7 +195,7 @@ export function Rectangle(node: NodeProps<DataNode>) {
     );
 
     return (
-        <div className={nodeClass}>
+        <div tabIndex={0} className={nodeClass} data-id={data.id}>
             <Handle
                 className="visualizer__invis"
                 type="target"
@@ -139,25 +214,20 @@ export function Rectangle(node: NodeProps<DataNode>) {
                     right: currentDirection === Direction.RIGHT ? '1%' : undefined,
                 }}
             />
-            <div className="visualizer__node_title">
+            <div className="visualizer__node-title">
                 <span className={iconClass} style={{ color: color }}></span>
                 <div className="visualizer__text" title={data.label}>
                     {data.label}
                 </div>
             </div>
-            <div className="visualizer__node_body" title={data.label}>
-                <div>File : {data.string_location.path.split('/').at(-1)}</div>
-                <div>Position : {data.string_location.position}</div>
+            <div className="visualizer__node-body" title={data.label}>
+                <div className="visualizer__ellipsis-text">
+                    File : {data.string_location.path.split('/').at(-1)}
+                </div>
+                <div className="visualizer__ellipsis-text">
+                    Position : {data.string_location.position}
+                </div>
             </div>
-            <button
-                className={subButtonClass}
-                title={subButtonTitle}
-                style={{ display: data.hasChildren === false ? 'none' : 'inherit' }}
-                onClick={(event) => {
-                    event.preventDefault();
-                    requestHierarchy({ direction: RelationDirection.SUB });
-                }}
-            ></button>
             <button
                 className={superButtonClass}
                 title={superButtonTitle}
@@ -167,6 +237,23 @@ export function Rectangle(node: NodeProps<DataNode>) {
                     requestHierarchy({ direction: RelationDirection.SUPER });
                 }}
             ></button>
+            <div
+                style={{ display: data.hasParent === null ? 'inherit' : 'none' }}
+                className={superButtonBackgroundClass}
+            ></div>
+            <button
+                className={subButtonClass}
+                title={subButtonTitle}
+                style={{ display: data.hasChildren === false ? 'none' : 'inherit' }}
+                onClick={(event) => {
+                    event.preventDefault();
+                    requestHierarchy({ direction: RelationDirection.SUB });
+                }}
+            ></button>
+            <div
+                style={{ display: data.hasChildren === false ? 'none' : 'inherit' }}
+                className={subButtonBackgroundClass}
+            ></div>
         </div>
     );
 }

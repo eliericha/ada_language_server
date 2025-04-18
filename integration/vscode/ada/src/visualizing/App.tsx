@@ -28,9 +28,9 @@ import '@xyflow/react/dist/style.css';
 import './customNodes.css';
 import 'vscode-webview';
 import { edgeFactory, edgeTypes, floatingConnectionLine } from './customEdges';
-import { nodeFactory, nodeTypes } from './customNodes';
+import { moveNodes, nodeFactory, nodeTypes } from './customNodes';
 import { elkOptions, layoutSubgraph, layoutSubgraphs } from './layouting';
-import { changeMarker, waitingBar } from './utils';
+import { changeMarker, focusNode, waitingBar } from './utils';
 import { ContextMenu, ContextMenuProps } from './contextMenu';
 import { SearchBar } from './searchBar';
 
@@ -53,6 +53,7 @@ let nodes: Node[] = [];
 let edges: Edge[] = [];
 let setNodes: React.Dispatch<React.SetStateAction<Node[]>>;
 let setEdges: React.Dispatch<React.SetStateAction<Edge[]>>;
+let getNodes: () => Node[];
 const nodeWidth = 250;
 const nodeHeight = 300;
 
@@ -68,7 +69,7 @@ type Graph = {
  */
 async function handleHierarchy(messageData: string) {
     const data: NodeEdge = JSON.parse(messageData) as NodeEdge;
-    // const foldedNodes: Node[] = [];
+    const newNodes: Node[] = [];
     let subGraphNode: Node | undefined = undefined;
     const numNodes = nodes.length;
 
@@ -83,13 +84,28 @@ async function handleHierarchy(messageData: string) {
 
         // Only add node that does not already exists
         if (foundNodeIndex === -1) {
+            // Place the initial position of the node at the same position than the
+            // parent it was expanded from.
+            newNodes.push(newNode);
             nodes.push(newNode);
         } else {
             // Update the content of the node
             nodes[foundNodeIndex] = {
                 ...nodes[foundNodeIndex],
+                selected: false,
                 data: newNode.data,
             };
+        }
+    }
+    const focusIndex = nodes.findIndex((node) => node.data.focus);
+    // Focus only if the number of nodes increased
+    // Recreate the node to force an update
+    if (focusIndex !== -1 && nodes.length > numNodes) nodes[focusIndex] = { ...nodes[focusIndex] };
+    else if (focusIndex !== -1) nodes[focusIndex].data.focus = false;
+
+    if (focusIndex !== -1) {
+        for (const node of newNodes) {
+            node.position = { ...nodes[focusIndex].position };
         }
     }
 
@@ -97,12 +113,6 @@ async function handleHierarchy(messageData: string) {
         // addEdge checks if an edge src dst already exist.
         edges = addEdge(edgeFactory(src, dst, edgeDirection), edges);
     });
-
-    const focusIndex = nodes.findIndex((node) => node.data.focus);
-    // Focus only if the number of nodes increased
-    // Recreate the node to force an update
-    if (focusIndex !== -1 && nodes.length > numNodes) nodes[focusIndex] = { ...nodes[focusIndex] };
-    else if (focusIndex !== -1) nodes[focusIndex].data.focus = false;
 
     // Recreate the nodes object to force the re-render
     nodes = nodes.map((node) => {
@@ -121,7 +131,7 @@ async function handleHierarchy(messageData: string) {
         await layoutSubgraph(subGraphNode, nodes, edges, currentDirection, elkOptions);
     }
     setEdges(edges);
-    setNodes(nodes);
+    moveNodes(nodes, setNodes);
     waitingBar(true);
 }
 
@@ -189,10 +199,16 @@ export default function App() {
 
     [nodes, setNodes, onNodesChange] = useNodesState(nodes);
     [edges, setEdges, onEdgesChange] = useEdgesState(edges);
+    // Save the state of the contextMenu (right click on a node).
     const [menu, setMenu] = React.useState<ContextMenuProps | null>(null);
+    // Save the state of the currently selected edges.
     const [selected, setSelected] = React.useState<Edge[]>([]);
+    // Save the state of the last focused element to avoid uselessly focus on it.
+    const [lastFocus, setLastFocus] = React.useState<string>('');
     const ref = React.useRef<HTMLDivElement>(null);
-    const { setCenter } = useReactFlow();
+    const { setCenter, getNode, getNodes: getNodes_, getViewport } = useReactFlow();
+    getNodes = getNodes_;
+    void getNodes;
 
     React.useEffect(() => {
         // Listener on the message from the server side.
@@ -212,26 +228,23 @@ export default function App() {
             nodes = nodes.map((node) => {
                 return { ...node };
             });
-            setNodes(nodes);
-            setEdges(edges);
+            moveNodes(nodes, setNodes);
+            // setNodes(nodes);
+            // setEdges(edges);
         });
     }, [nodes, edges]);
 
     /**
      * Reveal the symbol represented by the node in the code.
      */
-    const onNodeDoubleClick = React.useCallback(
-        (event: React.MouseEvent, node: Node) => {
-            if ((event.target as Element).className.includes('visualizer__hierarchy-button'))
-                return;
-            void event;
-            vscode.postMessage({
-                command: 'revealNode',
-                data: node.id,
-            });
-        },
-        [nodes],
-    );
+    const onNodeDoubleClick = React.useCallback((event: React.MouseEvent, node: Node) => {
+        if ((event.target as Element).className.includes('visualizer__hierarchy-button')) return;
+        void event;
+        vscode.postMessage({
+            command: 'revealNode',
+            data: node.id,
+        });
+    }, []);
 
     /**
      * Highlight all edges linked to the node when hovered.
@@ -313,7 +326,7 @@ export default function App() {
             });
             setNodes(nodes);
         },
-        [nodes, edges],
+        [nodes],
     );
 
     /**
@@ -325,6 +338,7 @@ export default function App() {
      * Close the node context menu and clear the node search bar on pane click
      */
     const onPaneClick = React.useCallback(() => {
+        setLastFocus('');
         const searchBar = document.getElementById('visualizer__node-search-bar');
         if (!searchBar) return;
         (searchBar as HTMLInputElement).value = '';
@@ -362,7 +376,7 @@ export default function App() {
                 } as ContextMenuProps);
             }
         },
-        [setMenu],
+        [setMenu, ref],
     );
 
     /**
@@ -395,13 +409,34 @@ export default function App() {
             }
             setSelected(selectedEdges);
         },
-        [selected],
+        [selected, edges],
     );
 
     // Hook called when the user select or unselect nodes or edges.
     useOnSelectionChange({
         onChange,
     });
+
+    /**
+     * Allow to cycle through the element of the webView and focus on the element if it's a node.
+
+     */
+    const onFocus = React.useCallback(
+        (focus: React.FocusEvent) => {
+            // Focus on the node currently focused only the mouse is not already on it
+            // (avoid triggering the focus on node click)
+            if (focus.target.classList.contains('visualizer__rectangle')) {
+                const nodeId = focus.target.getAttribute('data-id');
+                if (!nodeId) return;
+                if (!focus.target.matches(':hover') && lastFocus !== nodeId) {
+                    const node = getNode(nodeId);
+                    if (node) focusNode(node, getViewport(), setCenter);
+                }
+                setLastFocus(nodeId);
+            } else setLastFocus('');
+        },
+        [lastFocus],
+    );
 
     return (
         <div style={{ width: '100vw', height: '100vh' }}>
@@ -429,8 +464,13 @@ export default function App() {
                     onNodeContextMenu={onNodeContextMenu}
                     connectionLineComponent={floatingConnectionLine}
                     selectionMode={SelectionMode.Partial}
+                    nodesConnectable={false}
                     deleteKeyCode={['Delete', 'Backspace']}
+                    edgesFocusable={false}
+                    // The nodes remains focusable by their inner objects not the outer.
+                    nodesFocusable={false}
                     className="visualizer__colors"
+                    onFocus={onFocus}
                 >
                     <Controls>
                         <ControlButton

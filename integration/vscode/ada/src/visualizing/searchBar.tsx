@@ -1,6 +1,7 @@
 import { useReactFlow, ReactFlowProvider } from '@xyflow/react';
 import React from 'react';
 import { NodeData } from '../visualizerTypes';
+import { focusNode } from './utils';
 
 let timeoutId: NodeJS.Timeout | null = null;
 
@@ -49,28 +50,6 @@ export function SearchBar() {
     );
 
     /**
-     * Focus the graph on a specific node and animate the camera movement toward this node.
-     *
-     * @param nodeId - The id of the node to focus on.
-     * @param baseSpeed - The base speed at which to go toward the node.
-     * @param minDuration - The minimal duration of the displacement animation.
-     * @param maxDuration  - The maximal duration of the displacement animation.
-     */
-    const focusNode = (nodeId: string, baseSpeed = 1, minDuration = 750, maxDuration = 3000) => {
-        const node = getNode(nodeId);
-        if (!node) return;
-        const newX = node.position.x + (node.width ?? 0) / 2;
-        const newY = node.position.y + (node.height ?? 0) / 2;
-        const { x, y, zoom } = getViewport();
-        const regX = (-x + window.innerWidth / 2) / zoom;
-        const regY = (-y + window.innerHeight / 2) / zoom;
-
-        const distance = Math.sqrt(Math.pow(regX - newX, 2) + Math.pow(regY - newY, 2));
-        const duration = Math.max(Math.min(distance * baseSpeed, maxDuration), minDuration);
-        void setCenter(newX, newY, { duration: duration, zoom: 1 });
-    };
-
-    /**
      * Handle the key press to navigate the list and handle the node focus.
      */
     const onKeyDown = React.useCallback(
@@ -105,7 +84,8 @@ export function SearchBar() {
             // Focus on the current choice
             const nodeId = childs[newCurrent].getAttribute('data-id');
             if (!nodeId) return;
-            focusNode(nodeId);
+            const node = getNode(nodeId);
+            if (node) focusNode(node, getViewport(), setCenter);
 
             //Add the class to the current selected option and scroll the list to make sure
             // the element is into view
@@ -166,7 +146,8 @@ export function SearchBar() {
         }
         const nodeId = (event.target as HTMLLIElement).getAttribute('data-id');
         if (!nodeId) return;
-        focusNode(nodeId);
+        const node = getNode(nodeId);
+        if (node) focusNode(node, getViewport(), setCenter);
     }, []);
 
     return (

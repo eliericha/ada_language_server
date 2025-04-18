@@ -269,8 +269,14 @@ export function selfConnection(props: EdgeType) {
 
     const { getNode } = useReactFlow();
     const node = getNode(props.source);
-    const radiusX = currentDirection === Direction.RIGHT ? node?.width : (node?.width ?? 0) / 2;
-    const radiusY = currentDirection === Direction.RIGHT ? (node?.height ?? 0) / 2 : node?.height;
+    const radiusX =
+        currentDirection === Direction.RIGHT
+            ? (5 * (node?.width ?? 0)) / 6
+            : (node?.width ?? 0) / 3;
+    const radiusY =
+        currentDirection === Direction.RIGHT
+            ? (node?.height ?? 0) / 3
+            : (5 * (node?.height ?? 0)) / 6;
     const edgePath =
         `M ${sourceX} ${sourceY} A ${radiusX} ${radiusY} 0 1 0` + ` ${targetX} ${targetY}`;
 

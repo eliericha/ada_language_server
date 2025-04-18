@@ -1,7 +1,7 @@
-import { Edge, Node } from '@xyflow/react';
+import { Edge, Node, Position } from '@xyflow/react';
 import ELK, { ElkNode } from 'elkjs/lib/elk.bundled.js';
 import { currentDirection } from './App';
-import { Direction } from '../visualizerTypes';
+import { Direction, NodeData } from '../visualizerTypes';
 
 /**
  * Represent the smallest box that can contain all the node of a subgraph.
@@ -84,26 +84,24 @@ export const getLayoutedElements = async (
             if (!initialNode) {
                 throw new Error('Node not found');
             }
-            return {
-                ...initialNode,
-                position: {
-                    x: node.x,
-                    y: node.y,
-                },
-                targetPosition: isHorizontal ? 'left' : 'top',
-                sourcePosition: isHorizontal ? 'right' : 'bottom',
-            } as Node;
+            // Do not change the node's position yet, it will be changed later by the
+            // moveNodes function.
+            initialNode.data.newPosition = {
+                x: node.x,
+                y: node.y,
+            };
+            initialNode.targetPosition = isHorizontal ? Position.Left : Position.Top;
+            initialNode.sourcePosition = isHorizontal ? Position.Right : Position.Bottom;
+            return initialNode;
         }),
         edges: (layout.edges ?? []).map((edge) => {
             const initialEdge = edges.find((e) => e.id === edge.id);
             if (!initialEdge) {
                 throw new Error('Edge not found');
             }
-            return {
-                ...initialEdge,
-                source: edge.sources[0],
-                target: edge.targets[0],
-            } as Edge;
+            initialEdge.source = edge.sources[0];
+            initialEdge.target = edge.targets[0];
+            return initialEdge;
         }),
     } as Subgraph;
 };
@@ -194,9 +192,15 @@ function concatSubgraphs(subGraphs: Subgraph[], nodes: Node[], edges: Edge[]) {
  * @param nodes - The array of all the nodes contained in the subgraph.
  * @returns The position and size of smallest box containing the subgraph.
  */
-function getBoundingBox(nodes: Node[]) {
-    const xs = nodes.map((node) => node.position.x);
-    const ys = nodes.map((node) => node.position.y);
+function getBoundingBox(nodes: Node[], current: boolean) {
+    //Only the node being currently layouted have a newPosition field, for the other,
+    // their positions field already have the right values.
+    const xs = nodes.map((node) =>
+        current ? ((node.data as NodeData).newPosition?.x ?? 0) : node.position.x,
+    );
+    const ys = nodes.map((node) =>
+        current ? ((node.data as NodeData).newPosition?.y ?? 0) : node.position.y,
+    );
     const nodeWidth = nodes[0].width ?? 0;
     const nodeHeight = nodes[0].height ?? 0;
     const minX = Math.min(...xs);
@@ -257,7 +261,7 @@ function findNonOverlappingPosition(
     subBox: BoundingBox,
     existingBoxes: BoundingBox[],
     padding = 150,
-    step = 50,
+    step = 150,
 ) {
     let newX = subBox.minX;
     let newY = subBox.minY;
@@ -318,29 +322,44 @@ export async function layoutSubgraph(
     if (currSubGraph === undefined) return;
     subGraphs.splice(subGraphs.indexOf(currSubGraph), 1);
 
-    const allBoxes = subGraphs.map((subGraph) => getBoundingBox(subGraph.nodes));
-
     const { x: xpos, y: ypos } = currNode.position;
     const currLayoutedSubGraph = await getLayoutedElements(currSubGraph, direction, options);
 
-    const currBox = getBoundingBox(currSubGraph.nodes);
     const layoutedCurrNode = currLayoutedSubGraph.nodes.find((node) => node.id === currNode.id);
     if (layoutedCurrNode !== undefined) {
-        const xDiff = xpos - layoutedCurrNode.position.x;
-        const yDiff = ypos - layoutedCurrNode.position.y;
-        currLayoutedSubGraph.nodes.forEach((node) => {
-            node.position.x += xDiff;
-            node.position.y += yDiff;
-        });
+        const position = (layoutedCurrNode.data as NodeData).newPosition;
+        if (position) {
+            const xDiff = xpos - position.x;
+            const yDiff = ypos - position.y;
+            currLayoutedSubGraph.nodes.forEach((node: Node) => {
+                const newPosition = (node.data as NodeData).newPosition;
+                node.data.newPosition = {
+                    x: (newPosition?.x ?? 0) + xDiff,
+                    y: (newPosition?.y ?? 0) + yDiff,
+                };
+            });
+        }
     }
+
+    const currBox = getBoundingBox(currSubGraph.nodes, true);
+    const allBoxes = subGraphs.map((subGraph) => getBoundingBox(subGraph.nodes, false));
+
     const newPosition = findNonOverlappingPosition(currBox, allBoxes);
-    currLayoutedSubGraph.nodes = currLayoutedSubGraph.nodes.map((node) => ({
-        ...node,
-        position: {
-            x: node.position.x + (newPosition.x - currBox.minX),
-            y: node.position.y + (newPosition.y - currBox.minY),
-        },
-    }));
+    currLayoutedSubGraph.nodes = currLayoutedSubGraph.nodes.map((node) => {
+        const position = (node.data as NodeData).newPosition ?? { x: 0, y: 0 };
+        return {
+            ...node,
+            data: {
+                ...node.data,
+                // Do not change the node's position yet, it will be changed later by the
+                // moveNodes function.
+                newPosition: {
+                    x: position.x + (newPosition.x - currBox.minX),
+                    y: position.y + (newPosition.y - currBox.minY),
+                },
+            },
+        };
+    });
     subGraphs.push(currLayoutedSubGraph);
     concatSubgraphs(subGraphs, nodes, edges);
 }
@@ -355,14 +374,18 @@ export async function layoutSubgraphs(
     const layoutedSubGraphs: Subgraph[] = [];
     for (const subgraph of subgraphs) {
         const layoutedSubGraph = await getLayoutedElements(subgraph, direction, options);
-        const allBoxes = layoutedSubGraphs.map((layouted) => getBoundingBox(layouted.nodes));
-        const currBox = getBoundingBox(layoutedSubGraph.nodes);
+        const allBoxes = layoutedSubGraphs.map((layouted) => getBoundingBox(layouted.nodes, false));
+        const currBox = getBoundingBox(layoutedSubGraph.nodes, true);
         const newPosition = findNonOverlappingPosition(currBox, allBoxes);
         layoutedSubGraph.nodes.forEach((node) => {
-            node.position = {
-                x: node.position.x + (newPosition.x - currBox.minX),
-                y: node.position.y + (newPosition.y - currBox.minY),
-            };
+            const position = (node.data as NodeData).newPosition;
+            if (position)
+                // Do not change the node's position yet, it will be changed later by the
+                // moveNodes function.
+                node.data.newPosition = {
+                    x: position.x + (newPosition.x - currBox.minX),
+                    y: position.y + (newPosition.y - currBox.minY),
+                };
         });
         layoutedSubGraphs.push(layoutedSubGraph);
     }

@@ -1,4 +1,4 @@
-import { Node, Edge, EdgeMarker } from '@xyflow/react';
+import { Node, Edge, EdgeMarker, Viewport, SetCenterOptions } from '@xyflow/react';
 import { Hierarchy } from '../visualizerTypes';
 
 /**
@@ -79,4 +79,33 @@ export function waitingBar(stop: boolean = false) {
             pane.removeChild(load[0]);
         }
     }
+}
+
+/**
+ * Focus the graph on a specific node and animate the camera movement toward this node.
+ *
+ * @param node - The node to focus on.
+ * @param viewPort - The viewPort containing the node.
+ * @param baseSpeed - The base speed at which to go toward the node.
+ * @param minDuration - The minimal duration of the displacement animation.
+ * @param maxDuration  - The maximal duration of the displacement animation.
+ * @param setCenter - Function that will center the viewPort on the node.
+ */
+export function focusNode(
+    node: Node,
+    viewPort: Viewport,
+    setCenter: (x: number, y: number, options?: SetCenterOptions) => Promise<boolean>,
+    baseSpeed = 1,
+    minDuration = 750,
+    maxDuration = 3000,
+) {
+    const newX = node.position.x + (node.width ?? 0) / 2;
+    const newY = node.position.y + (node.height ?? 0) / 2;
+    const { x, y, zoom } = viewPort;
+    const regX = (-x + window.innerWidth / 2) / zoom;
+    const regY = (-y + window.innerHeight / 2) / zoom;
+
+    const distance = Math.sqrt(Math.pow(regX - newX, 2) + Math.pow(regY - newY, 2));
+    const duration = Math.max(Math.min(distance * baseSpeed, maxDuration), minDuration);
+    void setCenter(newX, newY, { duration: duration, zoom: 1 });
 }

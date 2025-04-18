@@ -440,7 +440,6 @@ async function createNodeHierarchy(
 
     return {
         //Node Data
-        // id: await generateNodeId__Head(location),
         id: await handler.generateNodeId(location),
         label: item.name,
         kind: vscode.SymbolKind[item.kind].toLowerCase(),
@@ -453,6 +452,7 @@ async function createNodeHierarchy(
             path: item.uri.fsPath,
             position: position,
         },
+        newPosition: undefined,
         hierarchy: hierarchy,
 
         //Node Hierarchy
@@ -486,6 +486,7 @@ function convertHierarchyToData(nodeHierarchy: NodeHierarchy) {
                 `Ln ${nodeHierarchy.location.range.start.line},` +
                 `Col ${nodeHierarchy.location.range.start.character}`,
         },
+        newPosition: nodeHierarchy.newPosition,
         hierarchy: nodeHierarchy.hierarchy,
     } as NodeData;
 }
@@ -512,6 +513,7 @@ function convertToMessage(
         alreadyAdded.add(node.id);
         nodes.push(convertHierarchyToData(node));
         for (const parent of node.parents) {
+            if (!parent.expanded) continue;
             const edge = Array.from(edges).find(
                 (edge) =>
                     (edge.src === parent.id && edge.dst === node.id) ||

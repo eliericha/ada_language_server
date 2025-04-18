@@ -54,6 +54,12 @@ export type NodeData = {
         path: string;
         position: string;
     };
+    newPosition:
+        | undefined
+        | {
+              x: number;
+              y: number;
+          };
 
     // Indicate if its a type hierarchy or a call hierarchy.
     hierarchy: Hierarchy;

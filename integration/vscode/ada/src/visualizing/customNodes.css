@@ -4,31 +4,49 @@
     --visualizer-item-background-selected: var(--vscode-activityBar-background);
     --visualizer-item-background: var(--vscode-sideBar-background);
     --visualizer-text-color: var(--vscode-editor-foreground);
-    --visualizer-view-port-background: var(--vscode-editor-background);
+    --visualizer-viewport-background: var(--vscode-editor-background);
     --visualizer-border-color-focused: var(--vscode-focusBorder);
     --visualizer-foreground-color: var(--vscode-foreground);
     --visualizer-control-button-color: var(--vscode-panelTitle-activeForeground);
     --visualizer-control-button-separator: var(--vscode-button-secondaryBackground);
     --visualizer-control-button-hover-background: var(--vscode-panelSection-border);
     --visualizer-search-bar-shadow: var(--vscode-activityBar-dropBorder);
+    --visualizer-out-of-project-background: var(--vscode-editorGroup-dropBackground);
+    --visualizer-out-of-project-default: var(--vscode-editorGroup-dropIntoPromptBackground);
+    --visualizer-out-of-project-hovered: var(--vscode-diffEditor-removedLineBackground);
 }
 
 .visualizer__rectangle {
-    height: inherit;
-    width: inherit;
+    --border-width: 1px;
+    height: calc(100% - var(--border-width));
+    width: calc(100% - var(--border-width));
     position: relative;
-    border: solid 1px var(--visualizer-border-color);
+    border: solid var(--border-width) var(--visualizer-border-color);
     border-radius: 6px;
     background: var(--visualizer-item-background);
     color: var(--visualizer-text-color);
     box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
 }
 
+.visualizer__rectangle.visualizer__selected,
+.visualizer__rectangle:hover,
+.visualizer__rectangle:focus {
+    transition: all 0.1s ease-in-out;
+    border-color: var(--visualizer-border-color-focused);
+    color: var(--visualizer-item-selected);
+    background-color: var(--visualizer-item-background-selected);
+    outline: none;
+}
+
+.react-flow__node {
+    background-color: var(--visualizer-viewport-background);
+}
+
 body {
     padding: 0%;
 }
 
-.visualizer__node_body {
+.visualizer__node-body {
     vertical-align: middle;
     position: absolute;
     display: inline-block;
@@ -45,7 +63,7 @@ body {
     font-size: 16px;
 }
 
-.visualizer__node_title {
+.visualizer__node-title {
     display: flex;
     flex-direction: row;
     justify-content: center;
@@ -69,28 +87,47 @@ body {
     transform: translateY(10%);
 }
 
+.visualizer__ellipsis-text {
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+}
+
 /* Make the node handle invisible and retract them a bit in the node so that the edge goes into it*/
 .visualizer__invis {
     height: 0;
     width: 0;
-    /* top: 25%; */
-    /* bottom: 25%; */
     opacity: 0;
 }
 
-.visualizer__rectangle.visualizer__selected,
-.visualizer__rectangle:hover {
-    transition: all 0.1s ease-in-out;
-    border-color: var(--visualizer-border-color-focused);
-    color: var(--visualizer-item-selected);
-    background-color: var(--visualizer-item-background-selected);
-    opacity: unset;
+.visualizer__invis:hover {
+    cursor: grab;
 }
 
+.visualizer__hierarchy-button.visualizer__out-of-project,
 .visualizer__out-of-project {
-    opacity: 0.6;
+    background: var(
+        --visualizer-out-of-project-background,
+        var(--visualizer-out-of-project-default)
+    );
+    border-style: dashed;
+    border-width: medium;
+    border-color: var(--visualizer-border-color);
 }
 
+.visualizer__hierarchy-button.visualizer__out-of-project:hover,
+.visualizer__out-of-project:hover,
+.visualizer__out-of-project.visualizer__selected,
+.visualizer__out-of-project:focus {
+    background: var(--visualizer-out-of-project-hovered);
+    color: var(--visualizer-border-color-focused);
+}
+
+.visualizer__rectangle.visualizer__out-of-project {
+    width: 98%;
+    height: 98%;
+    font-style: italic;
+}
 .visualizer__highlight,
 .react-flow__edge.selectable:hover .react-flow__edge-path:hover,
 .react-flow__edge.selectable.selected .react-flow__edge-path {
@@ -98,7 +135,7 @@ body {
 }
 
 .visualizer__background {
-    background-color: var(--visualizer-view-port-background);
+    background-color: var(--visualizer-viewport-background);
     cursor: default;
 }
 
@@ -112,9 +149,11 @@ body {
     z-index: 1000;
     color: var(--visualizer-text-color);
     cursor: pointer;
+    outline: none;
 }
 
 .visualizer__context-button:hover,
+.visualizer__hierarchy-button:focus,
 .visualizer__hierarchy-button:hover {
     transition: all 0.1s ease-in-out;
     border-color: var(--visualizer-border-color-focused);
@@ -126,10 +165,19 @@ body {
     );
 }
 
+.visualizer__button-background {
+    background-color: var(--visualizer-viewport-background);
+    border-radius: 50%;
+    width: 20%;
+    aspect-ratio: 1/1;
+    position: absolute;
+}
+
 .visualizer__sub-button-down {
     left: 40%;
     bottom: -10%;
 }
+
 .visualizer__sub-button-right {
     right: -10%;
     top: 40%;
@@ -177,13 +225,19 @@ body {
     background: var(--visualizer-item-background-selected);
     color: var(--visualizer-control-button-color);
     border-bottom: 1px solid var(--visualizer-control-button-separator);
-    box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+    box-shadow: 0px 0px 6px rgba(0, 0, 0, 0.1);
 }
 
-.react-flow__controls-button:hover {
+.react-flow__controls {
+    box-shadow: none;
+}
+
+.react-flow__controls-button:hover,
+.react-flow__controls-button:focus {
     transition: all 0.1s ease-in-out;
     background: var(--visualizer-control-button-hover-background);
     color: var(--visualizer-item-selected);
+    outline: none;
 }
 
 .react-flow__controls-zoomin {
