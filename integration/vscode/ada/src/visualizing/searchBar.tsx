@@ -57,7 +57,7 @@ export function SearchBar() {
             const ul = document.getElementById('visualizer__node-search-list') as HTMLUListElement;
             const childs = ul.children;
             if (childs.length === 0) return;
-            if (current > -1) childs[current].classList.remove('visualizer__search-selected');
+            if (current > -1) childs[current].classList.remove('visualizer__node-search-selected');
             let newCurrent = current;
             // Go to the previous element in the list (go to the last element in case of underflow)
             if (event.key === 'ArrowUp') {
@@ -89,7 +89,7 @@ export function SearchBar() {
 
             //Add the class to the current selected option and scroll the list to make sure
             // the element is into view
-            childs[newCurrent].classList.add('visualizer__search-selected');
+            childs[newCurrent].classList.add('visualizer__node-search-selected');
             childs[newCurrent].scrollIntoView({ behavior: 'auto', block: 'nearest' });
         },
         [filteredNodes, current],

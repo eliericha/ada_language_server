@@ -50,10 +50,12 @@ export function nodeFactory(
  *
  * @param movingNodes - The array of node that need to move to their new positions.
  * @param setNodes - The function to set the nodes' state of the graph.
+ * @param duration - The duration of the animation
  */
 export function moveNodes(
     movingNodes: Node[],
     setNodes: (payload: Node[] | ((nodes: Node[]) => Node[])) => void,
+    duration: number = 100,
 ) {
     const newPositions: XYPosition[] = [];
     const parents: HTMLDivElement[] = [];
@@ -67,7 +69,7 @@ export function moveNodes(
 
             if (parent) {
                 parents.push(parent);
-                parent.style.transition = 'transform 200ms ease-out';
+                parent.style.transition = `transform ${duration}ms ease-out`;
                 notFound.splice(i--, 1);
                 // Unselect all the nodes ( the nodes can automatically selected when
                 // clicking on one of their buttons)
@@ -100,7 +102,7 @@ export function moveNodes(
                     for (const parent of parents) {
                         parent.style.transition = 'inherit';
                     }
-                }, 200);
+                }, duration);
             }, 100);
             // Stop the interval loop
             clearInterval(interval);
@@ -195,7 +197,12 @@ export function Rectangle(node: NodeProps<DataNode>) {
     );
 
     return (
-        <div tabIndex={0} className={nodeClass} data-id={data.id}>
+        <div
+            tabIndex={0}
+            className={nodeClass}
+            data-id={data.id}
+            title={(data.inProject ? '' : '(out of project) ') + data.label}
+        >
             <Handle
                 className="visualizer__invis"
                 type="target"
@@ -216,11 +223,9 @@ export function Rectangle(node: NodeProps<DataNode>) {
             />
             <div className="visualizer__node-title">
                 <span className={iconClass} style={{ color: color }}></span>
-                <div className="visualizer__text" title={data.label}>
-                    {data.label}
-                </div>
+                <div className={'visualizer__text' + 'visualizer__ellipsis-text'}>{data.label}</div>
             </div>
-            <div className="visualizer__node-body" title={data.label}>
+            <div className="visualizer__node-body">
                 <div className="visualizer__ellipsis-text">
                     File : {data.string_location.path.split('/').at(-1)}
                 </div>

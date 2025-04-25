@@ -77,9 +77,6 @@ body {
     margin-bottom: 10px;
     text-align: center;
     display: inline-block;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-    overflow: hidden;
 }
 
 .visualizer__icon {
@@ -221,15 +218,15 @@ body {
     border: transparent;
 }
 
+.react-flow__controls {
+    box-shadow: none;
+}
+
 .react-flow__controls-button {
     background: var(--visualizer-item-background-selected);
     color: var(--visualizer-control-button-color);
     border-bottom: 1px solid var(--visualizer-control-button-separator);
     box-shadow: 0px 0px 6px rgba(0, 0, 0, 0.1);
-}
-
-.react-flow__controls {
-    box-shadow: none;
 }
 
 .react-flow__controls-button:hover,
