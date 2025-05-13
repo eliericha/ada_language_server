@@ -3,7 +3,21 @@ import React from 'react';
 import { NodeData } from '../visualizerTypes';
 import { focusNode } from './utils';
 
-let timeoutId: NodeJS.Timeout | null = null;
+let current: number;
+let setCurrent: React.Dispatch<React.SetStateAction<number>>;
+let filteredNodes = [];
+let setFilteredNodes: React.Dispatch<React.SetStateAction<React.JSX.Element[]>>;
+
+/**
+ * Reset the state of the search bar.
+ */
+export const closeSearchBar = (): void => {
+    setFilteredNodes([]);
+    setCurrent(-1);
+    const searchBar = document.getElementById('visualizer__node-search-bar');
+    if (!searchBar) return;
+    (searchBar as HTMLInputElement).value = '';
+};
 
 /**
  *  Create a search bar allowing to focus on specific node of the graph.
@@ -12,8 +26,8 @@ let timeoutId: NodeJS.Timeout | null = null;
  */
 export function SearchBar() {
     const { getViewport, getNodes, getNode, setCenter } = useReactFlow();
-    const [current, setCurrent] = React.useState(-1);
-    const [filteredNodes, setFilteredNodes] = React.useState<React.JSX.Element[]>([]);
+    [current, setCurrent] = React.useState(-1);
+    [filteredNodes, setFilteredNodes] = React.useState<React.JSX.Element[]>([]);
 
     /**
      * Display a dropdown list of nodes that matches the request inputted in the search bar.
@@ -34,9 +48,10 @@ export function SearchBar() {
                 if (data.label.toLowerCase().indexOf(search) > -1) {
                     searchResults.push(
                         <li
-                            data-id={node.id}
+                            data-item-id={node.id}
                             onClick={onListClick}
                             className="visualizer__node-search-item"
+                            title={(node.data as NodeData).label}
                             key={node.id}
                         >
                             {(node.data as NodeData).label}
@@ -82,7 +97,7 @@ export function SearchBar() {
             if (newCurrent === -1) return;
 
             // Focus on the current choice
-            const nodeId = childs[newCurrent].getAttribute('data-id');
+            const nodeId = childs[newCurrent].getAttribute('data-item-id');
             if (!nodeId) return;
             const node = getNode(nodeId);
             if (node) focusNode(node, getViewport(), setCenter);
@@ -95,41 +110,12 @@ export function SearchBar() {
         [filteredNodes, current],
     );
 
-    /**
-     * Reset the state of the search bar.
-     */
-    const handleLostFocus = (): void => {
-        setFilteredNodes([]);
-        setCurrent(-1);
-        const searchBar = document.getElementById('visualizer__node-search-bar');
-        if (!searchBar) return;
-        (searchBar as HTMLInputElement).value = '';
-    };
-
-    // Handle the case the user clicks out of the search bar
-    // The timeout is added to handle the case where the user clicks on a list item to avoid the
-    // whole list to be deleted. The timeout will be cleared in the `onListClick` function called
-    // just after this one in the event loop.
-    React.useEffect(() => {
-        const handleChange = () => {
-            timeoutId = setTimeout(() => {
-                handleLostFocus();
-            }, 50);
-        };
-
-        window.addEventListener('change', handleChange);
-
-        return () => {
-            window.removeEventListener('change', handleChange);
-        };
-    }, []);
-
     // Handle the case where the user mouse when on another window.
     React.useEffect(() => {
-        window.addEventListener('blur', handleLostFocus);
+        window.addEventListener('blur', closeSearchBar);
 
         return () => {
-            window.removeEventListener('blur', handleLostFocus);
+            window.removeEventListener('blur', closeSearchBar);
         };
     }, []);
 
@@ -138,13 +124,7 @@ export function SearchBar() {
      */
     const onListClick = React.useCallback((event: React.MouseEvent<HTMLLIElement>) => {
         event.preventDefault();
-        // Interrupt the timeout started in the change event listener so the user can click on
-        // multiple option without having to redo the search.
-        if (timeoutId) {
-            clearTimeout(timeoutId);
-            timeoutId = null;
-        }
-        const nodeId = (event.target as HTMLLIElement).getAttribute('data-id');
+        const nodeId = (event.target as HTMLLIElement).getAttribute('data-item-id');
         if (!nodeId) return;
         const node = getNode(nodeId);
         if (node) focusNode(node, getViewport(), setCenter);
@@ -163,7 +143,9 @@ export function SearchBar() {
                     onKeyDown={onKeyDown}
                 />
                 <nav>
-                    <ul id="visualizer__node-search-list">{filteredNodes}</ul>
+                    <ul className="visualizer__scrollbar" id="visualizer__node-search-list">
+                        {filteredNodes}
+                    </ul>
                 </nav>
             </div>
         </ReactFlowProvider>

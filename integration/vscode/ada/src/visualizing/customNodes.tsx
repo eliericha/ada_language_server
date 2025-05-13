@@ -167,6 +167,9 @@ export function Rectangle(node: NodeProps<DataNode>) {
         (node.data.expanded ? 'Hide ' : 'Display ') +
         (node.data.hierarchy === Hierarchy.CALL ? 'outgoing calls' : 'subtypes');
 
+    // Handle windows/linux/macos filesystems
+    const fileName = data.string_location.path.replace(/^.*(\\|\/|:)/, '');
+
     // Focus on the graph on this node
     if (data.focus) {
         data.focus = false;
@@ -200,7 +203,7 @@ export function Rectangle(node: NodeProps<DataNode>) {
         <div
             tabIndex={0}
             className={nodeClass}
-            data-id={data.id}
+            data-node-id={data.id}
             title={(data.inProject ? '' : '(out of project) ') + data.label}
         >
             <Handle
@@ -226,9 +229,7 @@ export function Rectangle(node: NodeProps<DataNode>) {
                 <div className={'visualizer__text' + 'visualizer__ellipsis-text'}>{data.label}</div>
             </div>
             <div className="visualizer__node-body">
-                <div className="visualizer__ellipsis-text">
-                    File : {data.string_location.path.split('/').at(-1)}
-                </div>
+                <div className="visualizer__ellipsis-text">File : {fileName}</div>
                 <div className="visualizer__ellipsis-text">
                     Position : {data.string_location.position}
                 </div>

@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import * as fs from 'fs';
+import { NodeHierarchy } from './visualizerTypes';
 
 /**
  * Create a new VisualizerHandler based on a language ID.
@@ -11,6 +13,8 @@ export function createHandler(languageId: string): VisualizerHandler {
     switch (languageId) {
         case 'ada':
             return new AdaVisualizerHandler();
+        case 'cpp':
+            return new CPPVisualizerHandler();
         default:
             return new VisualizerHandler();
     }
@@ -30,13 +34,14 @@ export class VisualizerHandler {
      * @param nodeLocation - The location of the node in the project
      * @returns An position-independent id for the symbol.
      */
-    async generateNodeId(nodeLocation: vscode.Location) {
+    async generateNodeId(nodeLocation: vscode.Location, label: string = '') {
+        void label;
         const hovers = await vscode.commands.executeCommand<vscode.Hover[]>(
             'vscode.executeHoverProvider',
             nodeLocation.uri,
             nodeLocation.range.start,
         );
-        let hoverValues: string = '';
+        let hoverValues = '';
         for (const hover of hovers) {
             for (const content of hover.contents) {
                 hoverValues +=
@@ -65,22 +70,66 @@ export class VisualizerHandler {
     isInProject(uri: vscode.Uri) {
         return vscode.workspace.getWorkspaceFolder(uri) !== undefined;
     }
+
+    /**
+     * Get the location (uri and range) of the body of a specific node.
+     *
+     * @param node - The node to get the body location from.
+     * @returns The symbol's body location.
+     */
+    async getFunctionBodyLocation(node: NodeHierarchy) {
+        const implementations = await vscode.commands.executeCommand<
+            (vscode.Location | vscode.LocationLink)[]
+        >('vscode.executeImplementationProvider', node.location.uri, node.location.range.start);
+        if (implementations.length > 0) return implementations[0];
+        return null;
+    }
+
+    /**
+     * Get the entire range of a symbol (for a function, its entire body for
+     * example).
+     *
+     * @param symbol - The symbol tree in which to search.
+     * @param label - The name of the symbol.
+     * @param location  - The selection range of the symbol to search.
+     * @returns
+     */
+    getSymbolWholeRange(
+        symbol: vscode.SymbolInformation | vscode.DocumentSymbol,
+        label: string,
+        location: vscode.Location | vscode.LocationLink,
+    ): vscode.Range | null {
+        const range = 'range' in location ? location.range : location.targetRange;
+        if ('children' in symbol) {
+            if (symbol.name === label && symbol.selectionRange.isEqual(range)) return symbol.range;
+            else {
+                for (const child of symbol.children) {
+                    const range = this.getSymbolWholeRange(child, label, location);
+                    if (range !== null) return range;
+                }
+            }
+        } else if (symbol.name === label && symbol.location.range.contains(range))
+            return symbol.location.range;
+        return null;
+    }
 }
 
 export class AdaVisualizerHandler extends VisualizerHandler {
-    async generateNodeId(nodeLocation: vscode.Location) {
-        const hovers = await vscode.commands.executeCommand<vscode.Hover[]>(
-            'vscode.executeHoverProvider',
-            nodeLocation.uri,
-            nodeLocation.range.start,
-        );
+    async generateNodeId(nodeLocation: vscode.Location, label: string = '') {
         let hoverValues: string = '';
-        for (const hover of hovers) {
-            hoverValues +=
-                (hoverValues.length === 0 ? '' : '/') +
-                // Collapse multiple following whitespaces into one
-                (hover.contents[0] as vscode.MarkdownString).value.replace(/\s+/g, ' ').trim();
-        }
+        if (fs.existsSync(nodeLocation.uri.fsPath)) {
+            const hovers = await vscode.commands.executeCommand<vscode.Hover[]>(
+                'vscode.executeHoverProvider',
+                nodeLocation.uri,
+                nodeLocation.range.start,
+            );
+            for (const hover of hovers) {
+                hoverValues +=
+                    (hoverValues.length === 0 ? '' : '/') +
+                    // Collapse multiple following whitespaces into one
+                    (hover.contents[0] as vscode.MarkdownString).value.replace(/\s+/g, ' ').trim();
+            }
+        } else hoverValues = label;
 
         const clearId = nodeLocation.uri.fsPath + ':' + hoverValues;
 
@@ -93,5 +142,25 @@ export class AdaVisualizerHandler extends VisualizerHandler {
 
     isInProject(uri: vscode.Uri) {
         return !uri.fsPath.includes('adainclude');
+    }
+}
+
+export class CPPVisualizerHandler extends VisualizerHandler {
+    async getFunctionBodyLocation(node: NodeHierarchy) {
+        const implementations = await vscode.commands.executeCommand<
+            (vscode.Location | vscode.LocationLink)[]
+        >('vscode.executeDefinitionProvider', node.location.uri, node.location.range.start);
+        if (implementations.length > 0) return implementations[0];
+        return null;
+    }
+
+    getSymbolWholeRange(
+        symbol: vscode.SymbolInformation | vscode.DocumentSymbol,
+        label: string,
+        location: vscode.Location | vscode.LocationLink,
+    ): vscode.Range | null {
+        symbol.name = symbol.name.split('(')[0];
+        label = label.split('(')[0];
+        return super.getSymbolWholeRange(symbol, label, location);
     }
 }

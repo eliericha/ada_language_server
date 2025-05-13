@@ -45,6 +45,7 @@ export function edgeFactory(src: string, dst: string, edgeDirection: RelationDir
         targetPosition: src === dst ? Position.Bottom : undefined,
         data: {
             additionalClass: undefined,
+            edgeDirection: edgeDirection,
         },
     } as Edge;
 }
@@ -167,6 +168,7 @@ type EdgeType = {
     targetY: number;
     data: {
         additionalClass?: string;
+        edgeDirection: RelationDirection;
     };
 };
 
@@ -207,15 +209,31 @@ export function floatingEdge(floatingEdge: EdgeType) {
 
     // If bezier path returned nan return empty path
     if (edgePath.includes('NaN')) return <path />;
+    let strokeWidth = 0;
+    if (floatingEdge.style && floatingEdge.style.strokeWidth)
+        strokeWidth =
+            typeof floatingEdge.style.strokeWidth === 'number'
+                ? floatingEdge.style.strokeWidth
+                : parseInt(floatingEdge.style.strokeWidth);
     return (
-        <path
-            id={floatingEdge.id}
-            className={pathClass}
-            d={edgePath}
-            style={floatingEdge.style}
-            markerStart={floatingEdge.markerStart}
-            markerEnd={floatingEdge.markerEnd}
-        />
+        <>
+            <path
+                id={floatingEdge.id}
+                className={pathClass}
+                d={edgePath}
+                style={floatingEdge.style}
+                markerStart={floatingEdge.markerStart}
+                markerEnd={floatingEdge.markerEnd}
+            />
+            <path
+                d={edgePath}
+                style={{
+                    stroke: 'transparent',
+                    fill: 'none',
+                    strokeWidth: strokeWidth * 7.5,
+                }}
+            />
+        </>
     );
 }
 

@@ -30,7 +30,7 @@ export function changeMarker(
     additionalClass: string | undefined,
     unselect = false,
 ) {
-    edge.data = { additionalClass: additionalClass };
+    edge.data = { ...edge.data, additionalClass: additionalClass };
 
     if (edge.selected) {
         if (unselect) edge.selected = false;

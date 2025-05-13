@@ -8,11 +8,15 @@ package body Cycle is
 
    procedure Tutu (t : Integer) return Integer is
    begin
-      return Toto (t);
+      return Toto (t) + Toto(t)+ Toto(t)+ Toto(t)+ Toto(t)+ Toto(t)+ Toto(t)+ Toto(t)+ Toto(t)+ Toto(t)+ Toto(t)+ Toto(t)+ Toto(t)+ Toto(t)+ Toto(t);
    end;
 
    procedure Toto (t : Integer) return Integer is
    begin
+      Ada.Text_IO.Put_Line ("Toto");
+      Ada.Text_IO.Put_Line ("Toto");
+      Ada.Text_IO.Put_Line ("Toto");
+      Ada.Text_IO.Put_Line ("Toto");
       Ada.Text_IO.Put_Line ("Toto");
       return Toto(t);
    end Toto;
@@ -34,5 +38,14 @@ package body Cycle is
    end Tyti;
 
 procedure Trtr (t: Integer) return Integer;
+
+procedure Test(t: Integer; t2: Integer) return Integer is
+begin
+   return t + t2;
+end Test;
+procedure Test(t: Integer) return Integer is
+begin
+   return Test(t, 3);
+end Test;
 
 end Cycle;

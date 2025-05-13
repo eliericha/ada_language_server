@@ -6,6 +6,9 @@ import {
     Message,
     NodeEdge,
     UpdateMessage,
+    RelationDirection,
+    RevealReferencesMessage,
+    RevealReferencesResponse,
 } from '../visualizerTypes';
 import {
     Node,
@@ -31,8 +34,9 @@ import { edgeFactory, edgeTypes, floatingConnectionLine } from './customEdges';
 import { moveNodes, nodeFactory, nodeTypes } from './customNodes';
 import { elkOptions, layoutSubgraph, layoutSubgraphs } from './layouting';
 import { changeMarker, focusNode, waitingBar } from './utils';
-import { ContextMenu, ContextMenuProps } from './contextMenu';
-import { SearchBar } from './searchBar';
+import { NodeContextMenu, NodeContextMenuProps } from './nodeContextMenu';
+import { closeSearchBar as onSearchBarClose, SearchBar } from './searchBar';
+import { ReferencesPickerMenu, ReferencesPickerMenuProps } from './referencesPickerMenu';
 
 /**
  * Current direction of the graph layout.
@@ -56,7 +60,10 @@ let setEdges: React.Dispatch<React.SetStateAction<Edge[]>>;
 let getNodes: () => Node[];
 const nodeWidth = 250;
 const nodeHeight = 300;
+let referencesPickerMenu: ReferencesPickerMenuProps | null = null;
+let setReferencesPickerMenu: React.Dispatch<React.SetStateAction<ReferencesPickerMenuProps | null>>;
 
+let timeoutId: NodeJS.Timeout | null = null;
 type Graph = {
     nodes: Node[];
     edges: Edge[];
@@ -167,6 +174,17 @@ function handleUpdate(messageData: string) {
 }
 
 /**
+ * Fill the references picker menu with the locations the user can jump to.
+ *
+ * @param data - The data received
+ */
+function handleReveal(data: string) {
+    const response = JSON.parse(data) as RevealReferencesResponse;
+    if (referencesPickerMenu)
+        setReferencesPickerMenu({ ...referencesPickerMenu, locations: response.locations });
+}
+
+/**
  * Dispatch the message received according to the command passed as a field to the message.
  *
  * @param text - A message received by the client
@@ -185,6 +203,10 @@ const handleMessage = (text: MessageEvent<Message>) => {
             vscode.postMessage({ command: 'rendered', data: '' } as Message);
             break;
         }
+        case 'revealResponse': {
+            void handleReveal(text.data.data);
+            break;
+        }
     }
 };
 
@@ -200,12 +222,19 @@ export default function App() {
     [nodes, setNodes, onNodesChange] = useNodesState(nodes);
     [edges, setEdges, onEdgesChange] = useEdgesState(edges);
     // Save the state of the contextMenu (right click on a node).
-    const [menu, setMenu] = React.useState<ContextMenuProps | null>(null);
+    const [nodeMenu, setNodeMenu] = React.useState<NodeContextMenuProps | null>(null);
+    // The references picker menu is filled with information from the server side so
+    // setReferencesPickerMenu will be called outside this function but this is the only place
+    // where useState can be used.
+    [referencesPickerMenu, setReferencesPickerMenu] =
+        React.useState<ReferencesPickerMenuProps | null>(null);
     // Save the state of the currently selected edges.
     const [selected, setSelected] = React.useState<Edge[]>([]);
     // Save the state of the last focused element to avoid uselessly focus on it.
     const [lastFocus, setLastFocus] = React.useState<string>('');
+    const [canOpenReferencesPicker, setCanOpenReferencesPicker] = React.useState(true);
     const ref = React.useRef<HTMLDivElement>(null);
+
     const { setCenter, getNode, getNodes: getNodes_, getViewport } = useReactFlow();
     getNodes = getNodes_;
     void getNodes;
@@ -238,12 +267,26 @@ export default function App() {
      * Reveal the symbol represented by the node in the code.
      */
     const onNodeDoubleClick = React.useCallback((event: React.MouseEvent, node: Node) => {
-        if ((event.target as Element).className.includes('visualizer__hierarchy-button')) return;
-        void event;
+        if ((event.target as HTMLElement).className.includes('visualizer__hierarchy-button'))
+            return;
         vscode.postMessage({
             command: 'revealNode',
             data: node.id,
         });
+
+        // Unselect the node after the double click.
+        const nodeElem = document.querySelector(`[data-node-id="${node.id}"]`);
+        const nodeWrapper = document.querySelector(`[data-id="${node.id}"]`);
+
+        (nodeElem as HTMLElement).className = (nodeElem as HTMLElement).className.replace(
+            ' visualizer__selected',
+            '',
+        );
+        (nodeElem as HTMLElement).blur();
+        (nodeWrapper as HTMLElement).className = (nodeWrapper as HTMLElement).className.replace(
+            ' selected',
+            '',
+        );
     }, []);
 
     /**
@@ -277,7 +320,70 @@ export default function App() {
     }, []);
 
     /**
+     * Open the references picker menu under the current position of the mouse.
+     *
+     * @param event - The react mouse event.
+     * @param edge  - The edge the mouse is currently on.
+     * @param openedByClick - True if the user clicked on the edge, false if the user
+     * hovered the edge.
+     */
+    function openReferencesPicker(event: React.MouseEvent, edge: Edge, openedByClick: boolean) {
+        // When using the references picker if the user selects a location without moving the
+        // mouse, the picker would reopen alone causing the user to lose focus on its code.
+        if (ref.current && canOpenReferencesPicker) {
+            onNodeContextClose();
+            onSearchBarClose();
+            event.preventDefault();
+            let target: string = '';
+            let source: string = '';
+            if (!edge.data) return;
+            if (edge.data.edgeDirection === RelationDirection.SUB) {
+                target = edge.source;
+                source = edge.target;
+            } else if (edge.data.edgeDirection === RelationDirection.SUPER) {
+                target = edge.target;
+                source = edge.source;
+            }
+
+            setReferencesPickerMenu({
+                onReferencesPickerClose: onReferencesPickerClose,
+                top: event.clientY,
+                left: event.clientX,
+                right: undefined,
+                bottom: undefined,
+                edge: edge,
+                source: getNode(source),
+                target: getNode(target),
+                locations: [],
+                openedByClick: openedByClick,
+            } as ReferencesPickerMenuProps);
+
+            if (target !== '' && source !== '')
+                vscode.postMessage({
+                    command: 'revealReferences',
+                    data: JSON.stringify({
+                        targetId: target,
+                        sourceId: source,
+                    } as RevealReferencesMessage),
+                });
+
+            // Wait for the menu to be created before adding it the class to open it.
+            const intervalId = setInterval(() => {
+                const edgeMenu = document.getElementsByClassName(
+                    'visualizer__references-picker-menu',
+                );
+                if (edgeMenu.length !== 0) {
+                    edgeMenu[0].classList.add('visualizer__open');
+                    clearInterval(intervalId);
+                }
+            }, 50);
+        }
+    }
+
+    /**
      * Highlight the marker of the edge when hovering the edge.
+     * Additionally if the user hovers for a sufficiently long time, open the references
+     * picker menu.
      */
     const onEdgeMouseEnter = React.useCallback(
         (event: React.MouseEvent, edge: Edge) => {
@@ -292,9 +398,29 @@ export default function App() {
             // Refresh the array to force re rendering
             edges = [...edges];
             setEdges(edges);
+            // If the user is still hovering the edge after a set time, open the references
+            // picker menu.
+            timeoutId = setTimeout(() => {
+                if (referencesPickerMenu === null) openReferencesPicker(event, edge, false);
+            }, 500);
         },
-        [edges],
+
+        [edges, canOpenReferencesPicker],
     );
+
+    /**
+     * Close the edge context menu.
+     */
+    const onReferencesPickerClose = React.useCallback(() => {
+        const edgeMenu = document.getElementsByClassName('visualizer__references-picker-menu');
+        if (edgeMenu.length !== 0) {
+            edgeMenu[0].classList.remove('visualizer__open');
+        }
+        // Prevent the references picker to be open until the mouse is moved after it
+        // has been closed.
+        setCanOpenReferencesPicker(false);
+        setReferencesPickerMenu(null);
+    }, [setReferencesPickerMenu]);
 
     /**
      * Unhighlight the marker of the edge when hovering the edge.
@@ -308,10 +434,13 @@ export default function App() {
             // Refresh the array to force re rendering
             edges = [...edges];
             setEdges(edges);
+            if (timeoutId !== null) {
+                clearTimeout(timeoutId);
+                timeoutId = null;
+            }
         },
         [edges],
     );
-
     /**
      * Send a delete message with the id of the main node to remove to the server side.
      */
@@ -330,23 +459,32 @@ export default function App() {
     );
 
     /**
-     * Close the node context menu.
-     */
-    const onContextClose = React.useCallback(() => setMenu(null), [setMenu]);
-
-    /**
      * Close the node context menu and clear the node search bar on pane click
      */
-    const onPaneClick = React.useCallback(() => {
+    const onPaneClick = React.useCallback((event: React.MouseEvent) => {
+        void event;
         setLastFocus('');
         const searchBar = document.getElementById('visualizer__node-search-bar');
         if (!searchBar) return;
         (searchBar as HTMLInputElement).value = '';
-        const event = new Event('change', { bubbles: true });
-        searchBar.dispatchEvent(event);
 
-        onContextClose();
+        // Close all popup (context menu, search bar menu).
+        onSearchBarClose();
+        onNodeContextClose();
+        onReferencesPickerClose();
     }, []);
+
+    /**
+     * Prevent the regular pane click to happen as its features are useless here.
+     */
+    const onPaneContextMenu = React.useCallback((event: MouseEvent | React.MouseEvent) => {
+        event.preventDefault();
+    }, []);
+
+    /**
+     * Close the node context menu.
+     */
+    const onNodeContextClose = React.useCallback(() => setNodeMenu(null), [setNodeMenu]);
 
     /**
      * Create the context menu and position it on the close to the mouse position.
@@ -355,9 +493,11 @@ export default function App() {
         (event: React.MouseEvent, node: Node) => {
             event.preventDefault();
             if (ref.current) {
+                onSearchBarClose();
+                onReferencesPickerClose();
                 const pane = ref.current.getBoundingClientRect();
 
-                setMenu({
+                setNodeMenu({
                     node: node,
                     // Handle the case where the mouse is close to a border (displace the context
                     // menu to another quadrant)
@@ -371,12 +511,12 @@ export default function App() {
                         event.clientY >= pane.height - nodeHeight
                             ? pane.height - event.clientY
                             : undefined,
-                    onContextClose: onContextClose,
+                    onContextClose: onNodeContextClose,
                     onNodeDelete: onNodeDelete,
-                } as ContextMenuProps);
+                } as NodeContextMenuProps);
             }
         },
-        [setMenu, ref],
+        [setNodeMenu, ref],
     );
 
     /**
@@ -426,7 +566,7 @@ export default function App() {
             // Focus on the node currently focused only the mouse is not already on it
             // (avoid triggering the focus on node click)
             if (focus.target.classList.contains('visualizer__rectangle')) {
-                const nodeId = focus.target.getAttribute('data-id');
+                const nodeId = focus.target.getAttribute('data-node-id');
                 if (!nodeId) return;
                 if (!focus.target.matches(':hover') && lastFocus !== nodeId) {
                     const node = getNode(nodeId);
@@ -437,6 +577,34 @@ export default function App() {
         },
         [lastFocus],
     );
+
+    /**
+     * Close all menus on node click.
+     */
+    const onNodeClick = React.useCallback(() => {
+        onSearchBarClose();
+        onNodeContextClose();
+        onReferencesPickerClose();
+    }, []);
+
+    /**
+     * Close all menus and open the references picker menu on edge click
+     */
+    const onEdgeClick = React.useCallback(
+        (event: React.MouseEvent, edge: Edge) => {
+            onSearchBarClose();
+            onNodeContextClose();
+            if (referencesPickerMenu === null) openReferencesPicker(event, edge, true);
+        },
+        [referencesPickerMenu, canOpenReferencesPicker],
+    );
+
+    /**
+     * Enable the opening of the references picker menu after the mouse moved.
+     */
+    const omMouseMove = React.useCallback(() => {
+        if (!canOpenReferencesPicker) setCanOpenReferencesPicker(true);
+    }, [canOpenReferencesPicker]);
 
     return (
         <div style={{ width: '100vw', height: '100vh' }}>
@@ -452,14 +620,17 @@ export default function App() {
                     nodeTypes={nodeTypes}
                     edgeTypes={edgeTypes}
                     onInit={onInit}
+                    onPaneContextMenu={onPaneContextMenu}
                     onPaneClick={onPaneClick}
                     onNodesDelete={onNodeDelete}
                     onNodesChange={onNodesChange}
                     onEdgesChange={onEdgesChange}
+                    onEdgeClick={onEdgeClick}
                     onEdgeMouseEnter={onEdgeMouseEnter}
                     onEdgeMouseLeave={onEdgeMouseLeave}
                     onNodeMouseEnter={onNodeMouseEnter}
                     onNodeMouseLeave={onNodeMouseLeave}
+                    onNodeClick={onNodeClick}
                     onNodeDoubleClick={onNodeDoubleClick}
                     onNodeContextMenu={onNodeContextMenu}
                     connectionLineComponent={floatingConnectionLine}
@@ -467,6 +638,7 @@ export default function App() {
                     nodesConnectable={false}
                     deleteKeyCode={['Delete', 'Backspace']}
                     edgesFocusable={false}
+                    onMouseMove={omMouseMove}
                     // The nodes remains focusable by their inner objects not the outer.
                     nodesFocusable={false}
                     className="visualizer__colors"
@@ -484,7 +656,8 @@ export default function App() {
                             onClick={onCenter}
                         />
                     </Controls>
-                    {menu && <ContextMenu {...menu} />}
+                    {nodeMenu && <NodeContextMenu {...nodeMenu} />}
+                    {referencesPickerMenu && <ReferencesPickerMenu {...referencesPickerMenu} />}
                     <Background size={3} gap={56} />
                     <Panel position="top-right">
                         <SearchBar />

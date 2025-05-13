@@ -29,6 +29,22 @@ export type UpdateMessage = {
     toDelete: NodeData[];
 };
 
+export type RevealReferencesMessage = {
+    sourceId: string;
+    targetId: string;
+};
+
+export type StringLocation = {
+    path: string;
+    range_start: vscode.Position;
+    range_end: vscode.Position;
+    string_location: string;
+};
+
+export type RevealReferencesResponse = {
+    locations: StringLocation[];
+};
+
 /**
  * Data stored in a node client side.
  */

@@ -1,7 +1,4 @@
 import { browser, expect } from '@wdio/globals';
-import { EditorView, sleep, VSCodeLocatorMap } from 'wdio-vscode-service';
-import * as locatorMap from '../pageobjects/locators';
-import { WebView } from '../pageobjects/webview';
 
 before('finish loading extension', async () => {});
 

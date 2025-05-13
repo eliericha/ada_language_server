@@ -10,7 +10,7 @@ import {
 } from '../visualizerTypes';
 import { getNodeKind, waitingBar } from './utils';
 
-export type ContextMenuProps = {
+export type NodeContextMenuProps = {
     onContextClose: () => void;
     onNodeDelete: (toDelete: Node[]) => void;
     top: number | undefined;
@@ -26,7 +26,7 @@ export type ContextMenuProps = {
  * @param props  - Data passed to the context menu
  * @returns a div containing a context menu for a specific node
  */
-export function ContextMenu(props: ContextMenuProps) {
+export function NodeContextMenu(props: NodeContextMenuProps) {
     // Close the context menu if the mouse leave the window
     React.useEffect(() => {
         const handleLostFocus = (): void => {
@@ -99,8 +99,7 @@ export function ContextMenu(props: ContextMenuProps) {
                     right: props.right,
                     bottom: props.bottom,
                 }}
-                className="visualizer__context-menu"
-                onMouseLeave={props.onContextClose}
+                className="visualizer__node-context-menu"
             >
                 <button className="visualizer__context-button" onClick={refreshNode}>
                     Refresh Node
