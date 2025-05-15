@@ -191,7 +191,10 @@ export function Rectangle(node: NodeProps<DataNode>) {
                 data: JSON.stringify({
                     id: data.id,
                     direction: direction,
-                    expand: direction === RelationDirection.SUB ? !data.expanded : data.expanded,
+                    expand:
+                        direction === RelationDirection.SUB && data.hasChildren
+                            ? !data.expanded
+                            : data.expanded,
                     hierarchy: getNodeKind(data.kind),
                 } as HierarchyMessage),
             });

@@ -192,7 +192,7 @@ async function refreshNodes(nodesId: string[]) {
     const toUpdate: NodeHierarchy[] = [];
     for (const nodeId of nodesId) {
         const node = symbolsMap.get(nodeId);
-        if (!node) continue;
+        if (!node || !fs.existsSync(node.location.uri.fsPath)) continue;
         const symbols = await vscode.commands.executeCommand<
             vscode.SymbolInformation[] | vscode.DocumentSymbol[]
         >('vscode.executeDocumentSymbolProvider', node.location.uri);
@@ -414,6 +414,8 @@ async function revealReference(targetNodeId: string, referenceNodeId: string) {
         if (functionRange === null) return;
     }
 
+    if (!fs.existsSync(targetNode.location.uri.fsPath)) return;
+
     const locations = await vscode.commands.executeCommand<vscode.Location[]>(
         'vscode.executeReferenceProvider',
         targetNode.location.uri,
@@ -532,7 +534,7 @@ async function createNodeHierarchy(
         id: await handler.generateNodeId(location),
         label: item.name,
         kind: vscode.SymbolKind[item.kind].toLowerCase(),
-        expanded: false,
+        expanded: true,
         hasParent: hasParent,
         hasChildren: null,
         focus: false,

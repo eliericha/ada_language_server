@@ -93,7 +93,7 @@ export function referencesPickerOnKeyDown(
                 if (timeoutId) clearTimeout(timeoutId);
                 timeoutId = null;
             }
-        }, 50);
+        }, 200);
     }
 
     childs[newCurrent].classList.add('visualizer__references-picker-item-selected');
@@ -202,16 +202,17 @@ export function ReferencesPickerMenu(props: ReferencesPickerMenuProps) {
     }
 
     if (props.locations.length > 0) {
-        // Handle windows/linux/macos filesystems
-        const fileName = props.locations[0].path.replace(/^.*(\\|\/|:)/, '');
         props.locations.forEach((location) => {
+            // Handle windows/linux/macos filesystems
+            const fileName = props.locations[0].path.replace(/^.*(\\|\/|:)/, '');
+            const loc = `${fileName} : ${location.string_location}`;
             locations.push(
                 <li
                     className="visualizer__references-picker-item"
                     onClick={onClick}
-                    key={location.string_location}
+                    key={loc}
                     data-string-loc={location.string_location}
-                    title={fileName + ' : ' + location.string_location}
+                    title={loc}
                 >
                     {location.string_location}
                 </li>,
@@ -273,7 +274,7 @@ export function ReferencesPickerMenu(props: ReferencesPickerMenuProps) {
                     'visualizer__references-picker-menu' +
                     ' visualizer__references-picker-edge-menu'
                 }
-                // onMouseLeave={() => handleLostFocus()}
+                onMouseLeave={() => handleLostFocus()}
             >
                 <div
                     className="visualizer__ellipsis-text visualizer__references-picker-title"

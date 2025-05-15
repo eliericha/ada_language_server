@@ -15,6 +15,9 @@ export function createHandler(languageId: string): VisualizerHandler {
             return new AdaVisualizerHandler();
         case 'cpp':
             return new CPPVisualizerHandler();
+        case 'typescript':
+        case 'javascript':
+            return new JsTsVisualizerHandler();
         default:
             return new VisualizerHandler();
     }
@@ -68,7 +71,7 @@ export class VisualizerHandler {
      * generated at runtime for example).
      */
     isInProject(uri: vscode.Uri) {
-        return vscode.workspace.getWorkspaceFolder(uri) !== undefined;
+        return vscode.workspace.getWorkspaceFolder(uri) !== undefined || !fs.existsSync(uri.fsPath);
     }
 
     /**
@@ -78,6 +81,7 @@ export class VisualizerHandler {
      * @returns The symbol's body location.
      */
     async getFunctionBodyLocation(node: NodeHierarchy) {
+        if (!fs.existsSync(node.location.uri.fsPath)) return null;
         const implementations = await vscode.commands.executeCommand<
             (vscode.Location | vscode.LocationLink)[]
         >('vscode.executeImplementationProvider', node.location.uri, node.location.range.start);
@@ -162,5 +166,11 @@ export class CPPVisualizerHandler extends VisualizerHandler {
         symbol.name = symbol.name.split('(')[0];
         label = label.split('(')[0];
         return super.getSymbolWholeRange(symbol, label, location);
+    }
+}
+
+export class JsTsVisualizerHandler extends VisualizerHandler {
+    isInProject(uri: vscode.Uri) {
+        return !uri.fsPath.includes('node_modules') && super.isInProject(uri);
     }
 }

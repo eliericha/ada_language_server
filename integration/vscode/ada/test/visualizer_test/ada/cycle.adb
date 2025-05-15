@@ -4,7 +4,6 @@ package body Cycle is
 
    procedure Baz (t : Integer) return Integer;
    procedure Qux (t : Integer) return Integer;
-   procedure Foo (t : Integer) return Integer;
 
    procedure Bar (t : Integer) return Integer is
    begin

@@ -85,6 +85,7 @@ export function NodeContextMenu(props: NodeContextMenuProps) {
         ({ direction = RelationDirection.SUPER }) => {
             const kind = (props.node.data as NodeData).kind;
             const hierarchy = getNodeKind(kind);
+            const hasChildren = (props.node.data as NodeData).hasChildren;
             waitingBar();
             vscode.postMessage({
                 command: 'requestHierarchy',
@@ -92,7 +93,7 @@ export function NodeContextMenu(props: NodeContextMenuProps) {
                     id: props.node.id,
                     direction: direction,
                     expand:
-                        direction === RelationDirection.SUB
+                        direction === RelationDirection.SUB && hasChildren
                             ? !props.node.data.expanded
                             : props.node.data.expanded,
                     hierarchy: hierarchy,
@@ -165,17 +166,19 @@ export function NodeContextMenu(props: NodeContextMenuProps) {
     );
 
     if (props.locations.length > 0) {
-        const fileName = props.locations[0].path.replace(/^.*(\\|\/|:)/, '');
         props.locations.forEach((location) => {
+            // Handle windows/linux/macos filesystems
+            const fileName = location.path.replace(/^.*(\\|\/|:)/, '');
+            const loc = `${fileName} : ${location.string_location}`;
             locations.push(
                 <li
                     className="visualizer__references-picker-item"
                     onClick={onClick}
-                    key={location.string_location}
+                    key={loc}
                     data-string-loc={location.string_location}
-                    title={fileName + ' : ' + location.string_location}
+                    title={loc}
                 >
-                    {location.string_location}
+                    {loc}
                 </li>,
             );
         });
@@ -189,7 +192,8 @@ export function NodeContextMenu(props: NodeContextMenuProps) {
     const superContent =
         'Get ' + (props.node.data.hierarchy === Hierarchy.CALL ? 'Incoming Calls' : 'Super Types');
 
-    const pickerMenuSize = 200;
+    const pickerMenuWidth = 200;
+    const pickerMenuHeight = 200;
     // In case the menu is to close from the top or the bottom add a little space for visibility.
     const padding = 20;
     const contextButton = document.getElementById('visualizer__context-references-button');
@@ -197,7 +201,8 @@ export function NodeContextMenu(props: NodeContextMenuProps) {
         const rect = contextButton.getBoundingClientRect();
 
         // A location item is more or less half the size of the references button.
-        const menu_height = (rect.height / 2) * locations.length;
+        let menu_height = (rect.height / 2) * locations.length;
+        if (menu_height > pickerMenuHeight) menu_height = pickerMenuHeight;
         bottom = rect.height / 2;
         // Handle the case where the menu overflow through the bottom of the window.
         if (rect.bottom + menu_height / 2 > props.pane.height) {
@@ -208,7 +213,7 @@ export function NodeContextMenu(props: NodeContextMenuProps) {
         // context menu.
 
         // Handle the overflow through the sides.
-        if (rect.right + pickerMenuSize < props.pane.width) {
+        if (rect.right + pickerMenuWidth < props.pane.width) {
             left = rect.width;
             right = undefined;
         } else {
@@ -255,7 +260,7 @@ export function NodeContextMenu(props: NodeContextMenuProps) {
                     <span> Go to References </span>{' '}
                     <div
                         className="codicon codicon-chevron-right"
-                        style={{ position: 'absolute' }}
+                        // style={{ position: 'absolute' }}
                     />
                     <div
                         className={

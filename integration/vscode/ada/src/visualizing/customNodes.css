@@ -230,6 +230,7 @@ so reduce its size a little. */
 
 /* Style the buttons in the above context menu. */
 .visualizer__context-button {
+    display: flex;
     border: none;
     background: var(--visualizer-item-background);
     color: var(--visualizer-text-color);
@@ -238,6 +239,7 @@ so reduce its size a little. */
     width: 100%;
     padding: 0.5em;
     outline: none;
+    white-space: nowrap;
 }
 
 /* Style the multi selection rectangle provided by reactflow (shift + right click). */
