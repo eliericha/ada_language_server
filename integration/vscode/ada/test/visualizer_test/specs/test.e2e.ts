@@ -22,7 +22,7 @@ describe('VS Code Extension Testing', () => {
         // await editor.click({ button: 'right' });
         const line = await $('div.view-lines > div.view-line:nth-child(14)');
         await line.waitForExist();
-        const word = await line.$('span=Toto');
+        const word = await line.$('span=Foo');
         await word.waitForExist();
         word.click({ button: 'right' });
 

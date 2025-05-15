@@ -154,7 +154,7 @@ async function handleMessage(message: Message) {
         }
         case 'revealReferences': {
             const ids = JSON.parse(message.data) as RevealReferencesMessage;
-            void revealReference(ids.sourceId, ids.targetId);
+            void revealReference(ids.targetNodeId, ids.referenceNodeId);
             break;
         }
         case 'revealLocation': {
@@ -382,47 +382,51 @@ function findRoots() {
     return roots;
 }
 
-async function revealReference(targetId: string, sourceId: string) {
-    void targetId;
-    void sourceId;
-    const sourceNode = symbolsMap.get(sourceId);
-    const targetNode = symbolsMap.get(targetId);
-    if (!sourceNode || !targetNode) return;
-
-    const implementation = await sourceNode.handler.getFunctionBodyLocation(sourceNode);
-    if (implementation === null) return;
-
-    // TODO WHAT IF MULTIPLE IMPLEMENTATIONS?
-    const uri = 'uri' in implementation ? implementation.uri : implementation.targetUri;
-    //TODO HANDLE TYPES?
-    const symbols = await vscode.commands.executeCommand<
-        (vscode.SymbolInformation | vscode.DocumentSymbol)[]
-    >('vscode.executeDocumentSymbolProvider', uri);
+async function revealReference(targetNodeId: string, referenceNodeId: string) {
+    const sourceNode = symbolsMap.get(targetNodeId);
+    const targetNode = symbolsMap.get(referenceNodeId);
+    if (!targetNode) return;
 
     let functionRange: vscode.Range | null = null;
-    for (const symbol of symbols) {
-        const range = sourceNode.handler.getSymbolWholeRange(
-            symbol,
-            sourceNode.label,
-            implementation,
-        );
-        if (range) {
-            functionRange = range;
-            break;
+    let uri: vscode.Uri | null = null;
+    if (sourceNode) {
+        const implementation = await sourceNode.handler.getFunctionBodyLocation(sourceNode);
+        if (implementation === null) return;
+
+        // TODO WHAT IF MULTIPLE IMPLEMENTATIONS?
+        uri = 'uri' in implementation ? implementation.uri : implementation.targetUri;
+        //TODO HANDLE TYPES?
+        const symbols = await vscode.commands.executeCommand<
+            (vscode.SymbolInformation | vscode.DocumentSymbol)[]
+        >('vscode.executeDocumentSymbolProvider', uri);
+
+        for (const symbol of symbols) {
+            const range = sourceNode.handler.getSymbolWholeRange(
+                symbol,
+                sourceNode.label,
+                implementation,
+            );
+            if (range) {
+                functionRange = range;
+                break;
+            }
         }
+        if (functionRange === null) return;
     }
-    if (functionRange === null) return;
 
     const locations = await vscode.commands.executeCommand<vscode.Location[]>(
         'vscode.executeReferenceProvider',
         targetNode.location.uri,
         targetNode.location.range.start,
     );
-
     const string_locations: StringLocation[] = [];
     for (const location of locations) {
         // Don't sort by file name but by the parent function
-        if (location.uri.fsPath === uri.fsPath && functionRange.contains(location.range))
+        if (
+            functionRange == null ||
+            uri === null ||
+            (location.uri.fsPath === uri.fsPath && functionRange.contains(location.range))
+        )
             string_locations.push({
                 path: location.uri.fsPath,
                 range_start: location.range.start,
@@ -431,7 +435,7 @@ async function revealReference(targetId: string, sourceId: string) {
                     `Ln ${location.range.start.line}, ` + `Col ${location.range.start.character}`,
             } as StringLocation);
     }
-    const panel = sourceNode.hierarchy === Hierarchy.CALL ? callPanel : typePanel;
+    const panel = targetNode.hierarchy === Hierarchy.CALL ? callPanel : typePanel;
     panel?.webview.postMessage({
         command: 'revealResponse',
         data: JSON.stringify({
@@ -568,7 +572,7 @@ function convertHierarchyToData(nodeHierarchy: NodeHierarchy) {
         string_location: {
             path: nodeHierarchy.location.uri.fsPath,
             position:
-                `Ln ${nodeHierarchy.location.range.start.line},` +
+                `Ln ${nodeHierarchy.location.range.start.line}, ` +
                 `Col ${nodeHierarchy.location.range.start.character}`,
         },
         newPosition: nodeHierarchy.newPosition,

@@ -83,6 +83,10 @@ export function SearchBar() {
             else if (event.key === 'ArrowDown' || event.key === 'Tab') {
                 event.preventDefault();
                 newCurrent = (current + 1) % ul.childElementCount;
+                // Close the search bar when the user presses escape.
+            } else if (event.key === 'Escape') {
+                closeSearchBar();
+                return;
             }
             // Focus the current node on the graph
             else if (event.key === 'Enter' && current !== -1) {

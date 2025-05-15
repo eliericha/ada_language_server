@@ -2,50 +2,47 @@ with Ada.Text_IO;
 
 package body Cycle is
 
-   procedure Tata (t : Integer) return Integer;
-   procedure Titi (t : Integer) return Integer;
-   procedure Toto (t : Integer) return Integer;
+   procedure Baz (t : Integer) return Integer;
+   procedure Qux (t : Integer) return Integer;
+   procedure Foo (t : Integer) return Integer;
 
-   procedure Tutu (t : Integer) return Integer is
+   procedure Bar (t : Integer) return Integer is
    begin
-      return Toto (t) + Toto(t)+ Toto(t)+ Toto(t)+ Toto(t)+ Toto(t)+ Toto(t)+ Toto(t)+ Toto(t)+ Toto(t)+ Toto(t)+ Toto(t)+ Toto(t)+ Toto(t)+ Toto(t);
+      return Foo (t) +
+      Foo(t) + Foo(t) +
+      Foo(t) + Foo(t) +
+      Foo(t) + Foo(t) +
+      Foo(t) + Foo(t) +
+      Foo(t) + Foo(t) +
+      Foo(t) + Foo(t) +
+      Foo(t) + Foo(t);
    end;
 
-   procedure Toto (t : Integer) return Integer is
+   procedure Foo (t : Integer) return Integer is
    begin
-      Ada.Text_IO.Put_Line ("Toto");
-      Ada.Text_IO.Put_Line ("Toto");
-      Ada.Text_IO.Put_Line ("Toto");
-      Ada.Text_IO.Put_Line ("Toto");
-      Ada.Text_IO.Put_Line ("Toto");
-      return Toto(t);
-   end Toto;
+      Ada.Text_IO.Put_Line ("Hello");
+      Ada.Text_IO.Put_Line ("This");
+      Ada.Text_IO.Put_Line ("is");
+      Ada.Text_IO.Put_Line ("Multiple");
+      Ada.Text_IO.Put_Line ("Put_Line");
+      return Foo(t);
+   end Foo;
 
-   procedure Tata (t : Integer) return Integer is
+   procedure Baz (t : Integer) return Integer is
    begin
-      return Titi (t) + Toto (t);
-   end Tata;
+      return Qux (t) + Foo (t);
+   end Baz;
 
-   procedure Titi (t : Integer) return Integer is
+   procedure Qux (t : Integer) return Integer is
    begin
-      return Tata (t);
-   end Titi;
+      return Baz (t);
+   end Qux;
 
-   procedure Tyti (t : Integer) return Integer is
+   procedure Quux (t : Integer) return Integer is
    begin
-      return Tata (t) + Tyti (4);
+      return Baz (t) + Quux (4);
 
-   end Tyti;
+   end Quux;
 
-procedure Trtr (t: Integer) return Integer;
-
-procedure Test(t: Integer; t2: Integer) return Integer is
-begin
-   return t + t2;
-end Test;
-procedure Test(t: Integer) return Integer is
-begin
-   return Test(t, 3);
-end Test;
 
 end Cycle;

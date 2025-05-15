@@ -30,8 +30,8 @@ export type UpdateMessage = {
 };
 
 export type RevealReferencesMessage = {
-    sourceId: string;
-    targetId: string;
+    targetNodeId: string;
+    referenceNodeId: string;
 };
 
 export type StringLocation = {

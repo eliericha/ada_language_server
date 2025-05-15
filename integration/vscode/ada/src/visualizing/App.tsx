@@ -62,6 +62,8 @@ const nodeWidth = 250;
 const nodeHeight = 300;
 let referencesPickerMenu: ReferencesPickerMenuProps | null = null;
 let setReferencesPickerMenu: React.Dispatch<React.SetStateAction<ReferencesPickerMenuProps | null>>;
+let nodeContextMenu: NodeContextMenuProps | null = null;
+let setNodeContextMenu: React.Dispatch<React.SetStateAction<NodeContextMenuProps | null>>;
 
 let timeoutId: NodeJS.Timeout | null = null;
 type Graph = {
@@ -182,6 +184,9 @@ function handleReveal(data: string) {
     const response = JSON.parse(data) as RevealReferencesResponse;
     if (referencesPickerMenu)
         setReferencesPickerMenu({ ...referencesPickerMenu, locations: response.locations });
+    else if (nodeContextMenu) {
+        setNodeContextMenu({ ...nodeContextMenu, locations: response.locations });
+    }
 }
 
 /**
@@ -222,7 +227,9 @@ export default function App() {
     [nodes, setNodes, onNodesChange] = useNodesState(nodes);
     [edges, setEdges, onEdgesChange] = useEdgesState(edges);
     // Save the state of the contextMenu (right click on a node).
-    const [nodeMenu, setNodeMenu] = React.useState<NodeContextMenuProps | null>(null);
+    // setNodeMenu will be called outside this function but this is the only place
+    // where useState can be used.
+    [nodeContextMenu, setNodeContextMenu] = React.useState<NodeContextMenuProps | null>(null);
     // The references picker menu is filled with information from the server side so
     // setReferencesPickerMenu will be called outside this function but this is the only place
     // where useState can be used.
@@ -334,36 +341,45 @@ export default function App() {
             onNodeContextClose();
             onSearchBarClose();
             event.preventDefault();
-            let target: string = '';
-            let source: string = '';
+            let targetNodeId: string = '';
+            let referenceNodeId: string = '';
+            const menuWidth = 200;
+            const pane = ref.current.getBoundingClientRect();
             if (!edge.data) return;
             if (edge.data.edgeDirection === RelationDirection.SUB) {
-                target = edge.source;
-                source = edge.target;
+                targetNodeId = edge.source;
+                referenceNodeId = edge.target;
             } else if (edge.data.edgeDirection === RelationDirection.SUPER) {
-                target = edge.target;
-                source = edge.source;
+                targetNodeId = edge.target;
+                referenceNodeId = edge.source;
+            }
+
+            let left = event.clientX;
+            if (event.clientX - menuWidth / 2 < 0) {
+                left += (menuWidth - event.clientX) / 2;
+            } else if (event.clientX + menuWidth / 2 > pane.width) {
+                left -= event.clientX + menuWidth / 2 - pane.width;
             }
 
             setReferencesPickerMenu({
                 onReferencesPickerClose: onReferencesPickerClose,
                 top: event.clientY,
-                left: event.clientX,
-                right: undefined,
-                bottom: undefined,
+                left: left,
                 edge: edge,
-                source: getNode(source),
-                target: getNode(target),
+                source: getNode(referenceNodeId),
+                target: getNode(targetNodeId),
                 locations: [],
                 openedByClick: openedByClick,
+                menuWidth: menuWidth,
+                pane: pane,
             } as ReferencesPickerMenuProps);
 
-            if (target !== '' && source !== '')
+            if (targetNodeId !== '' && referenceNodeId !== '')
                 vscode.postMessage({
                     command: 'revealReferences',
                     data: JSON.stringify({
-                        targetId: target,
-                        sourceId: source,
+                        targetNodeId: targetNodeId,
+                        referenceNodeId: referenceNodeId,
                     } as RevealReferencesMessage),
                 });
 
@@ -402,7 +418,7 @@ export default function App() {
             // picker menu.
             timeoutId = setTimeout(() => {
                 if (referencesPickerMenu === null) openReferencesPicker(event, edge, false);
-            }, 500);
+            }, 750);
         },
 
         [edges, canOpenReferencesPicker],
@@ -484,7 +500,10 @@ export default function App() {
     /**
      * Close the node context menu.
      */
-    const onNodeContextClose = React.useCallback(() => setNodeMenu(null), [setNodeMenu]);
+    const onNodeContextClose = React.useCallback(
+        () => setNodeContextMenu(null),
+        [setNodeContextMenu],
+    );
 
     /**
      * Create the context menu and position it on the close to the mouse position.
@@ -495,28 +514,33 @@ export default function App() {
             if (ref.current) {
                 onSearchBarClose();
                 onReferencesPickerClose();
+                onNodeContextClose();
                 const pane = ref.current.getBoundingClientRect();
 
-                setNodeMenu({
-                    node: node,
-                    // Handle the case where the mouse is close to a border (displace the context
-                    // menu to another quadrant)
-                    top: event.clientY < pane.height - nodeHeight ? event.clientY : undefined,
-                    left: event.clientX < pane.width - nodeWidth ? event.clientX : undefined,
-                    right:
-                        event.clientX >= pane.width - nodeWidth
-                            ? pane.width - event.clientX
-                            : undefined,
-                    bottom:
-                        event.clientY >= pane.height - nodeHeight
-                            ? pane.height - event.clientY
-                            : undefined,
-                    onContextClose: onNodeContextClose,
-                    onNodeDelete: onNodeDelete,
-                } as NodeContextMenuProps);
+                setTimeout(() => {
+                    setNodeContextMenu({
+                        node: node,
+                        // Handle the case where the mouse is close to a border
+                        // (displace the context menu to another quadrant)
+                        top: event.clientY < pane.height - nodeHeight ? event.clientY : undefined,
+                        left: event.clientX < pane.width - nodeWidth ? event.clientX : undefined,
+                        right:
+                            event.clientX >= pane.width - nodeWidth
+                                ? pane.width - event.clientX
+                                : undefined,
+                        bottom:
+                            event.clientY >= pane.height - nodeHeight
+                                ? pane.height - event.clientY
+                                : undefined,
+                        locations: [],
+                        pane: pane,
+                        onContextClose: onNodeContextClose,
+                        onNodeDelete: onNodeDelete,
+                    } as NodeContextMenuProps);
+                }, 200);
             }
         },
-        [setNodeMenu, ref],
+        [setNodeContextMenu, ref],
     );
 
     /**
@@ -656,7 +680,7 @@ export default function App() {
                             onClick={onCenter}
                         />
                     </Controls>
-                    {nodeMenu && <NodeContextMenu {...nodeMenu} />}
+                    {nodeContextMenu && <NodeContextMenu {...nodeContextMenu} />}
                     {referencesPickerMenu && <ReferencesPickerMenu {...referencesPickerMenu} />}
                     <Background size={3} gap={56} />
                     <Panel position="top-right">
