@@ -1430,7 +1430,6 @@
         "@wdio/local-runner": "^8.44.1",
         "@wdio/mocha-framework": "^8.41.0",
         "@wdio/spec-reporter": "^8.43.0",
-        "copyfiles": "^2.4.1",
         "css-loader": "^7.1.2",
         "dotenv": "^16.4.5",
         "esbuild-wasm": "0.23.1",
