@@ -28,8 +28,7 @@ import {
 } from '@xyflow/react';
 
 import '@xyflow/react/dist/style.css';
-import './customNodes.css';
-import 'vscode-webview';
+import './visualizerStyleSheet.css';
 import { edgeFactory, edgeTypes, floatingConnectionLine } from './customEdges';
 import { moveNodes, nodeFactory, nodeTypes } from './customNodes';
 import { elkOptions, layoutSubgraph, layoutSubgraphs } from './layouting';

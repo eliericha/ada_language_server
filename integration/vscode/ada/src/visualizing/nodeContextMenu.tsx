@@ -10,7 +10,7 @@ import {
     RevealReferencesMessage,
     StringLocation,
 } from '../visualizerTypes';
-import { getNodeKind, waitingBar } from './utils';
+import { waitingBar } from './utils';
 import {
     referencesPickerOnClick,
     referencesPickerOnKeyDown,
@@ -47,7 +47,7 @@ export function NodeContextMenu(props: NodeContextMenuProps) {
             setTimeoutId(
                 setTimeout(() => {
                     props.onContextClose();
-                }, 200),
+                }, 100),
             );
         };
 
@@ -83,19 +83,14 @@ export function NodeContextMenu(props: NodeContextMenuProps) {
      */
     const requestHierarchy = React.useCallback(
         ({ direction = RelationDirection.SUPER }) => {
-            const kind = (props.node.data as NodeData).kind;
-            const hierarchy = getNodeKind(kind);
-            const hasChildren = (props.node.data as NodeData).hasChildren;
+            const hierarchy = (props.node.data as NodeData).hierarchy;
             waitingBar();
             vscode.postMessage({
                 command: 'requestHierarchy',
                 data: JSON.stringify({
                     id: props.node.id,
                     direction: direction,
-                    expand:
-                        direction === RelationDirection.SUB && hasChildren
-                            ? !props.node.data.expanded
-                            : props.node.data.expanded,
+                    expand: props.node.data.expanded,
                     hierarchy: hierarchy,
                 } as HierarchyMessage),
             });

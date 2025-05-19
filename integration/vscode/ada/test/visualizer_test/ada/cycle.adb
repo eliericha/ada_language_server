@@ -37,11 +37,11 @@ package body Cycle is
       return Baz (t);
    end Qux;
 
-   procedure Quux (t : Integer) return Integer is
+   procedure Bat (t : Integer) return Integer is
    begin
-      return Baz (t) + Quux (4);
+      return Baz (t) + Bat (4);
 
-   end Quux;
+   end Bat;
 
 
 end Cycle;

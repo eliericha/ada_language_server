@@ -25,10 +25,10 @@ type Subgraph = {
 
 export const elkOptions = {
     'elk.algorithm': 'mrtree',
-    'elk.layered.spacing.nodeNodeBetweenLayers': '250',
-    'elk.layered.spacing.edgeNodeBetweenLayers': '50',
+    // 'elk.layered.spacing.nodeNodeBetweenLayers': '500',
+    // 'elk.layered.spacing.edgeNodeBetweenLayers': '500',
     'elk.spacing.nodeNode': '300',
-    'elk.spacing.componentComponent': '300',
+    // 'elk.spacing.componentComponent': '300',
     'elk.layered.layering.strategy': 'INTERACTIVE',
     'elk.layered.cycleBreaking.strategy': 'INTERACTIVE',
     'elk.layered.crossingMinimization.strategy': 'INTERACTIVE',

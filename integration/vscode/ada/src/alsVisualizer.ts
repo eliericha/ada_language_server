@@ -69,7 +69,7 @@ function startProgress() {
 /**
  * Stop the progress animation in the status bar.
  */
-function stropProgress() {
+function stopProgress() {
     if (progressPromise) {
         progressPromise = null;
         resolvePromise();
@@ -113,7 +113,7 @@ export async function startVisualize(context: vscode.ExtensionContext, hierarchy
                 panel.webview.postMessage({ command: 'isRendered', data: '' } as Message);
             }
         }
-        stropProgress();
+        stopProgress();
     }
 }
 
@@ -125,6 +125,7 @@ export async function startVisualize(context: vscode.ExtensionContext, hierarchy
 async function handleMessage(message: Message) {
     if (!message.data) return;
     switch (message.command) {
+        // Add new nodes to the graph or fold/unfold.
         case 'requestHierarchy': {
             startProgress();
             const data = JSON.parse(message.data) as HierarchyMessage;
@@ -143,20 +144,23 @@ async function handleMessage(message: Message) {
                     data.direction,
                 );
             sendMessage(data.id, data.hierarchy);
-            stropProgress();
+            stopProgress();
             break;
         }
+        // Reveal the definition symbol of a specific node.
         case 'revealNode': {
             const node = symbolsMap.get(message.data);
             if (node === undefined) return;
             void revealSymbol(node.location, node.hierarchy);
             break;
         }
+        // Gather all references of a symbol in an other symbol.
         case 'revealReferences': {
             const ids = JSON.parse(message.data) as RevealReferencesMessage;
             void revealReference(ids.targetNodeId, ids.referenceNodeId);
             break;
         }
+        // Reconstruct a location and reveal the symbol under it in the code.
         case 'revealLocation': {
             const location_data = JSON.parse(message.data) as StringLocation;
             const location = new vscode.Location(
@@ -166,16 +170,18 @@ async function handleMessage(message: Message) {
             void revealSymbol(location, Hierarchy.CALL);
             break;
         }
+        // Delete a set of nodes and their childs.
         case 'deleteNodes': {
             const data = JSON.parse(message.data) as NodeIdsMessage;
             deleteNodes(data.nodesId);
             break;
         }
+        // Refresh the location of a node in the code.
         case 'refreshNodes': {
             startProgress();
             const data = JSON.parse(message.data) as NodeIdsMessage;
             void refreshNodes(data.nodesId);
-            stropProgress();
+            stopProgress();
             break;
         }
     }
@@ -482,7 +488,7 @@ async function revealSymbol(location: vscode.Location, hierarchy: Hierarchy) {
         preserveFocus: false,
     });
     editor.selection = new vscode.Selection(location.range.start, location.range.start);
-    editor.revealRange(location.range, vscode.TextEditorRevealType.Default);
+    editor.revealRange(location.range, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
 }
 
 /**

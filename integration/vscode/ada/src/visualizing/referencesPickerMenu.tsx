@@ -93,7 +93,7 @@ export function referencesPickerOnKeyDown(
                 if (timeoutId) clearTimeout(timeoutId);
                 timeoutId = null;
             }
-        }, 200);
+        }, 50);
     }
 
     childs[newCurrent].classList.add('visualizer__references-picker-item-selected');

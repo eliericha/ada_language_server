@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { Handle, Node, NodeProps, Position, useReactFlow, XYPosition } from '@xyflow/react';
-import './customNodes.css';
+import './visualizerStyleSheet.css';
 import {
     Direction,
     NodeData,
@@ -9,7 +9,7 @@ import {
     Hierarchy,
 } from '../visualizerTypes';
 import { currentDirection, vscode } from './App';
-import { getNodeKind, waitingBar } from './utils';
+import { waitingBar } from './utils';
 
 type DataNode = Node<NodeData, 'data'>;
 
@@ -195,11 +195,11 @@ export function Rectangle(node: NodeProps<DataNode>) {
                         direction === RelationDirection.SUB && data.hasChildren
                             ? !data.expanded
                             : data.expanded,
-                    hierarchy: getNodeKind(data.kind),
+                    hierarchy: data.hierarchy,
                 } as HierarchyMessage),
             });
         },
-        [data.id, data.kind, data.expanded],
+        [data.id, data.kind, data.expanded, data.hasChildren],
     );
 
     return (
@@ -229,7 +229,7 @@ export function Rectangle(node: NodeProps<DataNode>) {
             />
             <div className="visualizer__node-title">
                 <span className={iconClass} style={{ color: color }}></span>
-                <div className={'visualizer__text' + 'visualizer__ellipsis-text'}>{data.label}</div>
+                <div className={'visualizer__text visualizer__ellipsis-text'}>{data.label}</div>
             </div>
             <div className="visualizer__node-body">
                 <div className="visualizer__ellipsis-text">File : {fileName}</div>
@@ -253,6 +253,7 @@ export function Rectangle(node: NodeProps<DataNode>) {
             <button
                 className={subButtonClass}
                 title={subButtonTitle}
+                // Can also be null so we need to check for false exactly.
                 style={{ display: data.hasChildren === false ? 'none' : 'inherit' }}
                 onClick={(event) => {
                     event.preventDefault();
@@ -260,6 +261,7 @@ export function Rectangle(node: NodeProps<DataNode>) {
                 }}
             ></button>
             <div
+                // Can also be null so we need to check for false exactly.
                 style={{ display: data.hasChildren === false ? 'none' : 'inherit' }}
                 className={subButtonBackgroundClass}
             ></div>
