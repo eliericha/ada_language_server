@@ -1,5 +1,5 @@
 import { Node, ReactFlowProvider } from '@xyflow/react';
-import React from 'react';
+import React, { KeyboardEvent } from 'react';
 import { vscode } from './App';
 import {
     Hierarchy,
@@ -11,11 +11,7 @@ import {
     StringLocation,
 } from '../visualizerTypes';
 import { waitingBar } from './utils';
-import {
-    referencesPickerOnClick,
-    referencesPickerOnKeyDown,
-    setTimeoutId,
-} from './referencesPickerMenu';
+import { referencesPickerOnClick, referencesPickerOnKeyDown } from './referencesPickerMenu';
 
 export type NodeContextMenuProps = {
     node: Node;
@@ -23,7 +19,8 @@ export type NodeContextMenuProps = {
     left: number | undefined;
     right: number | undefined;
     bottom: number | undefined;
-    locations: StringLocation[];
+    // locations: StringLocation[];
+    locationsMap: Map<string, StringLocation[]>;
     pane: DOMRect;
     onContextClose: () => void;
     onNodeDelete: (toDelete: Node[]) => void;
@@ -38,17 +35,21 @@ let intervalId: NodeJS.Timeout | null = null;
  * @returns a div containing a context menu for a specific node
  */
 export function NodeContextMenu(props: NodeContextMenuProps) {
-    const locations: React.JSX.Element[] = [];
+    const [locations, setLocations] = React.useState<React.JSX.Element[]>([]);
     const [current, setCurrent] = React.useState(-1);
+    const [canClose, setCanClose] = React.useState(true);
+    const [referencesMap, setReferencesMap] = React.useState<
+        Map<React.JSX.Element, React.JSX.Element[]>
+    >(new Map());
+    void setReferencesMap;
+    void setLocations;
 
     // Close the context menu if the mouse leave the window
     React.useEffect(() => {
         const handleLostFocus = (): void => {
-            setTimeoutId(
-                setTimeout(() => {
-                    props.onContextClose();
-                }, 100),
-            );
+            if (canClose) {
+                props.onContextClose();
+            }
         };
 
         window.addEventListener('blur', handleLostFocus);
@@ -56,7 +57,7 @@ export function NodeContextMenu(props: NodeContextMenuProps) {
         return () => {
             window.removeEventListener('blur', handleLostFocus);
         };
-    }, []);
+    }, [canClose]);
 
     /**
      * Send a refresh node request to the server side.
@@ -102,7 +103,7 @@ export function NodeContextMenu(props: NodeContextMenuProps) {
     const onMouseEnter = React.useCallback(() => {
         const list = document.getElementsByClassName('visualizer__references-picker-menu');
         if (list.length > 0) (list[0] as HTMLElement).style.visibility = 'visible';
-        if (props.locations.length === 0) {
+        if (props.locationsMap.size === 0) {
             vscode.postMessage({
                 command: 'revealReferences',
                 data: JSON.stringify({
@@ -138,9 +139,9 @@ export function NodeContextMenu(props: NodeContextMenuProps) {
      */
     const onClick = React.useCallback(
         (event: React.MouseEvent<HTMLLIElement>) => {
-            referencesPickerOnClick(event, props.locations, props.onContextClose);
+            referencesPickerOnClick(event, props.locationsMap, setCanClose, props.onContextClose);
         },
-        [props.locations],
+        [props.locationsMap],
     );
 
     /**
@@ -152,31 +153,57 @@ export function NodeContextMenu(props: NodeContextMenuProps) {
                 event,
                 current,
                 setCurrent,
+                setCanClose,
                 props.onContextClose,
-                props.locations,
+                props.locationsMap,
                 'visualizer__context-references-button',
             );
         },
         [current],
     );
 
-    if (props.locations.length > 0) {
-        props.locations.forEach((location) => {
-            // Handle windows/linux/macos filesystems
-            const fileName = location.path.replace(/^.*(\\|\/|:)/, '');
-            const loc = `${fileName} : ${location.string_location}`;
-            locations.push(
+    // If no locations has been registered yet create all the list elements.
+    if (locations.length === 0) {
+        for (const key of props.locationsMap.keys()) {
+            const stringLocation = props.locationsMap.get(key);
+            if (!stringLocation || stringLocation.length === 0) continue;
+            const fileName = stringLocation[0].path.replace(/^.*(\\|\/|:)/, '');
+            const headerName = `${key}: ${fileName}`;
+            const header = (
                 <li
-                    className="visualizer__references-picker-item"
-                    onClick={onClick}
-                    key={loc}
-                    data-string-loc={location.string_location}
-                    title={loc}
+                    className={
+                        'visualizer__references-picker-item' +
+                        ' visualizer__references-picker-header' +
+                        ' visualizer__ellipsis-text'
+                    }
+                    key={headerName}
+                    data-header={headerName}
+                    title={stringLocation[0].path}
                 >
-                    {loc}
-                </li>,
+                    <span>{headerName}</span>
+                </li>
             );
-        });
+            referencesMap.set(header, []);
+            locations.push(header);
+            stringLocation.forEach((location) => {
+                // Handle windows/linux/macos filesystems
+                const loc = `${location.string_location}`;
+                const position = (
+                    <li
+                        className="visualizer__references-picker-item"
+                        onClick={onClick}
+                        key={loc}
+                        data-string-loc={location.string_location}
+                        title={loc}
+                        style={{ textIndent: '1em' }}
+                    >
+                        {loc}
+                    </li>
+                );
+                referencesMap.get(header)?.push(position);
+                locations.push(position);
+            });
+        }
     }
 
     let left: number | undefined = undefined;
@@ -253,10 +280,7 @@ export function NodeContextMenu(props: NodeContextMenuProps) {
                     onKeyDown={onKeyDown}
                 >
                     <span> Go to References </span>{' '}
-                    <div
-                        className="codicon codicon-chevron-right"
-                        // style={{ position: 'absolute' }}
-                    />
+                    <div className="codicon codicon-chevron-right" />
                     <div
                         className={
                             'visualizer__references-picker-menu' +

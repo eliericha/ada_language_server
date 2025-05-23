@@ -34,13 +34,13 @@ export function edgeFactory(src: string, dst: string, edgeDirection: RelationDir
         type: src === dst ? 'selfConnection' : 'floating',
         markerEnd:
             edgeDirection === RelationDirection.BOTH || edgeDirection === RelationDirection.SUB
-                ? { height: 15, width: 15, type: MarkerType.Arrow }
+                ? { height: 25, width: 25, type: MarkerType.Arrow }
                 : undefined,
         markerStart:
             edgeDirection === RelationDirection.BOTH || edgeDirection === RelationDirection.SUPER
-                ? { height: 15, width: 15, type: MarkerType.Arrow }
+                ? { height: 25, width: 25, type: MarkerType.Arrow }
                 : undefined,
-        style: { strokeWidth: 2 },
+        style: { strokeWidth: 3 },
         sourcePosition: src === dst ? Position.Top : undefined,
         targetPosition: src === dst ? Position.Bottom : undefined,
         data: {
@@ -181,6 +181,9 @@ type EdgeType = {
 export function floatingEdge(floatingEdge: EdgeType) {
     const sourceNode = useInternalNode(floatingEdge.source);
     const targetNode = useInternalNode(floatingEdge.target);
+    // The multiplier to increase the zone of hover of the edge.
+    // 2 is not 100% increase but more like 25%.
+    const strokeMultiplier = 8;
 
     // If an internal node is not defined just return an empty path
     if (!sourceNode || !targetNode) {
@@ -230,7 +233,8 @@ export function floatingEdge(floatingEdge: EdgeType) {
                 style={{
                     stroke: 'transparent',
                     fill: 'none',
-                    strokeWidth: strokeWidth * 7.5,
+
+                    strokeWidth: strokeWidth * strokeMultiplier,
                 }}
             />
         </>
@@ -291,10 +295,12 @@ export function selfConnection(props: EdgeType) {
         currentDirection === Direction.RIGHT
             ? (5 * (node?.width ?? 0)) / 6
             : (node?.width ?? 0) / 3;
+
     const radiusY =
         currentDirection === Direction.RIGHT
             ? (node?.height ?? 0) / 3
             : (5 * (node?.height ?? 0)) / 6;
+
     const edgePath =
         `M ${sourceX} ${sourceY} A ${radiusX} ${radiusY} 0 1 0` + ` ${targetX} ${targetY}`;
 

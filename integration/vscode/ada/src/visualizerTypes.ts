@@ -42,7 +42,10 @@ export type StringLocation = {
 };
 
 export type RevealReferencesResponse = {
-    locations: StringLocation[];
+    // locations: StringLocation[];
+    // locationsMap: Map<string, StringLocation[]>;
+    locationsKeys: string[];
+    locationsValues: StringLocation[][];
 };
 
 /**

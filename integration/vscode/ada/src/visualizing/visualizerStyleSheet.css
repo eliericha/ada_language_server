@@ -314,8 +314,8 @@ so reduce its size a little. */
 
 /* Add additional style on hover or select. */
 .visualizer__node-search-item:hover,
-.visualizer__references-picker-item:hover,
-.visualizer__references-picker-item-selected,
+.visualizer__references-picker-item:hover:not(.visualizer__references-picker-header),
+.visualizer__references-picker-item-selected:not(.visualizer__references-picker-header),
 .visualizer__node-search-selected {
     color: var(--visualizer-item-selected);
     background-color: color-mix(
@@ -426,8 +426,20 @@ so reduce its size a little. */
     overflow-x: hidden;
     overflow-y: auto;
     outline: none;
+    scroll-padding-top: 40px;
 }
 
+.visualizer__references-picker-item.visualizer__references-picker-header {
+    position: sticky;
+    top: -2px;
+    color: var(--visualizer-border-color-focused);
+    background: var(--visualizer-item-background);
+    border-radius: 0;
+    font-size: 1.1em;
+    z-index: 100;
+    margin-bottom: 3px;
+    border-bottom: 2px solid rgba(0, 0, 0, 0.1);
+}
 /* Style the list item of the the references picker menu. */
 .visualizer__references-picker-item {
     padding: 1%;

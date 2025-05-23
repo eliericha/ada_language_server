@@ -16,25 +16,28 @@ export function getNodeKind(kind: string) {
 }
 
 /**
- * Re create the marker csv in the right color for a specific edge.
+ * Modify the edge to update its color and re create the marker csv in the right color.
  *
  * @param edge - The edge to change.
  * @param color - The color to apply on the marker.
  * @param additionalClass - An additional class that will be added to the edge on render.
- * @param unselect - A boolean indicating if the edge will be unselected at rerendering
+ * @param select - A boolean indicating if the edge will be unselected at rerendering,
+ * if null, no change
  * @returns The modified edge.
  */
-export function changeMarker(
+export function changeEdge(
     edge: Edge,
     color: string,
     additionalClass: string | undefined,
-    unselect = false,
+    select: boolean | null = false,
 ) {
     edge.data = { ...edge.data, additionalClass: additionalClass };
 
     if (edge.selected) {
-        if (unselect) edge.selected = false;
+        if (select === false) edge.selected = false;
         else return edge;
+    } else {
+        if (select) edge.selected = true;
     }
     // Recreate the marker to generate the right svg
     // (a marker can't be modified in place)

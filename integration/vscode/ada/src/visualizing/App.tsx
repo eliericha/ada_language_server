@@ -9,6 +9,7 @@ import {
     RelationDirection,
     RevealReferencesMessage,
     RevealReferencesResponse,
+    StringLocation,
 } from '../visualizerTypes';
 import {
     Node,
@@ -32,7 +33,7 @@ import './visualizerStyleSheet.css';
 import { edgeFactory, edgeTypes, floatingConnectionLine } from './customEdges';
 import { moveNodes, nodeFactory, nodeTypes } from './customNodes';
 import { elkOptions, layoutSubgraph, layoutSubgraphs } from './layouting';
-import { changeMarker, focusNode, waitingBar } from './utils';
+import { changeEdge, focusNode, waitingBar } from './utils';
 import { NodeContextMenu, NodeContextMenuProps } from './nodeContextMenu';
 import { closeSearchBar as onSearchBarClose, SearchBar } from './searchBar';
 import { ReferencesPickerMenu, ReferencesPickerMenuProps } from './referencesPickerMenu';
@@ -64,7 +65,9 @@ let setReferencesPickerMenu: React.Dispatch<React.SetStateAction<ReferencesPicke
 let nodeContextMenu: NodeContextMenuProps | null = null;
 let setNodeContextMenu: React.Dispatch<React.SetStateAction<NodeContextMenuProps | null>>;
 
+// Store the id of a setTimeout to ensure the uniqueness of the timeout.
 let timeoutId: NodeJS.Timeout | null = null;
+
 type Graph = {
     nodes: Node[];
     edges: Edge[];
@@ -111,6 +114,7 @@ async function handleHierarchy(messageData: string) {
     if (focusIndex !== -1 && nodes.length > numNodes) nodes[focusIndex] = { ...nodes[focusIndex] };
     else if (focusIndex !== -1) nodes[focusIndex].data.focus = false;
 
+    // Place the original position of all the new node to the focused Node.
     if (focusIndex !== -1) {
         for (const node of newNodes) {
             node.position = { ...nodes[focusIndex].position };
@@ -181,10 +185,15 @@ function handleUpdate(messageData: string) {
  */
 function handleReveal(data: string) {
     const response = JSON.parse(data) as RevealReferencesResponse;
+    const locationsMap: Map<string, StringLocation[]> = new Map();
+    for (let i = 0; i < response.locationsKeys.length; i++) {
+        locationsMap.set(response.locationsKeys[i], response.locationsValues[i]);
+    }
+    // Check which menu currently exist to fill it with the different locations.
     if (referencesPickerMenu)
-        setReferencesPickerMenu({ ...referencesPickerMenu, locations: response.locations });
+        setReferencesPickerMenu({ ...referencesPickerMenu, locationsMap: locationsMap });
     else if (nodeContextMenu) {
-        setNodeContextMenu({ ...nodeContextMenu, locations: response.locations });
+        setNodeContextMenu({ ...nodeContextMenu, locationsMap: locationsMap });
     }
 }
 
@@ -220,7 +229,8 @@ const handleMessage = (text: MessageEvent<Message>) => {
  * @returns A div containing the react flow graph's viewPort.
  */
 export default function App() {
-    const minZoom = 0.1;
+    // The max and min zoom on the viewPort.
+    const minZoom = 0;
     const maxZoom = 4;
 
     [nodes, setNodes, onNodesChange] = useNodesState(nodes);
@@ -238,6 +248,8 @@ export default function App() {
     const [selected, setSelected] = React.useState<Edge[]>([]);
     // Save the state of the last focused element to avoid uselessly focus on it.
     const [lastFocus, setLastFocus] = React.useState<string>('');
+    // Used to check if the references picker can be open, to avoid it opening on repeat when the
+    // let his mouse hover on the edge after closing the picker for example.
     const [canOpenReferencesPicker, setCanOpenReferencesPicker] = React.useState(true);
     const ref = React.useRef<HTMLDivElement>(null);
 
@@ -302,10 +314,11 @@ export default function App() {
         void event;
         edges = edges.map((edge) => {
             if (edge.target === node.id || edge.source === node.id)
-                edge = changeMarker(
+                edge = changeEdge(
                     edge,
                     'var(--visualizer-border-color-focused)',
                     'visualizer__highlight',
+                    null,
                 );
             return edge;
         });
@@ -317,11 +330,13 @@ export default function App() {
      */
     const onNodeMouseLeave = React.useCallback((event: React.MouseEvent, node: Node) => {
         void event;
-        edges = edges.map((edge) => {
-            if (edge.target === node.id || edge.source === node.id)
-                edge = changeMarker(edge, '', undefined);
-            return edge;
-        });
+        if (!node.selected) {
+            edges = edges.map((edge) => {
+                if (edge.target === node.id || edge.source === node.id)
+                    edge = changeEdge(edge, '', undefined, null);
+                return edge;
+            });
+        }
         setEdges(edges);
     }, []);
 
@@ -367,7 +382,8 @@ export default function App() {
                 edge: edge,
                 source: getNode(referenceNodeId),
                 target: getNode(targetNodeId),
-                locations: [],
+                // locations: [],
+                locationsMap: new Map(),
                 openedByClick: openedByClick,
                 menuWidth: menuWidth,
                 pane: pane,
@@ -403,10 +419,11 @@ export default function App() {
     const onEdgeMouseEnter = React.useCallback(
         (event: React.MouseEvent, edge: Edge) => {
             void event;
-            edge = changeMarker(
+            edge = changeEdge(
                 edge,
                 'var(--visualizer-border-color-focused)',
                 'visualizer__highlight',
+                null,
             );
 
             edges[edges.findIndex((searchEdge) => searchEdge.id === edge.id)] = { ...edge };
@@ -443,7 +460,7 @@ export default function App() {
     const onEdgeMouseLeave = React.useCallback(
         (event: React.MouseEvent, edge: Edge) => {
             void event;
-            edge = changeMarker(edge, '', undefined);
+            edge = changeEdge(edge, '', undefined, null);
 
             edges[edges.findIndex((searchEdge) => searchEdge.id === edge.id)] = edge;
             // Refresh the array to force re rendering
@@ -476,18 +493,21 @@ export default function App() {
     /**
      * Close the node context menu and clear the node search bar on pane click
      */
-    const onPaneClick = React.useCallback((event: React.MouseEvent) => {
-        void event;
-        setLastFocus('');
-        const searchBar = document.getElementById('visualizer__node-search-bar');
-        if (!searchBar) return;
-        (searchBar as HTMLInputElement).value = '';
+    const onPaneClick = React.useCallback(
+        (event: React.MouseEvent) => {
+            void event;
+            setLastFocus('');
 
-        // Close all popup (context menu, search bar menu).
-        onSearchBarClose();
-        onNodeContextClose();
-        onReferencesPickerClose();
-    }, []);
+            // Force the unselection of all the nodes and edges as sometimes the
+            // onChange call back is not called
+            onChange({ nodes: [], edges: [] });
+            // Close all popup (context menu, search bar menu).
+            onSearchBarClose();
+            onNodeContextClose();
+            onReferencesPickerClose();
+        },
+        [selected],
+    );
 
     /**
      * Prevent the regular pane click to happen as its features are useless here.
@@ -531,7 +551,8 @@ export default function App() {
                             event.clientY >= pane.height - nodeHeight
                                 ? pane.height - event.clientY
                                 : undefined,
-                        locations: [],
+                        // locations: [],
+                        locationsMap: new Map(),
                         pane: pane,
                         onContextClose: onNodeContextClose,
                         onNodeDelete: onNodeDelete,
@@ -553,7 +574,7 @@ export default function App() {
      * Set the view to the center of the webView.
      */
     const onCenter = React.useCallback(() => {
-        void setCenter(0, 0, { zoom: minZoom, duration: 1000 });
+        void setCenter(0, 0, { zoom: 0.5, duration: 1000 });
     }, []);
 
     /**
@@ -561,15 +582,33 @@ export default function App() {
      */
     const onChange = React.useCallback(
         ({ nodes: selectedNodes, edges: selectedEdges }: Graph) => {
+            console.log('toto');
             void selectedNodes;
             for (const oldEdge of selected) {
                 if (!selectedEdges.some((edge) => edge.id === oldEdge.id)) {
-                    const edge = changeMarker(oldEdge, '', undefined, true);
+                    const edge = changeEdge(oldEdge, '', undefined, false);
                     edges[edges.findIndex((searchEdge) => searchEdge.id === edge.id)] = edge;
-                    edges = [...edges];
-                    setEdges(edges);
                 }
             }
+            for (const selectedNode of selectedNodes) {
+                const nodeEdge = edges.filter(
+                    (edge) => edge.source === selectedNode.id || edge.target === selectedNode.id,
+                );
+                for (let edge of nodeEdge) {
+                    edge = changeEdge(
+                        edge,
+                        'var(--visualizer-border-color-focused)',
+                        'visualizer__highlight',
+                        true,
+                    );
+                    edges[edges.findIndex((searchEdge) => searchEdge.id === edge.id)] = { ...edge };
+                    if (selectedEdges.find((searchEdge) => searchEdge.id === edge.id) === undefined)
+                        selectedEdges.push(edge);
+                }
+            }
+            // Refresh the array to force re rendering
+            edges = [...edges];
+            setEdges(edges);
             setSelected(selectedEdges);
         },
         [selected, edges],
@@ -601,13 +640,16 @@ export default function App() {
         [lastFocus],
     );
 
+    function closeAllPopUp() {
+        onSearchBarClose();
+        onNodeContextClose();
+        onReferencesPickerClose();
+    }
     /**
      * Close all menus on node click.
      */
     const onNodeClick = React.useCallback(() => {
-        onSearchBarClose();
-        onNodeContextClose();
-        onReferencesPickerClose();
+        closeAllPopUp();
     }, []);
 
     /**
@@ -625,9 +667,13 @@ export default function App() {
     /**
      * Enable the opening of the references picker menu after the mouse moved.
      */
-    const omMouseMove = React.useCallback(() => {
+    const onMouseMove = React.useCallback(() => {
         if (!canOpenReferencesPicker) setCanOpenReferencesPicker(true);
     }, [canOpenReferencesPicker]);
+
+    const onKeyDown = React.useCallback((event: React.KeyboardEvent) => {
+        if (event.key === 'Escape') closeAllPopUp();
+    }, []);
 
     return (
         <div style={{ width: '100vw', height: '100vh' }}>
@@ -657,11 +703,12 @@ export default function App() {
                     onNodeDoubleClick={onNodeDoubleClick}
                     onNodeContextMenu={onNodeContextMenu}
                     connectionLineComponent={floatingConnectionLine}
+                    onKeyDown={onKeyDown}
                     selectionMode={SelectionMode.Partial}
                     nodesConnectable={false}
                     deleteKeyCode={['Delete', 'Backspace']}
                     edgesFocusable={false}
-                    onMouseMove={omMouseMove}
+                    onMouseMove={onMouseMove}
                     // The nodes remains focusable by their inner objects not the outer.
                     nodesFocusable={false}
                     className="visualizer__colors"

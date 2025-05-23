@@ -11,25 +11,14 @@ export type ReferencesPickerMenuProps = {
     target: Node;
     source: Node;
     openedByClick: boolean;
-    locations: StringLocation[];
+    // locations: StringLocation[];
+    locationsMap: Map<string, StringLocation[]>;
     menuWidth: number;
     pane: DOMRect;
 };
 
 // Store the id of the interval used to focus on the menu.
 let intervalId: NodeJS.Timeout | null = null;
-
-// Store the id of the timeout used for closing the menu.
-let timeoutId: NodeJS.Timeout | null = null;
-
-/**
- * Set the timeoutId from other files in order to factorize code.
- *
- * @param id - The id of the timeoutInstance.
- */
-export function setTimeoutId(id: NodeJS.Timeout | null) {
-    timeoutId = id;
-}
 
 /**
  * Handle the displacement of the user in the picker menu using the keyboard.
@@ -46,8 +35,9 @@ export function referencesPickerOnKeyDown(
     event: React.KeyboardEvent,
     current: number,
     setCurrent: (value: React.SetStateAction<number>) => void,
+    setCanClose: React.Dispatch<React.SetStateAction<boolean>>,
     closeFunction: () => void,
-    locations: StringLocation[],
+    locationsMap: Map<string, StringLocation[]>,
     elementId: string,
 ) {
     let newCurrent = current;
@@ -60,12 +50,18 @@ export function referencesPickerOnKeyDown(
     // Go to the previous element in the list (go to the last element in case of underflow)
     if (event.key === 'ArrowDown' || event.key === 'Tab') {
         event.preventDefault();
-        newCurrent = (current + 1) % ul.childElementCount;
+        newCurrent = current;
+        do {
+            newCurrent = (newCurrent + 1) % ul.childElementCount;
+        } while (childs[newCurrent].classList.contains('visualizer__references-picker-header'));
     }
     // Go to the previous element in the list (go to the last element in case of underflow)
     else if (event.key === 'ArrowUp') {
         event.preventDefault();
-        newCurrent = current - 1 >= 0 ? current - 1 : ul.childElementCount - 1;
+        newCurrent = current;
+        do {
+            newCurrent = newCurrent - 1 >= 0 ? newCurrent - 1 : ul.childElementCount - 1;
+        } while (childs[newCurrent].classList.contains('visualizer__references-picker-header'));
     }
     // Close the references picker when the user presses escape.
     else if (event.key === 'Escape') {
@@ -79,21 +75,27 @@ export function referencesPickerOnKeyDown(
     // Reveal the location of the current item in the code.
     const location_string = childs[newCurrent].getAttribute('data-string-loc');
     if (!location_string) return;
-    const location = locations.find((location) => location.string_location === location_string);
+    const location = Array.from(locationsMap.values())
+        .flat()
+        .find((location) => location.string_location === location_string);
+
     vscode.postMessage({
         command: 'revealLocation',
         data: JSON.stringify(location),
     });
 
     if (event.key !== 'Enter') {
-        setTimeout(() => {
+        setCanClose(false);
+        const intervalId = setInterval(() => {
             const ul = document.getElementById(elementId) as HTMLUListElement;
             if (ul) {
                 ul.focus();
-                if (timeoutId) clearTimeout(timeoutId);
-                timeoutId = null;
+                clearInterval(intervalId);
+                setCanClose(true);
             }
         }, 50);
+    } else {
+        setCanClose(true);
     }
 
     childs[newCurrent].classList.add('visualizer__references-picker-item-selected');
@@ -109,13 +111,17 @@ export function referencesPickerOnKeyDown(
  */
 export function referencesPickerOnClick(
     event: React.MouseEvent<HTMLLIElement>,
-    locations: StringLocation[],
+    locationsMap: Map<string, StringLocation[]>,
+    setCanClose: React.Dispatch<React.SetStateAction<boolean>>,
     closeFunction: () => void,
 ) {
     event.preventDefault();
+    setCanClose(true);
     const location_string = (event.target as HTMLLIElement).getAttribute('data-string-loc');
     if (!location_string) return;
-    const location = locations.find((location) => location.string_location === location_string);
+    const location = Array.from(locationsMap.values())
+        .flat()
+        .find((location) => location.string_location === location_string);
     vscode.postMessage({
         command: 'revealLocation',
         data: JSON.stringify(location),
@@ -133,6 +139,7 @@ export function referencesPickerOnClick(
 export function ReferencesPickerMenu(props: ReferencesPickerMenuProps) {
     const [current, setCurrent] = React.useState(-1);
     const [send, setSend] = React.useState(false);
+    const [canClose, setCanClose] = React.useState(true);
     const locations: React.JSX.Element[] = [];
 
     /**
@@ -140,17 +147,18 @@ export function ReferencesPickerMenu(props: ReferencesPickerMenuProps) {
      * before being refocused on the menu. To avoid the menu being close during that time,
      * a slight delai is added so the mouse have a chance to return to its original window.
      */
-    const handleLostFocus = () => {
-        timeoutId = setTimeout(() => {
+    const handleLostFocus = React.useCallback(() => {
+        if (canClose) {
             const edgeMenu = document.getElementsByClassName('visualizer__references-picker-menu');
             if (edgeMenu.length > 0) {
                 edgeMenu[0].classList.add('visualizer__close');
             }
+            console.log(canClose);
             setTimeout(() => {
                 props.onReferencesPickerClose();
             }, 300);
-        }, 100);
-    };
+        }
+    }, [canClose]);
 
     // Close the context menu if the mouse leave the window
     React.useEffect(() => {
@@ -159,16 +167,16 @@ export function ReferencesPickerMenu(props: ReferencesPickerMenuProps) {
         return () => {
             window.removeEventListener('blur', handleLostFocus);
         };
-    }, []);
+    }, [canClose]);
 
     /**
      * Send a request to reveal the location of the list item being currently hovered.
      */
     const onClick = React.useCallback(
         (event: React.MouseEvent<HTMLLIElement>) => {
-            referencesPickerOnClick(event, props.locations, handleLostFocus);
+            referencesPickerOnClick(event, props.locationsMap, setCanClose, handleLostFocus);
         },
-        [props.locations],
+        [props.locationsMap, canClose],
     );
 
     /**
@@ -180,44 +188,52 @@ export function ReferencesPickerMenu(props: ReferencesPickerMenuProps) {
                 event,
                 current,
                 setCurrent,
+                setCanClose,
                 props.onReferencesPickerClose,
-                props.locations,
+                props.locationsMap,
                 'visualizer__references-picker-list',
             );
         },
-        [current],
+        [current, canClose],
     );
 
     // If the user clicked on the edge and there is only one element directly reveal this location.
-    if (props.locations.length === 1 && props.openedByClick) {
+    if (
+        props.locationsMap.size === 1 &&
+        Array.from(props.locationsMap.values())[0].length === 1 &&
+        props.openedByClick
+    ) {
         if (!send) {
             setSend(true);
 
             vscode.postMessage({
                 command: 'revealLocation',
-                data: JSON.stringify(props.locations[0]),
+                data: JSON.stringify(Array.from(props.locationsMap.values())[0][0]),
             });
         }
         return;
     }
 
-    if (props.locations.length > 0) {
-        props.locations.forEach((location) => {
-            // Handle windows/linux/macos filesystems
-            const fileName = props.locations[0].path.replace(/^.*(\\|\/|:)/, '');
-            const loc = `${fileName} : ${location.string_location}`;
-            locations.push(
-                <li
-                    className="visualizer__references-picker-item"
-                    onClick={onClick}
-                    key={loc}
-                    data-string-loc={location.string_location}
-                    title={loc}
-                >
-                    {location.string_location}
-                </li>,
-            );
-        });
+    if (props.locationsMap.size > 0) {
+        for (const key of props.locationsMap.keys()) {
+            const stringLocation = props.locationsMap.get(key);
+            if (!stringLocation || stringLocation.length === 0) continue;
+            const fileName = stringLocation[0].path.replace(/^.*(\\|\/|:)/, '');
+            stringLocation.forEach((location) => {
+                const loc = `${fileName} : ${location.string_location}`;
+                locations.push(
+                    <li
+                        className="visualizer__references-picker-item"
+                        onClick={onClick}
+                        key={loc}
+                        data-string-loc={location.string_location}
+                        title={loc}
+                    >
+                        {location.string_location}
+                    </li>,
+                );
+            });
+        }
     } else {
         locations.push(
             <li className='"visualizer__references-picker-item' key="No references">
@@ -256,12 +272,16 @@ export function ReferencesPickerMenu(props: ReferencesPickerMenuProps) {
         }
     }
 
-    const pickerTitle = `REFERENCES (${props.locations.length})`;
+    const referencesNb = Array.from(props.locationsMap.values()).reduce(
+        (acc, arr) => acc + arr.length,
+        0,
+    );
+    const pickerTitle = `REFERENCES (${referencesNb})`;
     const title =
-        props.locations.length === 0
+        props.locationsMap.size === 0
             ? ''
-            : `References of ${(props.source.data as NodeData).label}` +
-              ` in ${(props.target.data as NodeData).label} at ${props.locations[0].path}`;
+            : `References of ${(props.source.data as NodeData).label}`; // +
+    //   ` in ${(props.target.data as NodeData).label} at ${props.locations[0].path}`;
 
     return (
         <ReactFlowProvider>

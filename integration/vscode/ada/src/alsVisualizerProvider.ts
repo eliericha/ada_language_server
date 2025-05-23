@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
-import { NodeHierarchy } from './visualizerTypes';
 
 /**
  * Create a new VisualizerHandler based on a language ID.
@@ -80,11 +79,11 @@ export class VisualizerHandler {
      * @param node - The node to get the body location from.
      * @returns The symbol's body location.
      */
-    async getFunctionBodyLocation(node: NodeHierarchy) {
-        if (!fs.existsSync(node.location.uri.fsPath)) return null;
+    async getFunctionBodyLocation(location: vscode.Location) {
+        if (!fs.existsSync(location.uri.fsPath)) return null;
         const implementations = await vscode.commands.executeCommand<
             (vscode.Location | vscode.LocationLink)[]
-        >('vscode.executeImplementationProvider', node.location.uri, node.location.range.start);
+        >('vscode.executeImplementationProvider', location.uri, location.range.start);
         if (implementations.length > 0) return implementations[0];
         return null;
     }
@@ -150,10 +149,10 @@ export class AdaVisualizerHandler extends VisualizerHandler {
 }
 
 export class CPPVisualizerHandler extends VisualizerHandler {
-    async getFunctionBodyLocation(node: NodeHierarchy) {
+    async getFunctionBodyLocation(location: vscode.Location) {
         const implementations = await vscode.commands.executeCommand<
             (vscode.Location | vscode.LocationLink)[]
-        >('vscode.executeDefinitionProvider', node.location.uri, node.location.range.start);
+        >('vscode.executeDefinitionProvider', location.uri, location.range.start);
         if (implementations.length > 0) return implementations[0];
         return null;
     }
