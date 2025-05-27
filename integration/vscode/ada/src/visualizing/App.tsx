@@ -33,7 +33,7 @@ import './visualizerStyleSheet.css';
 import { edgeFactory, edgeTypes, floatingConnectionLine } from './customEdges';
 import { moveNodes, nodeFactory, nodeTypes } from './customNodes';
 import { elkOptions, layoutSubgraph, layoutSubgraphs } from './layouting';
-import { changeEdge, focusNode, waitingBar } from './utils';
+import { changeEdge, focusNode, setIntervalCapped, waitingBar } from './utils';
 import { NodeContextMenu, NodeContextMenuProps } from './nodeContextMenu';
 import { closeSearchBar as onSearchBarClose, SearchBar } from './searchBar';
 import { ReferencesPickerMenu, ReferencesPickerMenuProps } from './referencesPickerMenu';
@@ -276,8 +276,6 @@ export default function App() {
                 return { ...node };
             });
             moveNodes(nodes, setNodes);
-            // setNodes(nodes);
-            // setEdges(edges);
         });
     }, [nodes, edges]);
 
@@ -293,18 +291,12 @@ export default function App() {
         });
 
         // Unselect the node after the double click.
-        const nodeElem = document.querySelector(`[data-node-id="${node.id}"]`);
-        const nodeWrapper = document.querySelector(`[data-id="${node.id}"]`);
+        const nodeElem = document.querySelector(`[data-node-id="${node.id}"]`) as HTMLElement;
+        const nodeWrapper = document.querySelector(`[data-id="${node.id}"]`) as HTMLElement;
 
-        (nodeElem as HTMLElement).className = (nodeElem as HTMLElement).className.replace(
-            ' visualizer__selected',
-            '',
-        );
-        (nodeElem as HTMLElement).blur();
-        (nodeWrapper as HTMLElement).className = (nodeWrapper as HTMLElement).className.replace(
-            ' selected',
-            '',
-        );
+        nodeElem.classList.remove('visualizer__selected');
+        nodeElem.blur();
+        nodeWrapper.classList.remove('selected');
     }, []);
 
     /**
@@ -352,12 +344,12 @@ export default function App() {
         // When using the references picker if the user selects a location without moving the
         // mouse, the picker would reopen alone causing the user to lose focus on its code.
         if (ref.current && canOpenReferencesPicker) {
-            onNodeContextClose();
-            onSearchBarClose();
+            closeAllPopUp();
             event.preventDefault();
+
             let targetNodeId: string = '';
             let referenceNodeId: string = '';
-            const menuWidth = 200;
+            const menuWidth = nodeWidth;
             const pane = ref.current.getBoundingClientRect();
             if (!edge.data) return;
             if (edge.data.edgeDirection === RelationDirection.SUB) {
@@ -368,6 +360,9 @@ export default function App() {
                 referenceNodeId = edge.source;
             }
 
+            //Make sure the popup doesn't overflow thought the left or right side.
+            // The top/bottom overflow will be handled in the ReferencesPickerMenu itself
+            // when all the references have been gathered.
             let left = event.clientX;
             if (event.clientX - menuWidth / 2 < 0) {
                 left += (menuWidth - event.clientX) / 2;
@@ -375,6 +370,8 @@ export default function App() {
                 left -= event.clientX + menuWidth / 2 - pane.width;
             }
 
+            // The locationsMap with all the references will be filled later when the server
+            // sended the data.
             setReferencesPickerMenu({
                 onReferencesPickerClose: onReferencesPickerClose,
                 top: event.clientY,
@@ -382,7 +379,6 @@ export default function App() {
                 edge: edge,
                 source: getNode(referenceNodeId),
                 target: getNode(targetNodeId),
-                // locations: [],
                 locationsMap: new Map(),
                 openedByClick: openedByClick,
                 menuWidth: menuWidth,
@@ -390,6 +386,7 @@ export default function App() {
             } as ReferencesPickerMenuProps);
 
             if (targetNodeId !== '' && referenceNodeId !== '')
+                // Ask the server for the references that will fill the references picker.
                 vscode.postMessage({
                     command: 'revealReferences',
                     data: JSON.stringify({
@@ -398,16 +395,20 @@ export default function App() {
                     } as RevealReferencesMessage),
                 });
 
-            // Wait for the menu to be created before adding it the class to open it.
-            const intervalId = setInterval(() => {
-                const edgeMenu = document.getElementsByClassName(
-                    'visualizer__references-picker-menu',
-                );
-                if (edgeMenu.length !== 0) {
-                    edgeMenu[0].classList.add('visualizer__open');
-                    clearInterval(intervalId);
-                }
-            }, 50);
+            // Wait until the menu is created before adding it the class to open it.
+            const intervalId = setIntervalCapped(
+                () => {
+                    const edgeMenu = document.getElementsByClassName(
+                        'visualizer__references-picker-menu',
+                    );
+                    if (edgeMenu.length !== 0) {
+                        edgeMenu[0].classList.add('visualizer__open');
+                        clearInterval(intervalId);
+                    }
+                },
+                50,
+                50,
+            );
         }
     }
 
@@ -473,6 +474,7 @@ export default function App() {
         },
         [edges],
     );
+
     /**
      * Send a delete message with the id of the main node to remove to the server side.
      */
@@ -501,10 +503,7 @@ export default function App() {
             // Force the unselection of all the nodes and edges as sometimes the
             // onChange call back is not called
             onChange({ nodes: [], edges: [] });
-            // Close all popup (context menu, search bar menu).
-            onSearchBarClose();
-            onNodeContextClose();
-            onReferencesPickerClose();
+            closeAllPopUp();
         },
         [selected],
     );
@@ -531,9 +530,7 @@ export default function App() {
         (event: React.MouseEvent, node: Node) => {
             event.preventDefault();
             if (ref.current) {
-                onSearchBarClose();
-                onReferencesPickerClose();
-                onNodeContextClose();
+                closeAllPopUp();
                 const pane = ref.current.getBoundingClientRect();
 
                 setTimeout(() => {
@@ -551,7 +548,6 @@ export default function App() {
                             event.clientY >= pane.height - nodeHeight
                                 ? pane.height - event.clientY
                                 : undefined,
-                        // locations: [],
                         locationsMap: new Map(),
                         pane: pane,
                         onContextClose: onNodeContextClose,
@@ -582,14 +578,15 @@ export default function App() {
      */
     const onChange = React.useCallback(
         ({ nodes: selectedNodes, edges: selectedEdges }: Graph) => {
-            console.log('toto');
-            void selectedNodes;
+            // Unselect all the edges that are not in the selectedEdges array anymore.
             for (const oldEdge of selected) {
                 if (!selectedEdges.some((edge) => edge.id === oldEdge.id)) {
                     const edge = changeEdge(oldEdge, '', undefined, false);
                     edges[edges.findIndex((searchEdge) => searchEdge.id === edge.id)] = edge;
                 }
             }
+
+            // Select all the edges neighboring a selected Nodes.
             for (const selectedNode of selectedNodes) {
                 const nodeEdge = edges.filter(
                     (edge) => edge.source === selectedNode.id || edge.target === selectedNode.id,
@@ -621,7 +618,6 @@ export default function App() {
 
     /**
      * Allow to cycle through the element of the webView and focus on the element if it's a node.
-
      */
     const onFocus = React.useCallback(
         (focus: React.FocusEvent) => {
@@ -640,6 +636,10 @@ export default function App() {
         [lastFocus],
     );
 
+    /**
+     * Small helper function to close all kinds of popup (searchbar, context menu,
+     * references picker).
+     */
     function closeAllPopUp() {
         onSearchBarClose();
         onNodeContextClose();
@@ -684,35 +684,35 @@ export default function App() {
                     ref={ref}
                     nodes={nodes}
                     edges={edges}
+                    onInit={onInit}
+                    onFocus={onFocus}
                     maxZoom={maxZoom}
                     minZoom={minZoom}
                     nodeTypes={nodeTypes}
                     edgeTypes={edgeTypes}
-                    onInit={onInit}
-                    onPaneContextMenu={onPaneContextMenu}
+                    onKeyDown={onKeyDown}
+                    // The nodes remains focusable by their inner objects not the outer.
+                    nodesFocusable={false}
+                    edgesFocusable={false}
+                    nodesConnectable={false}
                     onPaneClick={onPaneClick}
+                    onNodeClick={onNodeClick}
+                    onMouseMove={onMouseMove}
+                    onEdgeClick={onEdgeClick}
                     onNodesDelete={onNodeDelete}
                     onNodesChange={onNodesChange}
                     onEdgesChange={onEdgesChange}
-                    onEdgeClick={onEdgeClick}
                     onEdgeMouseEnter={onEdgeMouseEnter}
                     onEdgeMouseLeave={onEdgeMouseLeave}
                     onNodeMouseEnter={onNodeMouseEnter}
                     onNodeMouseLeave={onNodeMouseLeave}
-                    onNodeClick={onNodeClick}
+                    onPaneContextMenu={onPaneContextMenu}
                     onNodeDoubleClick={onNodeDoubleClick}
                     onNodeContextMenu={onNodeContextMenu}
-                    connectionLineComponent={floatingConnectionLine}
-                    onKeyDown={onKeyDown}
                     selectionMode={SelectionMode.Partial}
-                    nodesConnectable={false}
                     deleteKeyCode={['Delete', 'Backspace']}
-                    edgesFocusable={false}
-                    onMouseMove={onMouseMove}
-                    // The nodes remains focusable by their inner objects not the outer.
-                    nodesFocusable={false}
+                    connectionLineComponent={floatingConnectionLine}
                     className="visualizer__colors"
-                    onFocus={onFocus}
                 >
                     <Controls>
                         <ControlButton

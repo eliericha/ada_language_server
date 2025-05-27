@@ -19,6 +19,9 @@ export const edgeTypes = {
     selfConnection: selfConnection,
 };
 
+const markerWidth = 25;
+const markerHeight = 25;
+const strokeWidth = 3;
 /**
  * Return a new react flow edge.
  *
@@ -32,15 +35,19 @@ export function edgeFactory(src: string, dst: string, edgeDirection: RelationDir
         source: src,
         target: dst,
         type: src === dst ? 'selfConnection' : 'floating',
+        // Put an arrow at the end of the edge only when the edge represent a dependency from parent
+        // to child or in both direction.
         markerEnd:
             edgeDirection === RelationDirection.BOTH || edgeDirection === RelationDirection.SUB
-                ? { height: 25, width: 25, type: MarkerType.Arrow }
+                ? { height: markerHeight, width: markerWidth, type: MarkerType.Arrow }
                 : undefined,
+        // Put an arrow at the beginning of the edge only when the edge represent a dependency
+        // from child to parent or in both direction.
         markerStart:
             edgeDirection === RelationDirection.BOTH || edgeDirection === RelationDirection.SUPER
-                ? { height: 25, width: 25, type: MarkerType.Arrow }
+                ? { height: markerHeight, width: markerWidth, type: MarkerType.Arrow }
                 : undefined,
-        style: { strokeWidth: 3 },
+        style: { strokeWidth: strokeWidth },
         sourcePosition: src === dst ? Position.Top : undefined,
         targetPosition: src === dst ? Position.Bottom : undefined,
         data: {
@@ -176,7 +183,9 @@ type EdgeType = {
  * Custom edge function, calculate and create the position of the edge between two nodes.
  *
  * @param floatingEdge - The data necessary to create the edge and style it.
- * @returns A react JSX element representing the edge.
+ * @returns A react JSX element representing the edge. This element is composed of two paths.
+ * The first on is actual edges path. The second one follow the same path but is invisible and
+ * larger to allow the user to hover the edge more easily.
  */
 export function floatingEdge(floatingEdge: EdgeType) {
     const sourceNode = useInternalNode(floatingEdge.source);
@@ -284,6 +293,12 @@ export function floatingConnectionLine(floatingConnectionLine: FloatingConnectio
     );
 }
 
+/**
+ * Create an edge that posses the same source and target.
+ *
+ * @param props- The data necessary to create the edge and style it.
+ * @returns An edge that has the same node as a target and source and loop around it.
+ */
 export function selfConnection(props: EdgeType) {
     if (props.source !== props.target) return floatingEdge(props);
 
@@ -291,15 +306,18 @@ export function selfConnection(props: EdgeType) {
 
     const { getNode } = useReactFlow();
     const node = getNode(props.source);
+    // We want ovoid shape with a radius that relatively closely fits the node.
+    const horizontalMultiplier = 5 / 6;
+    const verticalMultiplier = 1 / 3;
     const radiusX =
         currentDirection === Direction.RIGHT
-            ? (5 * (node?.width ?? 0)) / 6
-            : (node?.width ?? 0) / 3;
+            ? (node?.width ?? 0) * horizontalMultiplier
+            : (node?.width ?? 0) * verticalMultiplier;
 
     const radiusY =
         currentDirection === Direction.RIGHT
-            ? (node?.height ?? 0) / 3
-            : (5 * (node?.height ?? 0)) / 6;
+            ? (node?.height ?? 0) * verticalMultiplier
+            : (node?.height ?? 0) * horizontalMultiplier;
 
     const edgePath =
         `M ${sourceX} ${sourceY} A ${radiusX} ${radiusY} 0 1 0` + ` ${targetX} ${targetY}`;

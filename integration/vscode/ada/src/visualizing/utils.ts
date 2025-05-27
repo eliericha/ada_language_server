@@ -112,3 +112,21 @@ export function focusNode(
     const duration = Math.max(Math.min(distance * baseSpeed, maxDuration), minDuration);
     void setCenter(newX, newY, { duration: duration, zoom: 1 });
 }
+
+/**
+ * Wrapper around setInterval to make sure the loop ends at one point.
+ *
+ * @param callback - The function to call when the timer elapses.
+ * @param delay - The number of milliseconds to wait before calling the callback.
+ * @param repetitions - The max number of time the callback can be called.
+ * @returns The id  of the interval loop.
+ */
+export function setIntervalCapped(callback: () => void, delay: number, repetitions: number) {
+    let rep = 0;
+    const intervalId = setInterval(() => {
+        callback();
+        if (rep === repetitions) clearInterval(intervalId);
+        rep++;
+    }, delay);
+    return intervalId;
+}

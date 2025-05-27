@@ -10,7 +10,7 @@ import {
     RevealReferencesMessage,
     StringLocation,
 } from '../visualizerTypes';
-import { waitingBar } from './utils';
+import { setIntervalCapped, waitingBar } from './utils';
 import { referencesPickerOnClick, referencesPickerOnKeyDown } from './referencesPickerMenu';
 
 export type NodeContextMenuProps = {
@@ -100,8 +100,12 @@ export function NodeContextMenu(props: NodeContextMenuProps) {
         [props.node.data.expand, props.node.id, props.node.data.kind],
     );
 
+    /**
+     * Open the references picker sub list when hovering the corresponding button.
+     */
     const onMouseEnter = React.useCallback(() => {
         const list = document.getElementsByClassName('visualizer__references-picker-menu');
+        // Show the menu only if there is something to display.
         if (list.length > 0) (list[0] as HTMLElement).style.visibility = 'visible';
         if (props.locationsMap.size === 0) {
             vscode.postMessage({
@@ -114,16 +118,20 @@ export function NodeContextMenu(props: NodeContextMenuProps) {
         }
         if (intervalId !== null) clearInterval(intervalId);
         // Try to focus on the list, retry until it works once.
-        intervalId = setInterval(() => {
-            const ul = document.getElementById(
-                'visualizer__context-references-button',
-            ) as HTMLUListElement;
-            if (ul) {
-                ul.focus();
-                if (intervalId !== null) clearInterval(intervalId);
-                intervalId = null;
-            }
-        }, 50);
+        intervalId = setIntervalCapped(
+            () => {
+                const ul = document.getElementById(
+                    'visualizer__context-references-button',
+                ) as HTMLUListElement;
+                if (ul) {
+                    ul.focus();
+                    if (intervalId !== null) clearInterval(intervalId);
+                    intervalId = null;
+                }
+            },
+            50,
+            50,
+        );
     }, []);
 
     /**

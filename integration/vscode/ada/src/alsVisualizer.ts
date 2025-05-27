@@ -90,6 +90,18 @@ export async function startVisualize(context: vscode.ExtensionContext, hierarchy
             vscode.window.activeTextEditor?.document.uri,
             vscode.window.activeTextEditor?.selection.active,
         );
+
+        const toto = await vscode.commands.executeCommand('als-show-dependencies', {
+            uri: input.uri.toString(),
+            kind: vscode.SymbolKind.Package,
+            showImplicit: true,
+        });
+        console.log(toto);
+        const sym = await vscode.commands.executeCommand(
+            'vscode.executeDocumentSymbolProvider',
+            input.uri,
+        );
+        console.log(sym);
         const languageId = vscode.window.activeTextEditor.document.languageId;
         const direction =
             hierarchy === Hierarchy.CALL ? RelationDirection.SUPER : RelationDirection.BOTH;
@@ -327,7 +339,8 @@ function deleteNodes(nodeIds: string[]) {
 /**
  * Send a message to client side to update the content of certain nodes
  *
- * @param toUpdate - The node to updates
+ * @param toUpdate - The nodes to updates
+ * @param toDelete - The nodes to delete.
  */
 function updateNodes(toUpdate: NodeHierarchy[], toDelete: NodeHierarchy[]) {
     const sendUpdate: NodeData[] = toUpdate.map((node) => convertHierarchyToData(node));

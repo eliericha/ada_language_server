@@ -314,17 +314,23 @@ export async function layoutSubgraph(
     direction = Direction.RIGHT,
     options = {},
 ) {
+    // Split the node and edges array into subgraph.
     const subGraphs: Subgraph[] = getSubGraphs(nodes, edges);
 
+    // Get the graph that will be layouted.
     const currSubGraph = subGraphs.find((subGraph) =>
         subGraph.nodes.find((node) => currNode.id === node.id),
     );
     if (currSubGraph === undefined) return;
+
+    // Remove the current subgraph from the list.
     subGraphs.splice(subGraphs.indexOf(currSubGraph), 1);
 
     const { x: xpos, y: ypos } = currNode.position;
+    // Layout the subgraph.
     const currLayoutedSubGraph = await getLayoutedElements(currSubGraph, direction, options);
 
+    // Offset the whole subgraph to put back the current node to its original location.
     const layoutedCurrNode = currLayoutedSubGraph.nodes.find((node) => node.id === currNode.id);
     if (layoutedCurrNode !== undefined) {
         const position = (layoutedCurrNode.data as NodeData).newPosition;
@@ -344,6 +350,7 @@ export async function layoutSubgraph(
     const currBox = getBoundingBox(currSubGraph.nodes, true);
     const allBoxes = subGraphs.map((subGraph) => getBoundingBox(subGraph.nodes, false));
 
+    // Re-offset the graph to a position that does not overlap another graph.
     const newPosition = findNonOverlappingPosition(currBox, allBoxes);
     currLayoutedSubGraph.nodes = currLayoutedSubGraph.nodes.map((node) => {
         const position = (node.data as NodeData).newPosition ?? { x: 0, y: 0 };
@@ -364,6 +371,14 @@ export async function layoutSubgraph(
     concatSubgraphs(subGraphs, nodes, edges);
 }
 
+/**
+ * Layout all the subgraphs one by one.
+ *
+ * @param nodes - The array of all the nodes of the graph.
+ * @param edges - The array of all the edges of the graph.
+ * @param direction - The direction in which to layout the graph.
+ * @param options - Elkjs option used to customize how the layout is done.
+ */
 export async function layoutSubgraphs(
     nodes: Node[],
     edges: Edge[],

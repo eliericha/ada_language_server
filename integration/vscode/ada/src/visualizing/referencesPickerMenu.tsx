@@ -2,6 +2,7 @@ import { Edge, Node, ReactFlowProvider } from '@xyflow/react';
 import React from 'react';
 import { NodeData, StringLocation } from '../visualizerTypes';
 import { vscode } from './App';
+import { setIntervalCapped } from './utils';
 
 export type ReferencesPickerMenuProps = {
     onReferencesPickerClose: () => void;
@@ -11,7 +12,6 @@ export type ReferencesPickerMenuProps = {
     target: Node;
     source: Node;
     openedByClick: boolean;
-    // locations: StringLocation[];
     locationsMap: Map<string, StringLocation[]>;
     menuWidth: number;
     pane: DOMRect;
@@ -44,6 +44,7 @@ export function referencesPickerOnKeyDown(
     const ul = document.getElementById('visualizer__references-picker-list') as HTMLUListElement;
     const childs = ul.children;
 
+    // Unselect the current select item if it exists.
     if (current > -1)
         childs[current].classList.remove('visualizer__references-picker-item-selected');
 
@@ -84,16 +85,21 @@ export function referencesPickerOnKeyDown(
         data: JSON.stringify(location),
     });
 
+    // If the enter key was not pressed, refocus on the  list.
     if (event.key !== 'Enter') {
         setCanClose(false);
-        const intervalId = setInterval(() => {
-            const ul = document.getElementById(elementId) as HTMLUListElement;
-            if (ul) {
-                ul.focus();
-                clearInterval(intervalId);
-                setCanClose(true);
-            }
-        }, 50);
+        const intervalId = setIntervalCapped(
+            () => {
+                const ul = document.getElementById(elementId) as HTMLUListElement;
+                if (ul) {
+                    ul.focus();
+                    clearInterval(intervalId);
+                    setCanClose(true);
+                }
+            },
+            50,
+            50,
+        );
     } else {
         setCanClose(true);
     }
@@ -119,6 +125,7 @@ export function referencesPickerOnClick(
     setCanClose(true);
     const location_string = (event.target as HTMLLIElement).getAttribute('data-string-loc');
     if (!location_string) return;
+    // Get the locations associated with the list item clicked.
     const location = Array.from(locationsMap.values())
         .flat()
         .find((location) => location.string_location === location_string);
@@ -144,8 +151,9 @@ export function ReferencesPickerMenu(props: ReferencesPickerMenuProps) {
 
     /**
      * When the user move through the list, the mouse briefly goes to the code window
-     * before being refocused on the menu. To avoid the menu being close during that time,
-     * a slight delai is added so the mouse have a chance to return to its original window.
+     * before being refocused on the menu. To avoid the menu being closed during that time,
+     * ignore the call back if the menu "can't close" (when the user did not press enter or clicked
+     * on an item).
      */
     const handleLostFocus = React.useCallback(() => {
         if (canClose) {
@@ -244,16 +252,20 @@ export function ReferencesPickerMenu(props: ReferencesPickerMenuProps) {
 
     if (intervalId !== null) clearInterval(intervalId);
     // Try to focus on the list, retry until it works once.
-    intervalId = setInterval(() => {
-        const ul = document.getElementById(
-            'visualizer__references-picker-list',
-        ) as HTMLUListElement;
-        if (ul) {
-            ul.focus();
-            if (intervalId !== null) clearInterval(intervalId);
-            intervalId = null;
-        }
-    }, 50);
+    intervalId = setIntervalCapped(
+        () => {
+            const ul = document.getElementById(
+                'visualizer__references-picker-list',
+            ) as HTMLUListElement;
+            if (ul) {
+                ul.focus();
+                if (intervalId !== null) clearInterval(intervalId);
+                intervalId = null;
+            }
+        },
+        50,
+        50,
+    );
 
     let top = props.top;
     const menuMaxHeight = 220;
@@ -279,9 +291,10 @@ export function ReferencesPickerMenu(props: ReferencesPickerMenuProps) {
     const pickerTitle = `REFERENCES (${referencesNb})`;
     const title =
         props.locationsMap.size === 0
-            ? ''
-            : `References of ${(props.source.data as NodeData).label}`; // +
-    //   ` in ${(props.target.data as NodeData).label} at ${props.locations[0].path}`;
+            ? undefined
+            : `References of ${(props.source.data as NodeData).label}` +
+              ` in ${(props.target.data as NodeData).label} at` +
+              ` ${Array.from(props.locationsMap.values())[0][0].path}`;
 
     return (
         <ReactFlowProvider>

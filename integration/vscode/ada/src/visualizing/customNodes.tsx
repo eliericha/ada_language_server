@@ -9,7 +9,7 @@ import {
     Hierarchy,
 } from '../visualizerTypes';
 import { currentDirection, vscode } from './App';
-import { waitingBar } from './utils';
+import { setIntervalCapped, waitingBar } from './utils';
 
 type DataNode = Node<NodeData, 'data'>;
 
@@ -47,6 +47,8 @@ export function nodeFactory(
 
 /**
  * Animate the movement of the node from their original locations to their new locations.
+ * This cannot be during the node creation as you can't access the internal data of a node during
+ * its creation and thus you can't modify its position and style.
  *
  * @param movingNodes - The array of node that need to move to their new positions.
  * @param setNodes - The function to set the nodes' state of the graph.
@@ -62,52 +64,56 @@ export function moveNodes(
     setNodes(movingNodes);
     const notFound: Node[] = [...movingNodes];
     //Wait for all the nodes to be rendered so that their parents are created and can be getted.
-    const interval = setInterval(() => {
-        for (let i = 0; i < notFound.length; i++) {
-            const newNode = notFound[i];
-            const parent = document.querySelector(`[data-id='${newNode.id}'`) as HTMLDivElement;
+    const interval = setIntervalCapped(
+        () => {
+            for (let i = 0; i < notFound.length; i++) {
+                const newNode = notFound[i];
+                const parent = document.querySelector(`[data-id='${newNode.id}'`) as HTMLDivElement;
 
-            if (parent) {
-                parents.push(parent);
-                parent.style.transition = `transform ${duration}ms ease-out`;
-                notFound.splice(i--, 1);
-                // Unselect all the nodes ( the nodes can automatically selected when
-                // clicking on one of their buttons)
-                parent.blur();
-                newNode.selected = false;
+                if (parent) {
+                    parents.push(parent);
+                    parent.style.transition = `transform ${duration}ms ease-out`;
+                    notFound.splice(i--, 1);
+                    // Unselect all the nodes (the nodes can automatically selected when
+                    // clicking on one of their buttons)
+                    parent.blur();
+                    newNode.selected = false;
 
-                //Either they have a new position or the just stay to their original position.
-                if (newNode.data.newPosition) {
-                    newPositions.push(newNode.data.newPosition as XYPosition);
-                    newNode.data.newPosition = undefined;
-                } else {
-                    newPositions.push(newNode.position);
+                    //Either they have a new position or the just stay to their original position.
+                    if (newNode.data.newPosition) {
+                        newPositions.push(newNode.data.newPosition as XYPosition);
+                        newNode.data.newPosition = undefined;
+                    } else {
+                        newPositions.push(newNode.position);
+                    }
                 }
             }
-        }
-        // Become true when all the parents where gotten
-        if (parents.length === movingNodes.length) {
-            setTimeout(() => {
-                for (let i = 0; i < movingNodes.length; i++) {
-                    movingNodes[i].position = newPositions[i];
-                }
-                // Recreates the nodes objects to force the re-rendering.
-                const nodes = movingNodes.map((node) => {
-                    return { ...node };
-                });
-
-                setNodes(nodes);
-                //Remove the transition animation.
+            // Become true when all the parents where successfully queried.
+            if (parents.length === movingNodes.length) {
                 setTimeout(() => {
-                    for (const parent of parents) {
-                        parent.style.transition = 'inherit';
+                    for (let i = 0; i < movingNodes.length; i++) {
+                        movingNodes[i].position = newPositions[i];
                     }
-                }, duration);
-            }, 100);
-            // Stop the interval loop
-            clearInterval(interval);
-        }
-    }, 10);
+                    // Recreates the nodes objects to force the re-rendering.
+                    const nodes = movingNodes.map((node) => {
+                        return { ...node };
+                    });
+
+                    setNodes(nodes);
+                    //Remove the transition animation.
+                    setTimeout(() => {
+                        for (const parent of parents) {
+                            parent.style.transition = 'inherit';
+                        }
+                    }, duration);
+                }, 100);
+                // Stop the interval loop
+                clearInterval(interval);
+            }
+        },
+        10,
+        1000,
+    );
 }
 
 /**
@@ -118,11 +124,10 @@ export function moveNodes(
  */
 export function Rectangle(node: NodeProps<DataNode>) {
     const data = node.data;
-    // const [expand, setExpand] = React.useState<boolean>(data.expanded);
     const { setCenter } = useReactFlow();
 
     // Dynamically assign class to DOM element to take into account, layouting direction,
-    //  type of data being displayed....
+    // type of data being displayed....
     const color = 'var(--vscode-symbolIcon-' + data.kind + 'Foreground';
     const nodeClass =
         'visualizer__rectangle' +
@@ -130,6 +135,10 @@ export function Rectangle(node: NodeProps<DataNode>) {
         (!data.inProject ? ' visualizer__out-of-project' : '');
     const iconClass = 'visualizer__icon codicon codicon-symbol-' + data.kind;
 
+    // Modify the icon in the button depending on the situation :
+    // - Call outgoing when the user didn't request the childs nodes yet.
+    // - Chevron Down when the children are unfolded.
+    // - Chevron Up when the children are folded.
     const subButtonClass =
         'codicon codicon-' +
         (data.hasChildren === null
@@ -143,22 +152,29 @@ export function Rectangle(node: NodeProps<DataNode>) {
         (currentDirection === Direction.RIGHT ? 'right' : 'down') +
         (!data.inProject ? ' visualizer__out-of-project' : '');
 
+    // Background of the button to avoid transparency problems.
     const subButtonBackgroundClass =
         'visualizer__button-background ' +
         'visualizer__sub-button-' +
         (currentDirection === Direction.RIGHT ? 'right' : 'down');
 
+    // Modify the icon in the button depending on the situation :
+    // - Call incoming when the user didn't request the parents nodes yet.
+    // - No button once the node has parents.
     const superButtonClass =
         'codicon codicon-' +
         (node.data.hierarchy === Hierarchy.CALL ? 'call-incoming' : 'type-hierarchy-super') +
         ' visualizer__hierarchy-button visualizer__super-button-' +
         (currentDirection === Direction.RIGHT ? 'left' : 'up');
+
+    // Background of the button to avoid transparency problems.
     const superButtonBackgroundClass =
         'visualizer__button-background ' +
         'visualizer__super-button-' +
         (currentDirection === Direction.RIGHT ? 'left' : 'up') +
         (!data.inProject ? ' visualizer__out-of-project' : '');
 
+    // Tooltips for the buttons.
     const superButtonTitle =
         (node.data.expanded ? 'Hide ' : 'Display ') +
         (node.data.hierarchy === Hierarchy.CALL ? 'incoming calls' : 'supertypes');
@@ -207,8 +223,10 @@ export function Rectangle(node: NodeProps<DataNode>) {
             tabIndex={0}
             className={nodeClass}
             data-node-id={data.id}
-            title={(data.inProject ? '' : '(out of project) ') + data.label}
+            title={(data.inProject ? '' : '[out of project] ') + data.label}
         >
+            {/* Hide the handles in the node and make them invisible as the user do not need to
+            connect edges */}
             <Handle
                 className="visualizer__invis"
                 type="target"
@@ -227,16 +245,20 @@ export function Rectangle(node: NodeProps<DataNode>) {
                     right: currentDirection === Direction.RIGHT ? '1%' : undefined,
                 }}
             />
+            {/* The upper part of the node that contains the name of the symbol
+            and its kind as an icon. */}
             <div className="visualizer__node-title">
                 <span className={iconClass} style={{ color: color }}></span>
                 <div className={'visualizer__text visualizer__ellipsis-text'}>{data.label}</div>
             </div>
+            {/* The lower part of the node that contains information about the symbol. */}
             <div className="visualizer__node-body">
                 <div className="visualizer__ellipsis-text">File : {fileName}</div>
                 <div className="visualizer__ellipsis-text">
                     Position : {data.string_location.position}
                 </div>
             </div>
+            {/* The super class button allowing to request the parents of the node. */}
             <button
                 className={superButtonClass}
                 title={superButtonTitle}
