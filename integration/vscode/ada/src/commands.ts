@@ -128,7 +128,12 @@ export function registerCommands(context: vscode.ExtensionContext, clients: Exte
     );
     context.subscriptions.push(
         vscode.commands.registerCommand('ada.visualizeTypes', () =>
-            startVisualize(context, Hierarchy.TYPES),
+            startVisualize(context, Hierarchy.TYPE),
+        ),
+    );
+    context.subscriptions.push(
+        vscode.commands.registerCommand('ada.visualizePackages', () =>
+            startVisualize(context, Hierarchy.PACKAGE),
         ),
     );
     context.subscriptions.push(

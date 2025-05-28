@@ -218,9 +218,19 @@ export function NodeContextMenu(props: NodeContextMenuProps) {
     let right: number | undefined = undefined;
     let bottom: number | undefined = undefined;
     const subContent =
-        'Get ' + (props.node.data.hierarchy === Hierarchy.CALL ? 'Outgoing Calls' : 'Sub Types');
+        'Get ' +
+        (props.node.data.hierarchy === Hierarchy.CALL
+            ? 'Outgoing Calls'
+            : props.node.data.hierarchy === Hierarchy.TYPE
+              ? 'Sub Types'
+              : 'imported packages');
     const superContent =
-        'Get ' + (props.node.data.hierarchy === Hierarchy.CALL ? 'Incoming Calls' : 'Super Types');
+        'Get ' +
+        (props.node.data.hierarchy === Hierarchy.CALL
+            ? 'Incoming Calls'
+            : props.node.data.hierarchy === Hierarchy.TYPE
+              ? 'Super Types'
+              : 'importing packages');
 
     const pickerMenuWidth = 200;
     const pickerMenuHeight = 200;

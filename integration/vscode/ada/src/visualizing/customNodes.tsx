@@ -144,7 +144,9 @@ export function Rectangle(node: NodeProps<DataNode>) {
         (data.hasChildren === null
             ? data.hierarchy === Hierarchy.CALL
                 ? 'call-outgoing'
-                : 'type-hierarchy-sub'
+                : data.hierarchy === Hierarchy.TYPE
+                  ? 'type-hierarchy-sub'
+                  : 'package'
             : data.expanded
               ? 'chevron-down'
               : 'chevron-right') +
@@ -163,9 +165,14 @@ export function Rectangle(node: NodeProps<DataNode>) {
     // - No button once the node has parents.
     const superButtonClass =
         'codicon codicon-' +
-        (node.data.hierarchy === Hierarchy.CALL ? 'call-incoming' : 'type-hierarchy-super') +
+        (node.data.hierarchy === Hierarchy.CALL
+            ? 'call-incoming'
+            : node.data.hierarchy === Hierarchy.TYPE
+              ? 'type-hierarchy-super'
+              : 'package') +
         ' visualizer__hierarchy-button visualizer__super-button-' +
-        (currentDirection === Direction.RIGHT ? 'left' : 'up');
+        (currentDirection === Direction.RIGHT ? 'left' : 'up') +
+        (!data.inProject ? ' visualizer__out-of-project' : '');
 
     // Background of the button to avoid transparency problems.
     const superButtonBackgroundClass =
@@ -177,11 +184,19 @@ export function Rectangle(node: NodeProps<DataNode>) {
     // Tooltips for the buttons.
     const superButtonTitle =
         (node.data.expanded ? 'Hide ' : 'Display ') +
-        (node.data.hierarchy === Hierarchy.CALL ? 'incoming calls' : 'supertypes');
+        (node.data.hierarchy === Hierarchy.CALL
+            ? 'incoming calls'
+            : Hierarchy.TYPE
+              ? 'supertypes'
+              : 'imported packages');
 
     const subButtonTitle =
         (node.data.expanded ? 'Hide ' : 'Display ') +
-        (node.data.hierarchy === Hierarchy.CALL ? 'outgoing calls' : 'subtypes');
+        (node.data.hierarchy === Hierarchy.CALL
+            ? 'outgoing calls'
+            : node.data.hierarchy === Hierarchy.TYPE
+              ? 'subtypes'
+              : 'importing package');
 
     // Handle windows/linux/macos filesystems
     const fileName = data.string_location.path.replace(/^.*(\\|\/|:)/, '');

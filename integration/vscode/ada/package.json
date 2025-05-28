@@ -1056,6 +1056,12 @@
                 "when": "ADA_PROJECT_CONTEXT"
             },
             {
+                "command": "ada.visualizePackages",
+                "title": "Show Packages Hierarchy (graph)",
+                "shortTitle": "Visualize packages hierarchy",
+                "enablement": "config.ada.enableExperimentalFeatures"
+            },
+            {
                 "command": "ada.visualizeTypes",
                 "title": "Show Type Hierarchy (graph)",
                 "shortTitle": "Visualize type hierarchy",
@@ -1224,14 +1230,19 @@
                     "when": "editorLangId == ada"
                 },
                 {
+                    "command": "ada.visualizeCalls",
+                    "group": "0_navigation@4",
+                    "when": "activeEditor && editorLangId && editorHasCallHierarchyProvider && config.ada.enableExperimentalFeatures"
+                },
+                {
                     "command": "ada.visualizeTypes",
                     "group": "0_navigation@5",
                     "when": "activeEditor && editorLangId && editorHasTypeHierarchyProvider && config.ada.enableExperimentalFeatures"
                 },
                 {
-                    "command": "ada.visualizeCalls",
+                    "command": "ada.visualizePackages",
                     "group": "0_navigation@6",
-                    "when": "activeEditor && editorLangId && editorHasCallHierarchyProvider && config.ada.enableExperimentalFeatures"
+                    "when": "activeEditor && editorLangId == ada && config.ada.enableExperimentalFeatures"
                 }
             ],
             "editor/title/run": [

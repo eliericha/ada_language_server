@@ -48,6 +48,21 @@ export type RevealReferencesResponse = {
     locationsValues: StringLocation[][];
 };
 
+export enum ALS_ShowDependenciesKind {
+    SHOW_IMPORTED = 1,
+    SHOW_IMPORTING = 2,
+}
+
+export interface ALS_ShowDependenciesParams {
+    uri: string /* The queried unit */;
+    kind: ALS_ShowDependenciesKind /* The dependencies query kind */;
+    showImplicit: boolean /* True if implicit dependencies should be returned */;
+}
+
+export interface ALS_Unit_Description {
+    uri: string /* The dependency unit's file */;
+    projectUri: string /* The dependency's project file */;
+}
 /**
  * Data stored in a node client side.
  */
@@ -138,6 +153,7 @@ export enum Direction {
  * The type of hierarchy that can be called
  */
 export enum Hierarchy {
-    TYPES,
+    TYPE,
     CALL,
+    PACKAGE,
 }

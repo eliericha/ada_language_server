@@ -189,6 +189,7 @@ so reduce its size a little. */
     width: 20%;
     aspect-ratio: 1/1;
     position: absolute;
+    border: none;
 }
 
 /* Position the button to the bottom of the node. */
