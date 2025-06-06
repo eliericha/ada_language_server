@@ -1,16 +1,33 @@
 import * as vscode from 'vscode';
 import { VisualizerHandler } from './alsVisualizerProvider';
 
+type MessageCommand =
+    // Sent from Client Side
+    | 'requestHierarchy'
+    | 'revealNode'
+    | 'revealReferences'
+    | 'revealLocation'
+    | 'deleteNodes'
+    | 'refreshNodes'
+    | 'stopProcess'
+    | 'isRendered'
+
+    // Sent from Server Side
+    | 'rendered'
+    | 'hierarchy'
+    | 'updateNodes'
+    | 'revealResponse';
+
 /**
  * The base format of all message exchanged between server side and client side.
  */
 export type Message = {
-    command: string;
+    command: MessageCommand;
     data: string;
 };
 
 /**
- * Message sended from the client to the server side to request for new
+ * Message sent from the client to the server side to request for new
  * node up or down from the hierarchy.
  */
 export type HierarchyMessage = {
@@ -18,6 +35,7 @@ export type HierarchyMessage = {
     direction: RelationDirection;
     expand: boolean;
     hierarchy: Hierarchy;
+    recursive: boolean;
 };
 
 export type NodeIdsMessage = {
@@ -122,6 +140,7 @@ export type NodeHierarchy = NodeData & {
 export type NodeEdge = {
     nodesData: NodeData[];
     edges: DirectedEdge[];
+    focus: boolean;
     mainNodeId: string;
 };
 

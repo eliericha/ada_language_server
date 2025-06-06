@@ -83,7 +83,8 @@ export function NodeContextMenu(props: NodeContextMenuProps) {
      * Send a hierarchy request to the server side.
      */
     const requestHierarchy = React.useCallback(
-        ({ direction = RelationDirection.SUPER }) => {
+        (event: React.MouseEvent, direction = RelationDirection.SUPER) => {
+            event.preventDefault();
             const hierarchy = (props.node.data as NodeData).hierarchy;
             waitingBar();
             vscode.postMessage({
@@ -93,6 +94,7 @@ export function NodeContextMenu(props: NodeContextMenuProps) {
                     direction: direction,
                     expand: props.node.data.expanded,
                     hierarchy: hierarchy,
+                    recursive: event.ctrlKey,
                 } as HierarchyMessage),
             });
             props.onContextClose();
@@ -280,47 +282,49 @@ export function NodeContextMenu(props: NodeContextMenuProps) {
                 </button>
                 <button
                     className="visualizer__context-button"
-                    onClick={() => requestHierarchy({ direction: RelationDirection.SUB })}
+                    onClick={(event) => requestHierarchy(event, RelationDirection.SUB)}
                 >
                     {subContent}
                 </button>
                 <button
                     className="visualizer__context-button"
-                    onClick={() => requestHierarchy({ direction: RelationDirection.SUPER })}
+                    onClick={(event) => requestHierarchy(event, RelationDirection.SUPER)}
                 >
                     {superContent}
                 </button>
-                <button
-                    className="visualizer__context-button"
-                    id="visualizer__context-references-button"
-                    onMouseEnter={onMouseEnter}
-                    onMouseLeave={onMouseLeave}
-                    onKeyDown={onKeyDown}
-                >
-                    <span> Go to References </span>{' '}
-                    <div className="codicon codicon-chevron-right" />
-                    <div
-                        className={
-                            'visualizer__references-picker-menu' +
-                            ' visualizer__references-picker-node-menu'
-                        }
-                        style={{
-                            left: left,
-                            right: right,
-                            bottom: bottom,
-                        }}
+                {(props.node.data as NodeData).hierarchy !== Hierarchy.PACKAGE && (
+                    <button
+                        className="visualizer__context-button"
+                        id="visualizer__context-references-button"
+                        onMouseEnter={onMouseEnter}
+                        onMouseLeave={onMouseLeave}
+                        onKeyDown={onKeyDown}
                     >
-                        <nav>
-                            <ul
-                                id="visualizer__references-picker-list"
-                                className="visualizer__scrollbar"
-                                tabIndex={0}
-                            >
-                                {locations}
-                            </ul>
-                        </nav>
-                    </div>
-                </button>
+                        <span> Go to References </span>{' '}
+                        <div className="codicon codicon-chevron-right" />
+                        <div
+                            className={
+                                'visualizer__references-picker-menu' +
+                                ' visualizer__references-picker-node-menu'
+                            }
+                            style={{
+                                left: left,
+                                right: right,
+                                bottom: bottom,
+                            }}
+                        >
+                            <nav>
+                                <ul
+                                    id="visualizer__references-picker-list"
+                                    className="visualizer__scrollbar"
+                                    tabIndex={0}
+                                >
+                                    {locations}
+                                </ul>
+                            </nav>
+                        </div>
+                    </button>
+                )}
             </div>
         </ReactFlowProvider>
     );

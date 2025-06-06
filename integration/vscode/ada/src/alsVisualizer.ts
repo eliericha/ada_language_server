@@ -9,7 +9,7 @@ import {
     HierarchyMessage,
     NodeHierarchy,
     Hierarchy,
-    NodeEdge,
+    NodeEdge as NodeEdgeMessage,
     NodeIdsMessage,
     UpdateMessage,
     DirectedEdge,
@@ -48,21 +48,33 @@ void endTimer;
 let progressPromise: Promise<void> | null = null;
 let resolvePromise: () => void;
 
+let stopProcess: boolean = false;
+
 /**
  * Start a progress animation in the status bar to indicate the user that a request is being
  * processed.
  *
  * Call stopProgress once the request is done.
+ * @param cancellable - Indicate if the progress should be cancellable, which will put it in
+ * a notification instead of the status bar.
  */
-function startProgress() {
+function startProgress(cancellable = false) {
     if (!progressPromise)
         vscode.window.withProgress(
             {
-                location: vscode.ProgressLocation.Window,
+                location: cancellable
+                    ? vscode.ProgressLocation.Notification
+                    : vscode.ProgressLocation.Window,
                 title: 'Visualizing',
-                cancellable: false,
+                cancellable: cancellable,
             },
-            () => {
+            (progress, token) => {
+                void progress;
+                token.onCancellationRequested(() => {
+                    stopProcess = true;
+                    resolvePromise();
+                    progressPromise = null;
+                });
                 progressPromise = new Promise<void>((resolve) => {
                     resolvePromise = resolve;
                 });
@@ -91,8 +103,8 @@ export async function startVisualize(context: vscode.ExtensionContext, hierarchy
     if (vscode.window.activeTextEditor) {
         startProgress();
         const input = new vscode.Location(
-            vscode.window.activeTextEditor?.document.uri,
-            vscode.window.activeTextEditor?.selection.active,
+            vscode.window.activeTextEditor.document.uri,
+            vscode.window.activeTextEditor.selection.active,
         );
 
         const languageId = vscode.window.activeTextEditor.document.languageId;
@@ -131,33 +143,12 @@ export async function startVisualize(context: vscode.ExtensionContext, hierarchy
  *
  * @param message - The message received.
  */
-async function handleMessage(message: Message) {
-    if (!message.data) return;
+function handleMessage(message: Message) {
     switch (message.command) {
         // Add new nodes to the graph or fold/unfold.
         case 'requestHierarchy': {
-            startProgress();
             const data = JSON.parse(message.data) as HierarchyMessage;
-            const node = symbolsMap.get(data.id);
-            // Check that the symbol is not a runtime generated one
-            if (node === undefined) return;
-            node.expanded = data.expand;
-            if (
-                (data.expand || data.direction === RelationDirection.SUPER) &&
-                fs.existsSync(node.location.uri.fsPath)
-            )
-                if (node.hierarchy === Hierarchy.PACKAGE) {
-                    await getPackageHierarchy(node.location, node.languageId, data.direction);
-                } else {
-                    await getCodeHierarchy(
-                        node.location,
-                        data.hierarchy,
-                        node.languageId,
-                        data.direction,
-                    );
-                }
-            sendMessage(data.id, data.hierarchy);
-            stopProgress();
+            void requestHierarchy(data);
             break;
         }
         // Reveal the definition symbol of a specific node.
@@ -197,7 +188,89 @@ async function handleMessage(message: Message) {
             stopProgress();
             break;
         }
+        // Stop the current loop of process (mostly for the recursive hierarchy)
+        case 'stopProcess': {
+            stopProcess = true;
+            break;
+        }
+        // This message is not handled here but it is catched here to avoid falling into
+        // the default case.
+        case 'rendered':
+            break;
+        default:
+            logger.warn('ALS: handleMessage: Command not found or empty');
+            break;
     }
+}
+
+/**
+ * Expand the graph by adding parents or children to the targeted node.
+ * If recursive is set to true, the algorithm will continue to expand until finding symbol
+ * that are not in the project.
+ *
+ * @param data - The data necessary to expand a node.
+ */
+async function requestHierarchy(data: HierarchyMessage) {
+    startProgress(data.recursive);
+    stopProcess = false;
+    const node = symbolsMap.get(data.id);
+    // Check that the symbol is not a runtime generated one
+    if (node === undefined) return;
+    node.expanded = data.expand;
+    const queue: NodeHierarchy[] = [node];
+    // If recursive is enable loop until all the childs of the node has been expanded, or the loop
+    // is stopped (see stopProcess).
+    while (queue.length !== 0) {
+        const currNode = queue.pop();
+        if (currNode) {
+            const start = performance.now();
+            if (
+                ((data.expand || data.direction === RelationDirection.SUPER) &&
+                    fs.existsSync(currNode.location.uri.fsPath) &&
+                    data.direction === RelationDirection.SUB &&
+                    currNode.children.length === 0) ||
+                (data.direction === RelationDirection.SUPER && currNode.parents.length === 0)
+            ) {
+                if (currNode.hierarchy === Hierarchy.PACKAGE) {
+                    await getPackageHierarchy(
+                        currNode.location,
+                        currNode.languageId,
+                        data.direction,
+                    );
+                } else {
+                    await getCodeHierarchy(
+                        currNode.location,
+                        data.hierarchy,
+                        currNode.languageId,
+                        data.direction,
+                    );
+                }
+                if (data.recursive) {
+                    if (data.direction === RelationDirection.SUB)
+                        queue.push(...currNode.children.filter((child) => child.inProject));
+                    else queue.push(...currNode.parents.filter((parent) => parent.inProject));
+                }
+            }
+            // Update the graph in realtime so the user can see it grow.
+            sendMessage(data.id, data.hierarchy, !data.recursive);
+            if (stopProcess) {
+                stopProcess = false;
+                break;
+            }
+
+            // It is necessary to wait a bit between sending two messages or the client
+            // wont be able to handle all the requests. As the hierarchy functions takes times,
+            // it is not always necessary to wait so we only wait if the execution time of the
+            // function is too low.
+            const end = performance.now() - start;
+            const difference = Math.max(0, 250 - end);
+            if (difference > 0) await new Promise((resolve) => setTimeout(resolve, difference));
+        }
+    }
+    // Send a last message to focus on the right node at the end if the
+    // graph was expanded recursively.
+    if (data.recursive) sendMessage(data.id, data.hierarchy, true);
+    stopProgress();
 }
 
 /**
@@ -583,7 +656,7 @@ async function revealSymbol(location: vscode.Location, hierarchy: Hierarchy) {
  * @param hierarchyItem - A hierarchy item that can come from a TypeHierarchy or CallHierarchy.
  * @param hierarchy - The type of hierarchy needed.
  * @param languageId - The id of the language the symbol is in.
- * @param wantParentLocation - Wheter the location stored in the object should be the one passed in
+ * @param wantParentLocation - Whether the location stored in the object should be the one passed in
  * hierarchyItem or the one in the parent of the item.
  * @returns A new NodeHierarchy object.
  */
@@ -616,9 +689,11 @@ async function createNodeHierarchy(
                   : undefined;
 
     if (!uri) {
-        logger.warning('ALS: createNodeHierarchy: Uri was not provided in the item');
+        logger.warn('ALS: createNodeHierarchy: Uri was not provided in the item');
         return null;
     }
+
+    // Expand the symlinks to avoid getting the same node twice with a different path.
     const realPath = fs.realpathSync(uri.fsPath);
     uri = vscode.Uri.file(realPath);
 
@@ -756,7 +831,7 @@ function convertToMessage(
  * @param nodeId - The id of the node that was added/modified
  * @param hierarchy - The type of hierarchy needed.
  */
-function sendMessage(nodeId: string, hierarchy: Hierarchy) {
+function sendMessage(nodeId: string, hierarchy: Hierarchy, focus = true) {
     const nodes: NodeData[] = [];
     const edges: DirectedEdge[] = [];
     const alreadyAdded: Set<string> = new Set();
@@ -771,7 +846,8 @@ function sendMessage(nodeId: string, hierarchy: Hierarchy) {
                 nodesData: nodes,
                 edges: edges,
                 mainNodeId: nodeId,
-            } as NodeEdge),
+                focus: focus,
+            } as NodeEdgeMessage),
         });
         panel?.reveal();
     }
@@ -817,30 +893,6 @@ async function getHierarchy(
         const newNodeTmp = await createNodeHierarchy(item, hierarchy, middleNode.languageId);
         if (!newNodeTmp) continue;
         bindNodes(middleNode, newNodeTmp, direction);
-        // const newNode = insertSymbolsMap(newNodeTmp);
-        // if (direction === RelationDirection.SUB) {
-        //     if (!middleNode.children.some((node) => node.id === newNode.id)) {
-        //         middleNode.children.push(newNode);
-        //         middleNode.hasChildren = true;
-        //     }
-        //     if (!newNode.parents.some((node) => node.id === middleNode.id)) {
-        //         newNode.parents.push(middleNode);
-        //         newNode.hasParent = true;
-        //     }
-        // }
-        // // Only add recursive node when adding children
-        // else if (middleNode !== newNode) {
-        //     if (!middleNode.parents.some((node) => node.id === newNode.id)) {
-        //         middleNode.parents.push(newNode);
-        //         middleNode.hasParent = true;
-        //     }
-        //     if (!newNode.children.some((node) => node.id === middleNode.id)) {
-        //         newNode.children.push(middleNode);
-        //         newNode.hasChildren = true;
-        //     }
-        //     // We check if we just created middleNode or it is a node created previously
-        //     if (newNode === newNodeTmp) newNode.expanded = true;
-        // }
     }
     if (direction === RelationDirection.SUB && middleNode.children.length === 0)
         middleNode.hasChildren = false;
@@ -848,6 +900,13 @@ async function getHierarchy(
         middleNode.hasParent = false;
 }
 
+/**
+ * Bind two node together as parent/child. Check if they are not already related.
+ *
+ * @param middleNode - The main node of the hierarchy.
+ * @param otherNode - The node that will be bound to the middleNode.
+ * @param direction - The direction in which to bind the nodes.
+ */
 function bindNodes(
     middleNode: NodeHierarchy,
     otherNode: NodeHierarchy,
@@ -933,16 +992,30 @@ async function getCodeHierarchy(
     return middleNode;
 }
 
+/**
+ * Get package hierarchy information from a location.
+ * This features works specifically for ada.
+ *
+ * @param location - The location of the symbol in the code.
+ * @param languageId - The id of the language the symbol is in.
+ * @param direction - The direction of the hierarchy
+ * @returns
+ */
 async function getPackageHierarchy(
     location: vscode.Location,
     languageId: string,
     direction: RelationDirection = RelationDirection.SUB,
 ) {
     let middleNode: NodeHierarchy | null = null;
+    // The location of the body of the package if `location` point to the  package definition or
+    // the other way around.
     let subLocation: vscode.Location | null = null;
+
+    // Get the base package symbol information from the location given as a parameter.
     const baseSymbols = await vscode.commands.executeCommand<
         (vscode.SymbolInformation | vscode.DocumentSymbol)[]
     >('vscode.executeDocumentSymbolProvider', location.uri);
+    // Search the symbol representing a package (definition) or a module (body).
     for (const symbol of baseSymbols) {
         const packageLoc = await vscode.commands.executeCommand<vscode.Location[]>(
             'vscode.executeDefinitionProvider',
@@ -950,6 +1023,8 @@ async function getPackageHierarchy(
             'selectionRange' in symbol ? symbol.selectionRange.start : symbol.location.range.start,
         );
         if (packageLoc.length > 0) {
+            // If the symbol found represent the body, update the symbol location to point on
+            // the definition.
             if (symbol.kind === vscode.SymbolKind.Module) {
                 if ('selectionRange' in symbol) {
                     symbol.selectionRange = packageLoc[0].range;
@@ -979,6 +1054,7 @@ async function getPackageHierarchy(
     }
     if (!middleNode) return;
 
+    // Get the packages depending on the current one.
     const dependencies = await vscode.commands.executeCommand<ALS_Unit_Description[]>(
         'als-show-dependencies',
         {
@@ -990,6 +1066,8 @@ async function getPackageHierarchy(
             showImplicit: false,
         },
     );
+    // The dependencies can be different for the definition and the body so the command is call
+    // on each one to get all of them.
     if (subLocation)
         dependencies.push(
             ...(await vscode.commands.executeCommand<ALS_Unit_Description[]>(
@@ -1007,6 +1085,7 @@ async function getPackageHierarchy(
     for (const dependency of dependencies) {
         const uri = vscode.Uri.parse(dependency.uri);
         if (!fs.existsSync(uri.fsPath)) continue;
+
         const symbols = await vscode.commands.executeCommand<
             (vscode.SymbolInformation | vscode.DocumentSymbol)[]
         >('vscode.executeDocumentSymbolProvider', uri);
@@ -1062,6 +1141,7 @@ function setupWebView(context: vscode.ExtensionContext, hierarchy: Hierarchy) {
         for (const key of symbolsMap.keys()) {
             if (symbolsMap.get(key)?.hierarchy === hierarchy) symbolsMap.delete(key);
         }
+        stopProcess = true;
         rootNodes = findRoots();
     });
     panels[hierarchy] = panel;

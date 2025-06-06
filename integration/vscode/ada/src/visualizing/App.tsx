@@ -10,6 +10,8 @@ import {
     RevealReferencesMessage,
     RevealReferencesResponse,
     StringLocation,
+    NodeData,
+    Hierarchy,
 } from '../visualizerTypes';
 import {
     Node,
@@ -109,10 +111,12 @@ async function handleHierarchy(messageData: string) {
         }
     }
     const focusIndex = nodes.findIndex((node) => node.data.focus);
+
     // Focus only if the number of nodes increased
     // Recreate the node to force an update
-    if (focusIndex !== -1 && nodes.length > numNodes) nodes[focusIndex] = { ...nodes[focusIndex] };
-    else if (focusIndex !== -1) nodes[focusIndex].data.focus = false;
+    if (data.focus && focusIndex !== -1 && nodes.length > numNodes)
+        nodes[focusIndex] = { ...nodes[focusIndex] };
+    else if (focusIndex !== -1 || !data.focus) nodes[focusIndex].data.focus = false;
 
     // Place the original position of all the new node to the focused Node.
     if (focusIndex !== -1) {
@@ -144,7 +148,10 @@ async function handleHierarchy(messageData: string) {
     }
     setEdges(edges);
     moveNodes(nodes, setNodes);
-    waitingBar(true);
+    // stop the waiting bar only if the server has finished sending data.
+    // Here the node won't be focused except if the recursive hierarchy process finished or
+    // was just a single level.
+    if (data.focus) waitingBar(true);
 }
 
 /**
@@ -220,6 +227,9 @@ const handleMessage = (text: MessageEvent<Message>) => {
             void handleReveal(text.data.data);
             break;
         }
+        default:
+            console.log('Command not found or empty');
+            break;
     }
 };
 
@@ -263,6 +273,31 @@ export default function App() {
         return () => {
             window.removeEventListener('message', handleMessage);
         };
+    }, []);
+
+    React.useEffect(() => {
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.ctrlKey)
+                document.documentElement.style.setProperty(
+                    '--visualizer-icon-underline',
+                    '1.5px solid',
+                );
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, []);
+
+    // When pressing control highlight all the button to indicate they have another use
+    // (recursively unfold the graph)
+    React.useEffect(() => {
+        const handleKeyUp = (event: KeyboardEvent) => {
+            if (!event.ctrlKey)
+                document.documentElement.style.setProperty('--visualizer-icon-underline', 'none');
+        };
+
+        window.addEventListener('keyup', handleKeyUp);
+        return () => window.removeEventListener('keyup', handleKeyUp);
     }, []);
 
     /**
@@ -343,6 +378,7 @@ export default function App() {
     function openReferencesPicker(event: React.MouseEvent, edge: Edge, openedByClick: boolean) {
         // When using the references picker if the user selects a location without moving the
         // mouse, the picker would reopen alone causing the user to lose focus on its code.
+        if ((nodes[0].data as NodeData).hierarchy === Hierarchy.PACKAGE) return;
         if (ref.current && canOpenReferencesPicker) {
             closeAllPopUp();
             event.preventDefault();

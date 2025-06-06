@@ -134,7 +134,9 @@ export class AdaVisualizerHandler extends VisualizerHandler {
             }
         } else hoverValues = label;
 
-        const clearId = nodeLocation.uri.fsPath + ':' + hoverValues;
+        // Expand the symlinks to avoid getting the same node twice with a different path.
+        const realPath = fs.realpathSync(nodeLocation.uri.fsPath);
+        const clearId = realPath + ':' + hoverValues;
 
         // Hash the file uri and the symbol location to get the id
         const hash = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(clearId));

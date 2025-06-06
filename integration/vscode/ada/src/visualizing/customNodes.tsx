@@ -215,7 +215,8 @@ export function Rectangle(node: NodeProps<DataNode>) {
 
     // Callback to get super or sub types
     const requestHierarchy = React.useCallback(
-        ({ direction = RelationDirection.SUPER }) => {
+        (event: React.MouseEvent, direction = RelationDirection.SUPER) => {
+            event.preventDefault();
             waitingBar();
             vscode.postMessage({
                 command: 'requestHierarchy',
@@ -227,6 +228,9 @@ export function Rectangle(node: NodeProps<DataNode>) {
                             ? !data.expanded
                             : data.expanded,
                     hierarchy: data.hierarchy,
+                    // If the actual button is the folding button the recursive expansion cannot be
+                    // triggered.
+                    recursive: subButtonClass.includes('chevron') ? false : event.ctrlKey,
                 } as HierarchyMessage),
             });
         },
@@ -279,8 +283,7 @@ export function Rectangle(node: NodeProps<DataNode>) {
                 title={superButtonTitle}
                 style={{ display: data.hasParent === null ? 'inherit' : 'none' }}
                 onClick={(event) => {
-                    event.preventDefault();
-                    requestHierarchy({ direction: RelationDirection.SUPER });
+                    requestHierarchy(event, RelationDirection.SUPER);
                 }}
             ></button>
             <div
@@ -293,8 +296,7 @@ export function Rectangle(node: NodeProps<DataNode>) {
                 // Can also be null so we need to check for false exactly.
                 style={{ display: data.hasChildren === false ? 'none' : 'inherit' }}
                 onClick={(event) => {
-                    event.preventDefault();
-                    requestHierarchy({ direction: RelationDirection.SUB });
+                    requestHierarchy(event, RelationDirection.SUB);
                 }}
             ></button>
             <div

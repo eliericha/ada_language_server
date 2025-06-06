@@ -16,6 +16,9 @@
     --visualizer-out-of-project-hovered: var(--vscode-diffEditor-removedLineBackground);
 }
 
+:root {
+    --visualizer-icon-underline: none;
+}
 /* Make sur the viewPort take all to possible space. */
 body {
     padding: 0%;
@@ -165,8 +168,13 @@ so reduce its size a little. */
     color: var(--visualizer-text-color);
     cursor: pointer;
     outline: none;
+    /* font-weight: var(--font-weight) !important; */
 }
 
+.codicon-call-incoming:before,
+.codicon-call-outgoing:before {
+    border-bottom: var(--visualizer-icon-underline);
+}
 /* Highlight those buttons on hover. */
 .visualizer__context-button:hover,
 .visualizer__hierarchy-button:focus,
@@ -241,6 +249,7 @@ so reduce its size a little. */
     padding: 0.5em;
     outline: none;
     white-space: nowrap;
+    cursor: grab;
 }
 
 /* Style the multi selection rectangle provided by reactflow (shift + right click). */
@@ -311,6 +320,7 @@ so reduce its size a little. */
     overflow: hidden;
     border-radius: inherit;
     height: 100%;
+    cursor: grab;
 }
 
 /* Add additional style on hover or select. */
@@ -450,6 +460,7 @@ so reduce its size a little. */
     text-overflow: ellipsis;
     overflow: hidden;
     border-radius: inherit;
+    cursor: grab;
 }
 
 /* Style the scrollbar. */
