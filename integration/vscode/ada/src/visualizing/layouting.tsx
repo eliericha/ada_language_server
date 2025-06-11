@@ -1,7 +1,7 @@
 import { Edge, Node, Position } from '@xyflow/react';
 import ELK, { ElkNode } from 'elkjs/lib/elk.bundled.js';
 import { currentDirection } from './App';
-import { Direction } from '../visualizerTypes';
+import { Direction, NodeData } from '../visualizerTypes';
 
 /**
  * Represent the smallest box that can contain all the node of a subgraph.

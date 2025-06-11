@@ -16,7 +16,6 @@ package body Cycle is
       Foo(t) + Foo(t) +
       Foo(t) + Foo(t);
    end;
-   function FooFoo renames Foo;
 
    function Foo (t : Integer) return Integer is
    begin
@@ -25,7 +24,7 @@ package body Cycle is
       Ada.Text_IO.Put_Line ("is");
       Ada.Text_IO.Put_Line ("Multiple");
       Ada.Text_IO.Put_Line ("Put_Line");
-      return Foo(t) + FooFoo(t) +
+      return Foo(t) +
       Foo(t) + Foo(t) +
       Foo(t) + Foo(t) +
       Foo(t) + Foo(t) +

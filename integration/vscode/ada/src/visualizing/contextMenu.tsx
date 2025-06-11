@@ -43,7 +43,7 @@ export function ContextMenu(props: ContextMenuProps) {
     const refreshNode = React.useCallback(() => {
         vscode.postMessage({
             command: 'refreshNodes',
-            data: JSON.stringify({ nodesId: [props.node.id] } as NodeIdsMessage),
+            data: { nodesId: [props.node.id] } as NodeIdsMessage,
         });
         props.onContextClose();
     }, [props.node.id]);
@@ -59,7 +59,7 @@ export function ContextMenu(props: ContextMenuProps) {
             const hierarchy = getNodeKind(kind);
             vscode.postMessage({
                 command: 'requestHierarchy',
-                data: JSON.stringify({
+                data: {
                     id: props.node.id,
                     direction: direction,
                     expand:
@@ -67,7 +67,7 @@ export function ContextMenu(props: ContextMenuProps) {
                             ? !props.node.data.expanded
                             : props.node.data.expanded,
                     hierarchy: hierarchy,
-                } as HierarchyMessage),
+                } as HierarchyMessage,
             });
             props.onContextClose();
         },

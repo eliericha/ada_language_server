@@ -82,7 +82,7 @@ export function referencesPickerOnKeyDown(
 
     vscode.postMessage({
         command: 'revealLocation',
-        data: JSON.stringify(location),
+        data: location,
     });
 
     // If the enter key was not pressed, refocus on the  list.
@@ -131,7 +131,7 @@ export function referencesPickerOnClick(
         .find((location) => location.string_location === location_string);
     vscode.postMessage({
         command: 'revealLocation',
-        data: JSON.stringify(location),
+        data: location,
     });
     closeFunction();
 }
@@ -216,7 +216,7 @@ export function ReferencesPickerMenu(props: ReferencesPickerMenuProps) {
 
             vscode.postMessage({
                 command: 'revealLocation',
-                data: JSON.stringify(Array.from(props.locationsMap.values())[0][0]),
+                data: Array.from(props.locationsMap.values())[0][0],
             });
         }
         return;

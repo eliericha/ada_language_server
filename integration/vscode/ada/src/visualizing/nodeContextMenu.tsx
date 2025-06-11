@@ -66,7 +66,7 @@ export function NodeContextMenu(props: NodeContextMenuProps) {
         waitingBar();
         vscode.postMessage({
             command: 'refreshNodes',
-            data: JSON.stringify({ nodesId: [props.node.id] } as NodeIdsMessage),
+            data: { nodesId: [props.node.id] } as NodeIdsMessage,
         });
         props.onContextClose();
     }, [props.node.id]);
@@ -89,13 +89,13 @@ export function NodeContextMenu(props: NodeContextMenuProps) {
             waitingBar();
             vscode.postMessage({
                 command: 'requestHierarchy',
-                data: JSON.stringify({
+                data: {
                     id: props.node.id,
                     direction: direction,
                     expand: props.node.data.expanded,
                     hierarchy: hierarchy,
                     recursive: event.ctrlKey,
-                } as HierarchyMessage),
+                } as HierarchyMessage,
             });
             props.onContextClose();
         },
@@ -112,10 +112,10 @@ export function NodeContextMenu(props: NodeContextMenuProps) {
         if (props.locationsMap.size === 0) {
             vscode.postMessage({
                 command: 'revealReferences',
-                data: JSON.stringify({
+                data: {
                     referenceNodeId: props.node.id,
                     targetNodeId: '',
-                } as RevealReferencesMessage),
+                } as RevealReferencesMessage,
             });
         }
         if (intervalId !== null) clearInterval(intervalId);

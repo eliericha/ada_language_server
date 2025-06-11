@@ -1,15 +1,41 @@
 import * as vscode from 'vscode';
+import { VisualizerHandler } from './alsVisualizerProvider';
+
+type MessageCommand =
+    // Sent from Client Side
+    | 'requestHierarchy'
+    | 'revealNode'
+    | 'revealReferences'
+    | 'revealLocation'
+    | 'deleteNodes'
+    | 'refreshNodes'
+    | 'stopProcess'
+    | 'isRendered'
+
+    // Sent from Server Side
+    | 'rendered'
+    | 'hierarchy'
+    | 'updateNodes'
+    | 'revealResponse';
 
 /**
  * The base format of all message exchanged between server side and client side.
  */
 export type Message = {
-    command: string;
-    data: string;
+    command: MessageCommand;
+    data:
+        | string
+        | HierarchyMessage
+        | NodeIdsMessage
+        | UpdateMessage
+        | RevealReferencesMessage
+        | RevealReferencesResponse
+        | StringLocation
+        | NodeEdge;
 };
 
 /**
- * Message sended from the client to the server side to request for new
+ * Message sent from the client to the server side to request for new
  * node up or down from the hierarchy.
  */
 export type HierarchyMessage = {
@@ -17,6 +43,7 @@ export type HierarchyMessage = {
     direction: RelationDirection;
     expand: boolean;
     hierarchy: Hierarchy;
+    recursive: boolean;
 };
 
 export type NodeIdsMessage = {
@@ -28,22 +55,73 @@ export type UpdateMessage = {
     toDelete: NodeData[];
 };
 
+export type RevealReferencesMessage = {
+    targetNodeId: string;
+    referenceNodeId: string;
+};
+
+export type StringLocation = {
+    path: string;
+    range_start: vscode.Position;
+    range_end: vscode.Position;
+    string_location: string;
+};
+
+export type RevealReferencesResponse = {
+    // locations: StringLocation[];
+    // locationsMap: Map<string, StringLocation[]>;
+    locationsKeys: string[];
+    locationsValues: StringLocation[][];
+};
+
+export enum ALS_ShowDependenciesKind {
+    SHOW_IMPORTED = 1,
+    SHOW_IMPORTING = 2,
+}
+
+export interface ALS_ShowDependenciesParams {
+    uri: string /* The queried unit */;
+    kind: ALS_ShowDependenciesKind /* The dependencies query kind */;
+    showImplicit: boolean /* True if implicit dependencies should be returned */;
+}
+
+export interface ALS_Unit_Description {
+    uri: string /* The dependency unit's file */;
+    projectUri: string /* The dependency's project file */;
+}
 /**
  * Data stored in a node client side.
  */
 export type NodeData = {
+    // The id of the node.
     id: string;
+    // The name of the symbol represented by the node.
     label: string;
+    // The kind of symbol this node represent.
     kind: string;
+    // A boolean indicating if this now is showing his child or not.
     expanded: boolean;
-    // Null means the hierarchy was not yet checked and the button for it will be displayed
+    // A boolean indicating if this node has parents or not (null means not checked yet).
     hasParent: boolean | null;
+    // A boolean indicating if this node has children or not (null means not checked yet).
     hasChildren: boolean | null;
+    // A boolean indicating if the node must be focused in the graph.
     focus: boolean;
+    // Boolean indicating if the symbol is located in the project or in the runtime.
+    inProject: boolean;
+    // The symbol position in the project as a string
     string_location: {
         path: string;
         position: string;
     };
+    newPosition:
+        | undefined
+        | {
+              x: number;
+              y: number;
+          };
+
+    // Indicate if its a type hierarchy or a call hierarchy.
     hierarchy: Hierarchy;
 };
 
@@ -51,9 +129,17 @@ export type NodeData = {
  * Data stored in a node server side.
  */
 export type NodeHierarchy = NodeData & {
+    // The symbol location in the project (this structure is not well json formatted so it is stored
+    // only on the 'server side')
     location: vscode.Location;
+    // The array of parents nodes.
     parents: NodeHierarchy[];
+    // The array of children nodes.
     children: NodeHierarchy[];
+    // The language the symbol is from.
+    languageId: string;
+    // The object tasked to handle the language specific  operation (idGeneration, ...)
+    handler: VisualizerHandler;
 };
 
 /**
@@ -62,6 +148,7 @@ export type NodeHierarchy = NodeData & {
 export type NodeEdge = {
     nodesData: NodeData[];
     edges: DirectedEdge[];
+    focus: boolean;
     mainNodeId: string;
 };
 
@@ -93,6 +180,7 @@ export enum Direction {
  * The type of hierarchy that can be called
  */
 export enum Hierarchy {
-    TYPES,
+    TYPE,
     CALL,
+    PACKAGE,
 }
