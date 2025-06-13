@@ -279,6 +279,21 @@ export default function App() {
                     '--visualizer-icon-underline',
                     '1.5px solid',
                 );
+            // Delete the selected nodes when pressing backspace or delete.
+            // If ctrl is pressed as the same time also remove all of its children not linked to
+            // other part of the graph.
+            if (event.key === 'Delete' || event.key === 'Backspace') {
+                waitingBar();
+                const toDeleteId = nodes.filter((node) => node.selected).map((node) => node.id);
+                vscode.postMessage({
+                    command: 'deleteNodes',
+                    data: {
+                        nodesId: toDeleteId,
+                        recursive: event.ctrlKey,
+                    } as NodeIdsMessage,
+                });
+                setNodes(nodes);
+            }
         };
 
         window.addEventListener('keydown', handleKeyDown);
@@ -732,7 +747,7 @@ export default function App() {
                     onNodeClick={onNodeClick}
                     onMouseMove={onMouseMove}
                     onEdgeClick={onEdgeClick}
-                    onNodesDelete={onNodeDelete}
+                    // onNodesDelete={onNodeDelete}
                     onNodesChange={onNodesChange}
                     onEdgesChange={onEdgesChange}
                     onEdgeMouseEnter={onEdgeMouseEnter}
@@ -743,7 +758,8 @@ export default function App() {
                     onNodeDoubleClick={onNodeDoubleClick}
                     onNodeContextMenu={onNodeContextMenu}
                     selectionMode={SelectionMode.Partial}
-                    deleteKeyCode={['Delete', 'Backspace']}
+                    // deleteKeyCode={['Delete', 'Backspace']}
+                    deleteKeyCode={[]}
                     connectionLineComponent={floatingConnectionLine}
                     className="visualizer__colors"
                 >

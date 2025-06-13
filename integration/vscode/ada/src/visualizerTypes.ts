@@ -48,6 +48,7 @@ export type HierarchyMessage = {
 
 export type NodeIdsMessage = {
     nodesId: string[];
+    recursive: boolean;
 };
 
 export type UpdateMessage = {

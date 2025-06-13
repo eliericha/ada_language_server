@@ -160,7 +160,7 @@ function handleMessage(message: Message) {
         // Delete a set of nodes and their childs.
         case 'deleteNodes': {
             const data = message.data as NodeIdsMessage;
-            deleteNodes(data.nodesId);
+            deleteNodes(data.nodesId, data.recursive);
             break;
         }
         // Refresh the location of a node in the code.
@@ -326,7 +326,7 @@ function hasCycle(
  *
  * @param nodeIds - The ids of the nodes to remove
  */
-function deleteNodes(nodeIds: string[]) {
+function deleteNodes(nodeIds: string[], recursive: boolean) {
     let toUpdate: NodeHierarchy[] = [];
     let toDelete: NodeHierarchy[] = [];
 
@@ -337,7 +337,7 @@ function deleteNodes(nodeIds: string[]) {
         toDelete.push(node);
         for (const child of node.children) {
             // Only delete the children which are not part of a cycle with their parent
-            if (!hasCycle(node, child)) {
+            if (recursive && !hasCycle(node, child)) {
                 const queue: NodeHierarchy[] = [child];
                 while (queue.length !== 0) {
                     const del = queue.pop();
