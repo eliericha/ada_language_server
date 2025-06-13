@@ -285,14 +285,7 @@ export default function App() {
             if (event.key === 'Delete' || event.key === 'Backspace') {
                 waitingBar();
                 const toDeleteId = nodes.filter((node) => node.selected).map((node) => node.id);
-                vscode.postMessage({
-                    command: 'deleteNodes',
-                    data: {
-                        nodesId: toDeleteId,
-                        recursive: event.ctrlKey,
-                    } as NodeIdsMessage,
-                });
-                setNodes(nodes);
+                deleteNodes(toDeleteId, event.ctrlKey);
             }
         };
 
@@ -311,6 +304,25 @@ export default function App() {
         window.addEventListener('keyup', handleKeyUp);
         return () => window.removeEventListener('keyup', handleKeyUp);
     }, []);
+
+    /**
+     * Send a delete message with the id of the main node to remove to the server side.
+     */
+    const deleteNodes = React.useCallback(
+        (toDeleteId: string[], recursive: boolean) => {
+            waitingBar();
+            vscode.postMessage({
+                command: 'deleteNodes',
+                data: {
+                    nodesId: toDeleteId,
+                    recursive: recursive,
+                } as NodeIdsMessage,
+            });
+
+            setNodes(nodes);
+        },
+        [nodes],
+    );
 
     /**
      * Relayout the whole graph in the opposite direction than the current one.
@@ -524,23 +536,6 @@ export default function App() {
     );
 
     /**
-     * Send a delete message with the id of the main node to remove to the server side.
-     */
-    const onNodeDelete = React.useCallback(
-        (toDelete: Node[]) => {
-            waitingBar();
-            vscode.postMessage({
-                command: 'deleteNodes',
-                data: {
-                    nodesId: toDelete.map((node) => node.id),
-                } as NodeIdsMessage,
-            });
-            setNodes(nodes);
-        },
-        [nodes],
-    );
-
-    /**
      * Close the node context menu and clear the node search bar on pane click
      */
     const onPaneClick = React.useCallback(
@@ -599,7 +594,7 @@ export default function App() {
                         locationsMap: new Map(),
                         pane: pane,
                         onContextClose: onNodeContextClose,
-                        onNodeDelete: onNodeDelete,
+                        deleteNodes: deleteNodes,
                     } as NodeContextMenuProps);
                 }, 200);
             }

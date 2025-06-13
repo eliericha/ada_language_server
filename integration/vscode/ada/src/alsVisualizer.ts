@@ -372,7 +372,7 @@ function deleteNodes(nodeIds: string[], recursive: boolean) {
         for (const child of node.children) {
             child.parents = child.parents.filter((parent) => parent.id !== node.id);
             if (child.parents.length === 0) {
-                child.hasChildren = null;
+                child.hasParent = null;
                 toUpdate.push(child);
             }
         }

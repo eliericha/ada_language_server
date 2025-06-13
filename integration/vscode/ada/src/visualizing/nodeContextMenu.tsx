@@ -23,7 +23,7 @@ export type NodeContextMenuProps = {
     locationsMap: Map<string, StringLocation[]>;
     pane: DOMRect;
     onContextClose: () => void;
-    onNodeDelete: (toDelete: Node[]) => void;
+    deleteNodes: (toDeleteId: string[], recursive: boolean) => void;
 };
 // Store the id of the timeout used for closing the menu.
 let intervalId: NodeJS.Timeout | null = null;
@@ -75,7 +75,7 @@ export function NodeContextMenu(props: NodeContextMenuProps) {
      * Send a delete node request to the server side.
      */
     const deleteNode = React.useCallback(() => {
-        props.onNodeDelete([props.node]);
+        props.deleteNodes([props.node.id], false);
         props.onContextClose();
     }, [props.node]);
 
