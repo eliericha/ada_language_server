@@ -7,6 +7,7 @@ import {
     NodeData,
     NodeIdsMessage,
     RelationDirection,
+    RevealMessage,
     RevealReferencesMessage,
     StringLocation,
 } from '../visualizerTypes';
@@ -172,6 +173,32 @@ export function NodeContextMenu(props: NodeContextMenuProps) {
         [current],
     );
 
+    /**
+     * Reveal the definition location of the current symbol in the code.
+     */
+    const gotoDefinition = React.useCallback(() => {
+        vscode.postMessage({
+            command: 'revealNode',
+            data: {
+                nodeId: props.node.id,
+                gotoImplementation: false,
+            } as RevealMessage,
+        });
+    }, []);
+
+    /**
+     * Reveal the implementation location of the current symbol in the code.
+     */
+    const gotoImplementation = React.useCallback(() => {
+        vscode.postMessage({
+            command: 'revealNode',
+            data: {
+                nodeId: props.node.id,
+                gotoImplementation: true,
+            } as RevealMessage,
+        });
+    }, []);
+
     // If no locations has been registered yet create all the list elements.
     if (locations.length === 0) {
         for (const key of props.locationsMap.keys()) {
@@ -276,6 +303,12 @@ export function NodeContextMenu(props: NodeContextMenuProps) {
             >
                 <button className="visualizer__context-button" onClick={refreshNode}>
                     Refresh Node
+                </button>
+                <button className="visualizer__context-button" onClick={gotoDefinition}>
+                    Goto Definition
+                </button>
+                <button className="visualizer__context-button" onClick={gotoImplementation}>
+                    Goto Implementation
                 </button>
                 <button className="visualizer__context-button" onClick={deleteNode}>
                     Delete Node

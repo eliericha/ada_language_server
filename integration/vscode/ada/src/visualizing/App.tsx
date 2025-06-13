@@ -12,6 +12,7 @@ import {
     StringLocation,
     NodeData,
     Hierarchy,
+    RevealMessage,
 } from '../visualizerTypes';
 import {
     Node,
@@ -346,7 +347,10 @@ export default function App() {
             return;
         vscode.postMessage({
             command: 'revealNode',
-            data: node.id,
+            data: {
+                nodeId: node.id,
+                gotoImplementation: event.ctrlKey,
+            } as RevealMessage,
         });
 
         // Unselect the node after the double click.

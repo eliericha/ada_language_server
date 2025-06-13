@@ -28,6 +28,7 @@ export type Message = {
         | HierarchyMessage
         | NodeIdsMessage
         | UpdateMessage
+        | RevealMessage
         | RevealReferencesMessage
         | RevealReferencesResponse
         | StringLocation
@@ -54,6 +55,11 @@ export type NodeIdsMessage = {
 export type UpdateMessage = {
     toUpdate: NodeData[];
     toDelete: NodeData[];
+};
+
+export type RevealMessage = {
+    nodeId: string;
+    gotoImplementation: boolean;
 };
 
 export type RevealReferencesMessage = {

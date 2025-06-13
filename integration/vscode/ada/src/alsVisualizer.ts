@@ -18,6 +18,7 @@ import {
     StringLocation,
     ALS_Unit_Description,
     ALS_ShowDependenciesKind,
+    RevealMessage,
 } from './visualizerTypes';
 import { createHandler, VisualizerHandler } from './alsVisualizerProvider';
 import { logger } from './extension';
@@ -136,9 +137,10 @@ function handleMessage(message: Message) {
         }
         // Reveal the definition symbol of a specific node.
         case 'revealNode': {
-            const node = symbolsMap.get(message.data as string);
+            const data = message.data as RevealMessage;
+            const node = symbolsMap.get(data.nodeId);
             if (node === undefined) return;
-            void revealSymbol(node.location, node.hierarchy);
+            void revealSymbol(node.location, node.hierarchy, data.gotoImplementation);
             break;
         }
         // Gather all references of a symbol in an other symbol.
@@ -154,7 +156,7 @@ function handleMessage(message: Message) {
                 vscode.Uri.file(location_data.path),
                 new vscode.Range(location_data.range_start, location_data.range_end),
             );
-            void revealSymbol(location, Hierarchy.CALL);
+            void revealSymbol(location, Hierarchy.CALL, false);
             break;
         }
         // Delete a set of nodes and their childs.
@@ -599,9 +601,28 @@ async function revealReference(targetNodeId: string, referenceNodeId: string) {
  *
  * @param id - The id of the node to reveal
  */
-async function revealSymbol(location: vscode.Location, hierarchy: Hierarchy) {
+async function revealSymbol(
+    location: vscode.Location,
+    hierarchy: Hierarchy,
+    gotoImplementation: boolean,
+) {
     if (!fs.existsSync(location.uri.fsPath)) return;
 
+    if (gotoImplementation) {
+        const implementationLocation = await vscode.commands.executeCommand<
+            (vscode.Location | vscode.LocationLink)[]
+        >('vscode.executeImplementationProvider', location.uri, location.range.start);
+        if (implementationLocation.length > 0) {
+            if ('uri' in implementationLocation[0]) {
+                location = implementationLocation[0];
+            } else {
+                location = new vscode.Location(
+                    implementationLocation[0].targetUri,
+                    implementationLocation[0].targetRange,
+                );
+            }
+        }
+    }
     const tabsGroup = vscode.window.tabGroups.all;
     let viewColumn: vscode.ViewColumn | undefined;
     // Find the tab which contain the same uri as the node and return its viewColumn
