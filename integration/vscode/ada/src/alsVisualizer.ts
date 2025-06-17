@@ -2,6 +2,7 @@
 // Needed for importing the script in the html snippet
 import * as vscode from 'vscode';
 import * as fs from 'fs';
+import * as path from 'path';
 import {
     RelationDirection,
     Message,
@@ -47,6 +48,8 @@ void startTimer;
 void endTimer;
 
 let stopProcess: boolean = false;
+let rejectProcess: boolean = false;
+let canSendNextData: boolean = true;
 
 /**
  * Start a progress animation in the status bar to indicate the user that a request is being
@@ -55,22 +58,35 @@ let stopProcess: boolean = false;
  * @param cancellable - Indicate if the progress should be cancellable, which will put it in
  * a notification instead of the status bar.
  */
-function withVizProgress(task: () => void | Promise<void>, cancellable = false) {
+function withVizProgress(task: () => void | Promise<void>, message: string, cancellable = false) {
     vscode.window.withProgress(
         {
             location: cancellable
                 ? vscode.ProgressLocation.Notification
                 : vscode.ProgressLocation.Window,
-            title: 'Visualizing',
+            title: message,
             cancellable: cancellable,
         },
         async (progress, token) => {
             void progress;
+            if (rejectProcess) {
+                logger.warn('ALS: handleMessage: another command is already running');
+                return;
+            }
+            rejectProcess = true;
             token.onCancellationRequested(() => {
+                rejectProcess = false;
                 stopProcess = true;
             });
-            await task();
+            try {
+                await task();
+            } catch (error) {
+                logger.error(error);
+                rejectProcess = false;
+                return;
+            }
             return new Promise<void>((resolve) => {
+                rejectProcess = false;
                 resolve();
             });
         },
@@ -95,8 +111,8 @@ export function startVisualize(context: vscode.ExtensionContext, hierarchy: Hier
             const direction =
                 hierarchy === Hierarchy.CALL ? RelationDirection.SUPER : RelationDirection.BOTH;
             const middleNode =
-                hierarchy === Hierarchy.PACKAGE
-                    ? await getPackageHierarchy(input, languageId)
+                hierarchy === Hierarchy.FILE
+                    ? await getFileDependency(input, languageId, direction)
                     : await getCodeHierarchy(input, hierarchy, languageId, direction);
 
             // Create the webView only if there is something to display
@@ -119,7 +135,7 @@ export function startVisualize(context: vscode.ExtensionContext, hierarchy: Hier
                 }
             }
         }
-    });
+    }, 'Visualizing');
 }
 
 /**
@@ -170,7 +186,7 @@ function handleMessage(message: Message) {
             withVizProgress(() => {
                 const data = message.data as NodeIdsMessage;
                 void refreshNodes(data.nodesId);
-            });
+            }, 'Visualizing');
             break;
         }
         // Stop the current loop of process (mostly for the recursive hierarchy)
@@ -181,6 +197,9 @@ function handleMessage(message: Message) {
         // This message is not handled here but it is catched here to avoid falling into
         // the default case.
         case 'rendered':
+            break;
+        case 'canSendNextData':
+            canSendNextData = true;
             break;
         default:
             logger.warn('ALS: handleMessage: Command not found or empty');
@@ -196,66 +215,108 @@ function handleMessage(message: Message) {
  * @param data - The data necessary to expand a node.
  */
 function requestHierarchy(data: HierarchyMessage) {
-    withVizProgress(async () => {
-        stopProcess = false;
-        const node = symbolsMap.get(data.id);
-        // Check that the symbol is not a runtime generated one
-        if (node === undefined) return;
-        node.expanded = data.expand;
-        const queue: NodeHierarchy[] = [node];
-        // If recursive is enable loop until all the childs of the node has been expanded,
-        // or the loop is stopped (see stopProcess).
-        while (queue.length !== 0) {
-            const currNode = queue.pop();
-            if (currNode) {
-                const start = performance.now();
-                if (
-                    ((data.expand || data.direction === RelationDirection.SUPER) &&
-                        fs.existsSync(currNode.location.uri.fsPath) &&
-                        data.direction === RelationDirection.SUB &&
-                        currNode.children.length === 0) ||
-                    (data.direction === RelationDirection.SUPER && currNode.parents.length === 0)
-                ) {
-                    if (currNode.hierarchy === Hierarchy.PACKAGE) {
-                        await getPackageHierarchy(
-                            currNode.location,
-                            currNode.languageId,
-                            data.direction,
-                        );
-                    } else {
-                        await getCodeHierarchy(
-                            currNode.location,
-                            data.hierarchy,
-                            currNode.languageId,
-                            data.direction,
-                        );
-                    }
-                    if (data.recursive) {
-                        if (data.direction === RelationDirection.SUB)
-                            queue.push(...currNode.children.filter((child) => child.inProject));
-                        else queue.push(...currNode.parents.filter((parent) => parent.inProject));
-                    }
-                }
-                // Update the graph in realtime so the user can see it grow.
-                sendMessage(data.id, data.hierarchy, !data.recursive);
-                if (stopProcess) {
-                    stopProcess = false;
-                    break;
-                }
+    withVizProgress(
+        async () => {
+            stopProcess = false;
+            const node = symbolsMap.get(data.id);
+            // Check that the symbol is not a runtime generated one
+            if (node === undefined) return;
+            node.expanded = data.expand;
+            const queue: NodeHierarchy[] = [node];
 
-                // It is necessary to wait a bit between sending two messages or the client
-                // wont be able to handle all the requests. As the hierarchy functions takes times,
-                // it is not always necessary to wait so we only wait if the execution time of the
-                // function is too low.
-                const end = performance.now() - start;
-                const difference = Math.max(0, 250 - end);
-                if (difference > 0) await new Promise((resolve) => setTimeout(resolve, difference));
+            /**
+             * Subfunction that perform one iteration of the graph expansion
+             * (add only direct children or parents of currNode)
+             */
+            async function subRequestHierarchy() {
+                // We do an iteration only if we are not in recursive mode (only one iteration)
+                // or if we expect multiple iteration and the client is ready to receive the next
+                // data.
+                if (!data.recursive || (data.recursive && canSendNextData)) {
+                    const currNode = queue.pop();
+                    if (currNode) {
+                        // We want to expand the graph only if the node is currently expanded
+                        // or we want to get the parents of the node and that the path contained
+                        // in the node exist on the machine.
+                        if (
+                            (data.expand || data.direction === RelationDirection.SUPER) &&
+                            fs.existsSync(currNode.location.uri.fsPath)
+                        ) {
+                            if (currNode.hierarchy === Hierarchy.FILE) {
+                                await getFileDependency(
+                                    currNode.location,
+                                    currNode.languageId,
+                                    data.direction,
+                                );
+                            } else {
+                                await getCodeHierarchy(
+                                    currNode.location,
+                                    data.hierarchy,
+                                    currNode.languageId,
+                                    data.direction,
+                                );
+                            }
+                            // Add the children or parents in the queue only if we are in recursive.
+                            if (data.recursive) {
+                                if (data.direction === RelationDirection.SUB)
+                                    queue.push(
+                                        ...currNode.children.filter((child) => child.inProject),
+                                    );
+                                else
+                                    queue.push(
+                                        ...currNode.parents.filter((parent) => parent.inProject),
+                                    );
+                            }
+                        }
+                        //Set the marker for next data to false and wait for the client to send a
+                        // message to update it.
+                        canSendNextData = false;
+                        // Update the graph in realtime so the user can see it grow.
+                        sendMessage(currNode.id, data.hierarchy, !data.recursive || stopProcess);
+                    }
+                }
             }
-        }
-        // Send a last message to focus on the right node at the end if the
-        // graph was expanded recursively.
-        if (data.recursive) sendMessage(data.id, data.hierarchy, true);
-    }, data.recursive);
+            // Call the first iteration of the process.
+            await subRequestHierarchy();
+
+            let finalStop = false;
+            // Wait for response from the client to call the following iterations.
+            const receiveMessageEvent = panels[data.hierarchy]?.webview.onDidReceiveMessage(
+                async (message: Message) => {
+                    if (message.command === 'canSendNextData') {
+                        if (queue.length !== 0 && !stopProcess) await subRequestHierarchy();
+                        // When the queue is empty or the user asked to stop the process, send the
+                        // final, to update the final state of the graph and stop the waiting bar
+                        // of the client.
+                        else {
+                            sendMessage(node.id, data.hierarchy);
+                            receiveMessageEvent?.dispose();
+
+                            // The reason there is two stop variable is that :
+                            // - if the user stop the process himself, the interval below will
+                            // trigger first and the this event listener will be call.
+                            // - if the process ended naturally this event listener will be called
+                            // and trigger the interval
+                            if (stopProcess) stopProcess = false;
+                            else finalStop = true;
+                        }
+                    }
+                },
+            );
+            // This promise makes sur the task exit until the user requests it or the queue
+            // became empty.
+            await new Promise<void>((resolve) => {
+                const intervalId = setInterval(() => {
+                    if (stopProcess || finalStop) {
+                        clearInterval(intervalId);
+                        resolve();
+                    }
+                }, 100);
+            });
+        },
+        data.recursive ? 'Gathering data...' : 'Visualizing',
+        data.recursive,
+    );
 }
 
 /**
@@ -669,8 +730,7 @@ async function createNodeHierarchy(
         | vscode.TypeHierarchyItem
         | vscode.CallHierarchyOutgoingCall
         | vscode.CallHierarchyIncomingCall
-        | vscode.DocumentSymbol
-        | vscode.SymbolInformation,
+        | VisualizerSymbol,
     hierarchy: Hierarchy,
     languageId: string,
     wantParentLocation: boolean = true,
@@ -688,14 +748,7 @@ async function createNodeHierarchy(
               ? hierarchyItem.uri
               : 'to' in hierarchyItem
                 ? hierarchyItem.to.uri
-                : 'location' in hierarchyItem
-                  ? hierarchyItem.location.uri
-                  : undefined;
-
-    if (!uri) {
-        logger.warn('ALS: createNodeHierarchy: Uri was not provided in the item');
-        return null;
-    }
+                : hierarchyItem.location.uri;
 
     // Expand the symlinks to avoid getting the same node twice with a different path.
     const realPath = fs.realpathSync(uri.fsPath);
@@ -708,9 +761,8 @@ async function createNodeHierarchy(
               ? hierarchyItem.selectionRange
               : 'to' in hierarchyItem
                 ? hierarchyItem.to.selectionRange
-                : 'selectionRange' in hierarchyItem
-                  ? hierarchyItem.selectionRange
-                  : hierarchyItem.location.range;
+                : hierarchyItem.location.range;
+
     let hasParent: boolean | null = null;
     if (fs.existsSync(uri.fsPath)) {
         if (wantParentLocation) {
@@ -964,12 +1016,17 @@ async function getCodeHierarchy(
         location.range.start,
     );
     if (items.length == 0) return;
+    // The middle node represent the current main symbol in the graph (the symbol the visualizer was
+    // launched on or the symbol for which we are calculating its parent or children).
     let middleNode;
+
     for (const item of items) {
         const tmpNode = await createNodeHierarchy(item, hierarchy, languageId);
         if (!tmpNode) continue;
         middleNode = insertSymbolsMap(tmpNode);
+        // Once the process is done we want the graph to focus on this specific node.
         middleNode.focus = true;
+
         focusedNode = middleNode;
         if (direction === RelationDirection.BOTH || direction === RelationDirection.SUPER) {
             await getHierarchy(
@@ -989,6 +1046,8 @@ async function getCodeHierarchy(
                 hierarchy,
             );
         }
+
+        // The middle node is expanded by default when we are getting its children.
         middleNode.expanded = direction === RelationDirection.SUPER ? middleNode.expanded : true;
     }
     // Get all the nodes that does not have parents
@@ -997,7 +1056,50 @@ async function getCodeHierarchy(
 }
 
 /**
- * Get package hierarchy information from a location.
+ * Describe the minimal data necessary to get from an lsp to create a node.
+ */
+type VisualizerSymbol = {
+    name: string;
+    location: vscode.Location;
+    kind: vscode.SymbolKind;
+};
+
+async function getFile(
+    dependenciesKind: ALS_ShowDependenciesKind,
+    location: vscode.Location,
+    direction: RelationDirection,
+    languageId: string,
+    middleNode: NodeHierarchy,
+) {
+    // Get the packages depending on the current one.
+    const dependencies = await vscode.commands.executeCommand<ALS_Unit_Description[]>(
+        'als-show-dependencies',
+        {
+            uri: location.uri.toString(),
+            kind: dependenciesKind,
+            showImplicit: false,
+        },
+    );
+
+    for (const dependency of dependencies) {
+        const uri = vscode.Uri.parse(dependency.uri);
+        if (!fs.existsSync(uri.fsPath)) continue;
+
+        // As the symbol represent the whole file, the position doesn't matter so we set it to the
+        // beginning
+        const symbol = {
+            name: path.basename(uri.fsPath),
+            location: new vscode.Location(uri, new vscode.Position(0, 0)),
+            kind: vscode.SymbolKind.File,
+        };
+        const node = await createNodeHierarchy(symbol, Hierarchy.FILE, languageId, false);
+        if (!node) continue;
+        bindNodes(middleNode, node, direction);
+    }
+}
+
+/**
+ * Get file dependency information from a location.
  * This features works specifically for ada.
  *
  * @param location - The location of the symbol in the code.
@@ -1005,114 +1107,57 @@ async function getCodeHierarchy(
  * @param direction - The direction of the hierarchy
  * @returns
  */
-async function getPackageHierarchy(
+async function getFileDependency(
     location: vscode.Location,
     languageId: string,
-    direction: RelationDirection = RelationDirection.SUB,
+    direction: RelationDirection,
 ) {
-    let middleNode: NodeHierarchy | null = null;
-    // The location of the body of the package if `location` point to the  package definition or
-    // the other way around.
-    let subLocation: vscode.Location | null = null;
+    const symbol = {
+        name: path.basename(location.uri.fsPath),
+        location: new vscode.Location(location.uri, new vscode.Position(0, 0)),
+        kind: vscode.SymbolKind.File,
+    };
+    // The middle node represent the current main symbol in the graph (the symbol the visualizer was
+    // launched on or the symbol for which we are calculating its parent or children).
+    const middleNode: NodeHierarchy = insertSymbolsMap(
+        await createNodeHierarchy(symbol, Hierarchy.FILE, languageId, false),
+    );
 
-    // Get the base package symbol information from the location given as a parameter.
-    const baseSymbols = await vscode.commands.executeCommand<
-        (vscode.SymbolInformation | vscode.DocumentSymbol)[]
-    >('vscode.executeDocumentSymbolProvider', location.uri);
-    // Search the symbol representing a package (definition) or a module (body).
-    for (const symbol of baseSymbols) {
-        const packageLoc = await vscode.commands.executeCommand<vscode.Location[]>(
-            'vscode.executeDefinitionProvider',
-            location.uri,
-            'selectionRange' in symbol ? symbol.selectionRange.start : symbol.location.range.start,
-        );
-        if (packageLoc.length > 0) {
-            // If the symbol found represent the body, update the symbol location to point on
-            // the definition.
-            if (symbol.kind === vscode.SymbolKind.Module) {
-                if ('selectionRange' in symbol) {
-                    symbol.selectionRange = packageLoc[0].range;
-                }
-                if ('uri' in symbol) {
-                    symbol.uri = packageLoc[0].uri;
-                } else if ('location' in symbol) {
-                    symbol.location.uri = packageLoc[0].uri;
-                    symbol.location.range = packageLoc[0].range;
-                }
-                symbol.kind = vscode.SymbolKind.Package;
-            }
-            subLocation = new vscode.Location(packageLoc[0].uri, packageLoc[0].range);
-            middleNode = await createNodeHierarchy(symbol, Hierarchy.PACKAGE, languageId, false);
-            if (!middleNode) return;
-
-            middleNode = insertSymbolsMap(middleNode);
-
-            break;
-        } else if (symbol.kind === vscode.SymbolKind.Package) {
-            middleNode = await createNodeHierarchy(symbol, Hierarchy.PACKAGE, languageId);
-            if (!middleNode) return;
-
-            middleNode = insertSymbolsMap(middleNode);
-            break;
-        }
-    }
     if (!middleNode) return;
 
-    // Get the packages depending on the current one.
-    const dependencies = await vscode.commands.executeCommand<ALS_Unit_Description[]>(
-        'als-show-dependencies',
-        {
-            uri: location.uri.toString(),
-            kind:
-                direction === RelationDirection.SUB
-                    ? ALS_ShowDependenciesKind.SHOW_IMPORTED
-                    : ALS_ShowDependenciesKind.SHOW_IMPORTING,
-            showImplicit: false,
-        },
-    );
-    // The dependencies can be different for the definition and the body so the command is call
-    // on each one to get all of them.
-    if (subLocation)
-        dependencies.push(
-            ...(await vscode.commands.executeCommand<ALS_Unit_Description[]>(
-                'als-show-dependencies',
-                {
-                    uri: subLocation.uri.toString(),
-                    kind:
-                        direction === RelationDirection.SUB
-                            ? ALS_ShowDependenciesKind.SHOW_IMPORTED
-                            : ALS_ShowDependenciesKind.SHOW_IMPORTING,
-                    showImplicit: false,
-                },
-            )),
+    // If we want to expand the graph in both direction, we will enter into the two if which will
+    // fill the children first and the the parents.
+    if (direction === RelationDirection.SUB || direction === RelationDirection.BOTH) {
+        await getFile(
+            ALS_ShowDependenciesKind.SHOW_IMPORTED,
+            location,
+            RelationDirection.SUB,
+            languageId,
+            middleNode,
         );
-    for (const dependency of dependencies) {
-        const uri = vscode.Uri.parse(dependency.uri);
-        if (!fs.existsSync(uri.fsPath)) continue;
+    }
+    if (direction === RelationDirection.SUPER || direction === RelationDirection.BOTH) {
+        await getFile(
+            ALS_ShowDependenciesKind.SHOW_IMPORTING,
+            location,
+            RelationDirection.SUPER,
+            languageId,
+            middleNode,
+        );
+    }
 
-        const symbols = await vscode.commands.executeCommand<
-            (vscode.SymbolInformation | vscode.DocumentSymbol)[]
-        >('vscode.executeDocumentSymbolProvider', uri);
-        for (const symbol of symbols) {
-            if (symbol.kind === vscode.SymbolKind.Package) {
-                const node = await createNodeHierarchy(
-                    symbol,
-                    Hierarchy.PACKAGE,
-                    languageId,
-                    false,
-                );
-                if (!node) continue;
-                bindNodes(middleNode, node, direction);
-                break;
-            }
-        }
-    }
-    if (middleNode) {
-        middleNode.expanded = direction === RelationDirection.SUPER ? middleNode.expanded : true;
-    }
-    if (direction === RelationDirection.SUB && middleNode.children.length === 0)
+    // The middle node is expanded by default when we are getting its children.
+    middleNode.expanded = direction === RelationDirection.SUPER ? middleNode.expanded : true;
+
+    if (
+        (direction === RelationDirection.SUB || direction === RelationDirection.BOTH) &&
+        middleNode.children.length === 0
+    )
         middleNode.hasChildren = false;
-    if (direction === RelationDirection.SUPER && middleNode.parents.length === 0)
+    else if (
+        (direction === RelationDirection.SUPER || direction === RelationDirection.BOTH) &&
+        middleNode.parents.length === 0
+    )
         middleNode.hasParent = false;
     rootNodes = findRoots();
     return middleNode;
@@ -1125,9 +1170,12 @@ async function getPackageHierarchy(
  */
 function setupWebView(context: vscode.ExtensionContext, hierarchy: Hierarchy) {
     const hierarchyType =
-        hierarchy === Hierarchy.CALL ? 'Call' : hierarchy === Hierarchy.TYPE ? 'Type' : 'Package';
+        hierarchy === Hierarchy.CALL ? 'Call' : hierarchy === Hierarchy.TYPE ? 'Type' : 'File';
     const id = 'alsVisualizer' + hierarchyType;
-    const title = 'Visualize ' + hierarchyType + ' Hierarchy';
+    const title =
+        'Visualize ' +
+        hierarchyType +
+        (hierarchy === Hierarchy.FILE ? ' Dependency' : ' Hierarchy');
 
     let panel = panels[hierarchy];
     if (panel != undefined && panel != null) return;

@@ -1056,9 +1056,9 @@
                 "when": "ADA_PROJECT_CONTEXT"
             },
             {
-                "command": "ada.visualizePackages",
-                "title": "Show Packages Hierarchy (graph)",
-                "shortTitle": "Visualize packages hierarchy",
+                "command": "ada.visualizeFiles",
+                "title": "Show File Dependencies (graph)",
+                "shortTitle": "Visualize file dependencies",
                 "enablement": "config.ada.enableExperimentalFeatures"
             },
             {
@@ -1240,7 +1240,7 @@
                     "when": "activeEditor && editorLangId && editorHasTypeHierarchyProvider && config.ada.enableExperimentalFeatures"
                 },
                 {
-                    "command": "ada.visualizePackages",
+                    "command": "ada.visualizeFiles",
                     "group": "0_navigation@6",
                     "when": "activeEditor && editorLangId == ada && config.ada.enableExperimentalFeatures"
                 }

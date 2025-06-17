@@ -12,7 +12,7 @@ import { Hierarchy } from '../visualizerTypes';
  */
 export function getNodeKind(kind: string) {
     if (kind === 'class' || kind === 'object' || kind === 'struct') return Hierarchy.TYPE;
-    else if (kind === 'package') return Hierarchy.PACKAGE;
+    else if (kind === 'package') return Hierarchy.FILE;
     return Hierarchy.CALL;
 }
 

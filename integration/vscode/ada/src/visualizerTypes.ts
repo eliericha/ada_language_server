@@ -11,6 +11,7 @@ type MessageCommand =
     | 'refreshNodes'
     | 'stopProcess'
     | 'isRendered'
+    | 'canSendNextData'
 
     // Sent from Server Side
     | 'rendered'
@@ -189,5 +190,5 @@ export enum Direction {
 export enum Hierarchy {
     TYPE,
     CALL,
-    PACKAGE,
+    FILE,
 }

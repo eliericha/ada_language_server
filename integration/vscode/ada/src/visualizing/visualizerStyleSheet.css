@@ -172,6 +172,7 @@ so reduce its size a little. */
 }
 
 .codicon-call-incoming:before,
+.codicon-file:before,
 .codicon-call-outgoing:before {
     border-bottom: var(--visualizer-icon-underline);
 }
@@ -475,6 +476,7 @@ so reduce its size a little. */
     width: var(--visualizer-load-width);
     background-color: var(--visualizer-border-color-focused);
     height: 3px;
+    z-index: 1000000;
     animation: linear infinite;
     animation-name: run;
     animation-duration: 5s;

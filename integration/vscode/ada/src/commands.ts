@@ -132,8 +132,8 @@ export function registerCommands(context: vscode.ExtensionContext, clients: Exte
         ),
     );
     context.subscriptions.push(
-        vscode.commands.registerCommand('ada.visualizePackages', () =>
-            startVisualize(context, Hierarchy.PACKAGE),
+        vscode.commands.registerCommand('ada.visualizeFiles', () =>
+            startVisualize(context, Hierarchy.FILE),
         ),
     );
 

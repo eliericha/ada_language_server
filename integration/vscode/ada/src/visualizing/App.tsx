@@ -116,7 +116,7 @@ async function handleHierarchy(data: NodeEdge) {
     // Recreate the node to force an update
     if (data.focus && focusIndex !== -1 && nodes.length > numNodes)
         nodes[focusIndex] = { ...nodes[focusIndex] };
-    else if (focusIndex !== -1 || !data.focus) nodes[focusIndex].data.focus = false;
+    else if (focusIndex !== -1 && !data.focus) nodes[focusIndex].data.focus = false;
 
     // Place the original position of all the new node to the focused Node.
     if (focusIndex !== -1) {
@@ -406,7 +406,7 @@ export default function App() {
     function openReferencesPicker(event: React.MouseEvent, edge: Edge, openedByClick: boolean) {
         // When using the references picker if the user selects a location without moving the
         // mouse, the picker would reopen alone causing the user to lose focus on its code.
-        if ((nodes[0].data as NodeData).hierarchy === Hierarchy.PACKAGE) return;
+        if ((nodes[0].data as NodeData).hierarchy === Hierarchy.FILE) return;
         if (ref.current && canOpenReferencesPicker) {
             closeAllPopUp();
             event.preventDefault();

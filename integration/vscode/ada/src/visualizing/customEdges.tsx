@@ -14,7 +14,9 @@ import { RelationDirection } from '../visualizerTypes';
 export const edgeTypes = {
     floating: floatingEdge,
 };
-
+const markerHeight = 25;
+const markerWidth = 25;
+const edgeStrokeWidth = 4;
 /**
  * Return a new react flow edge.
  * @param src - Source node of the edge.
@@ -29,13 +31,13 @@ export function edgeFactory(src: string, dst: string, edgeDirection: RelationDir
         type: 'floating',
         markerEnd:
             edgeDirection === RelationDirection.BOTH || edgeDirection === RelationDirection.SUB
-                ? { height: 15, width: 15, type: MarkerType.Arrow }
+                ? { height: markerHeight, width: markerWidth, type: MarkerType.Arrow }
                 : undefined,
         markerStart:
             edgeDirection === RelationDirection.BOTH || edgeDirection === RelationDirection.SUPER
-                ? { height: 15, width: 15, type: MarkerType.Arrow }
+                ? { height: markerHeight, width: markerWidth, type: MarkerType.Arrow }
                 : undefined,
-        style: { strokeWidth: 2 },
+        style: { strokeWidth: edgeStrokeWidth },
         data: {
             additionalClass: undefined,
         },

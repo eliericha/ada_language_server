@@ -7,6 +7,7 @@ import {
     RelationDirection,
     HierarchyMessage,
     Hierarchy,
+    Message,
 } from '../visualizerTypes';
 import { currentDirection, vscode } from './App';
 import { setIntervalCapped, waitingBar } from './utils';
@@ -105,6 +106,7 @@ export function moveNodes(
                         for (const parent of parents) {
                             parent.style.transition = 'inherit';
                         }
+                        vscode.postMessage({ command: 'canSendNextData', data: '' } as Message);
                     }, duration);
                 }, 100);
                 // Stop the interval loop
@@ -146,7 +148,7 @@ export function Rectangle(node: NodeProps<DataNode>) {
                 ? 'call-outgoing'
                 : data.hierarchy === Hierarchy.TYPE
                   ? 'type-hierarchy-sub'
-                  : 'package'
+                  : 'file'
             : data.expanded
               ? 'chevron-down'
               : 'chevron-right') +
@@ -169,7 +171,7 @@ export function Rectangle(node: NodeProps<DataNode>) {
             ? 'call-incoming'
             : node.data.hierarchy === Hierarchy.TYPE
               ? 'type-hierarchy-super'
-              : 'package') +
+              : 'file') +
         ' visualizer__hierarchy-button visualizer__super-button-' +
         (currentDirection === Direction.RIGHT ? 'left' : 'up') +
         (!data.inProject ? ' visualizer__out-of-project' : '');
@@ -188,7 +190,7 @@ export function Rectangle(node: NodeProps<DataNode>) {
             ? 'incoming calls'
             : Hierarchy.TYPE
               ? 'supertypes'
-              : 'imported packages');
+              : 'dependent files');
 
     const subButtonTitle =
         (node.data.expanded ? 'Hide ' : 'Display ') +
@@ -196,7 +198,7 @@ export function Rectangle(node: NodeProps<DataNode>) {
             ? 'outgoing calls'
             : node.data.hierarchy === Hierarchy.TYPE
               ? 'subtypes'
-              : 'importing package');
+              : 'depending files');
 
     // Handle windows/linux/macos filesystems
     const fileName = data.string_location.path.replace(/^.*(\\|\/|:)/, '');

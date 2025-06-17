@@ -325,7 +325,7 @@ export function NodeContextMenu(props: NodeContextMenuProps) {
                 >
                     {superContent}
                 </button>
-                {(props.node.data as NodeData).hierarchy !== Hierarchy.PACKAGE && (
+                {(props.node.data as NodeData).hierarchy !== Hierarchy.FILE && (
                     <button
                         className="visualizer__context-button"
                         id="visualizer__context-references-button"
