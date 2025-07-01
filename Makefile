@@ -45,6 +45,9 @@ GPRBUILD=gprbuild $(GPRBUILD_FLAGS) -XSUPERPROJECT=
 GPRCLEAN_EXTRA=
 GPRCLEAN=gprclean -XSUPERPROJECT= $(GPRCLEAN_EXTRA)
 
+NPM=npm
+XVFB_RUN=xvfb-run -a
+
 # Installation directory
 prefix ?= /usr/local
 ifeq ($(DESTDIR),)
@@ -163,11 +166,11 @@ vscode:
 ifneq ($(npm_config_offline),true)
 # These commands may try to contact remote servers so if npm is configured to
 # run in offline mode, don't bother running them
-	cd integration/vscode/ada; LD_LIBRARY_PATH= npm install --no-audit
-	cd integration/vscode/ada; LD_LIBRARY_PATH= npm run check-licenses
+	cd integration/vscode/ada; LD_LIBRARY_PATH= $(NPM) install --no-audit
+	cd integration/vscode/ada; LD_LIBRARY_PATH= $(NPM) run check-licenses
 endif
-	cd integration/vscode/ada; LD_LIBRARY_PATH= npm run compile
-	cd integration/vscode/ada; LD_LIBRARY_PATH= npm run cilint
+	cd integration/vscode/ada; LD_LIBRARY_PATH= $(NPM) run compile
+	cd integration/vscode/ada; LD_LIBRARY_PATH= $(NPM) run cilint
 	@echo Now run:
 	@echo code --extensionDevelopmentPath=`pwd`/integration/vscode/ada/ `pwd`
 
@@ -177,9 +180,12 @@ else
   NPM_TEST_ARGS?=-- --coverage --coverage-reporter text-summary --coverage-reporter html --coverage-reporter cobertura
 endif
 
+ifeq ($(UNAME_S),Linux)
+  NPM:=$(XVFB_RUN) $(NPM)
+endif
 vscode-test:
 	# Run the VS Code integration testsuite.
-	cd integration/vscode/ada; MOCHA_ALS_UPDATE=$(MOCHA_ALS_UPDATE) LD_LIBRARY_PATH= npm run test $(NPM_TEST_ARGS)
+	cd integration/vscode/ada; MOCHA_ALS_UPDATE=$(MOCHA_ALS_UPDATE) LD_LIBRARY_PATH= $(NPM) run test $(NPM_TEST_ARGS)
 
 vscode-package:
 	cd integration/vscode/ada; LD_LIBRARY_PATH= $(VSCE) package
