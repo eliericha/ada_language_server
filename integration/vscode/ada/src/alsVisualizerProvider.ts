@@ -1,26 +1,14 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
-
-/**
- * Create a new VisualizerHandler based on a language ID.
- *
- * @param languageId - The id representing the language needed for the visualizerHandler
- * @returns a new VisualizerHandler instance with a dynamic type of the subclass of the language
- * passed as a parameter (or the base class if not found)
- */
-export function createHandler(languageId: string): VisualizerHandler {
-    switch (languageId) {
-        case 'ada':
-            return new AdaVisualizerHandler();
-        case 'cpp':
-            return new CPPVisualizerHandler();
-        case 'typescript':
-        case 'javascript':
-            return new JsTsVisualizerHandler();
-        default:
-            return new VisualizerHandler();
-    }
-}
+import { logger } from './extension';
+import {
+    EdgeType,
+    Hierarchy,
+    NodeHierarchy,
+    RelationDirection,
+    VisualizerSymbol,
+} from './visualizerTypes';
+import { bindNodes, createNodeHierarchy, NodesSingleton } from './alsVisualizerUtils';
 
 /**
  * Base class for all the VisualizerHandler, provide a default implementation of the function.
@@ -115,63 +103,119 @@ export class VisualizerHandler {
             return symbol.location.range;
         return null;
     }
-}
 
-export class AdaVisualizerHandler extends VisualizerHandler {
-    async generateNodeId(nodeLocation: vscode.Location, label: string = '') {
-        let hoverValues: string = '';
-        if (fs.existsSync(nodeLocation.uri.fsPath)) {
-            const hovers = await vscode.commands.executeCommand<vscode.Hover[]>(
-                'vscode.executeHoverProvider',
-                nodeLocation.uri,
-                nodeLocation.range.start,
-            );
-            for (const hover of hovers) {
-                hoverValues +=
-                    (hoverValues.length === 0 ? '' : '/') +
-                    // Collapse multiple following whitespaces into one
-                    (hover.contents[0] as vscode.MarkdownString).value.replace(/\s+/g, ' ').trim();
+    /**
+     * Construct a set of nodes from the location of a symbol in the code. Supports multiples
+     * different types of hierarchy.
+     *
+     * @param location - The location of the symbol in the code.
+     * @param hierarchy - The type of hierarchy needed.
+     * @param languageId - The id of the language the symbol is in.
+     * @param direction - The direction of the hierarchy
+     * @returns The node linked to the location passed as an argument with
+     * possibly children and/or parents added.
+     */
+    async provideHierarchy(
+        location: vscode.Location,
+        hierarchy: Hierarchy,
+        languageId: string,
+        direction: RelationDirection,
+    ) {
+        // -------------------------------- BEGIN NESTED FUNCTIONS ---------------------------------
+        /**
+         * Get the additional hierarchy information from a node.
+         *
+         * @param hierarchyItem - The type of hierarchy needed.
+         * @param direction - The direction of the hierarchy
+         * @param middleNode - The node from which the hierarchy is executed.
+         * @param hierarchy - The type of hierarchy needed.
+         */
+        async function getHierarchy(
+            hierarchyItem: vscode.TypeHierarchyItem | vscode.CallHierarchyItem,
+            direction: RelationDirection,
+            middleNode: NodeHierarchy,
+            hierarchy: Hierarchy,
+        ) {
+            const commands = [
+                ['vscode.provideSupertypes', 'vscode.provideIncomingCalls'],
+                ['vscode.provideSubtypes', 'vscode.provideOutgoingCalls'],
+            ];
+            const items: (vscode.TypeHierarchyItem | vscode.CallHierarchyItem)[] = (
+                await vscode.commands.executeCommand<
+                    | vscode.TypeHierarchyItem[]
+                    | vscode.CallHierarchyIncomingCall[]
+                    | vscode.CallHierarchyOutgoingCall[]
+                >(commands[direction][hierarchy], hierarchyItem)
+            ).map((item) => ('name' in item ? item : 'from' in item ? item.from : item.to));
+
+            for (const item of items) {
+                const symbol = {
+                    name: item.name,
+                    location: new vscode.Location(item.uri, item.selectionRange),
+                    kind: item.kind,
+                } as VisualizerSymbol;
+
+                const newNodeTmp = await createNodeHierarchy(
+                    symbol,
+                    hierarchy,
+                    middleNode.languageId,
+                );
+                if (!newNodeTmp) continue;
+                bindNodes(middleNode, newNodeTmp, direction, EdgeType.REGULAR);
             }
-        } else hoverValues = label;
+            if (direction === RelationDirection.SUB && middleNode.children.length === 0)
+                middleNode.hasChildren = false;
+            if (direction === RelationDirection.SUPER && middleNode.parents.length === 0)
+                middleNode.hasParent = false;
+        }
+        // -------------------------------- END NESTED FUNCTIONS --------------------------------
+        if (hierarchy !== Hierarchy.CALL && hierarchy !== Hierarchy.TYPE) {
+            logger.error(
+                'alsVisualizerProvider.ts: provideHierarchy: This hierarchy types is not handled.',
+            );
+            return;
+        }
 
-        // Expand the symlinks to avoid getting the same node twice with a different path.
-        const realPath = fs.realpathSync(nodeLocation.uri.fsPath);
-        const clearId = realPath + ':' + hoverValues;
+        const commands = ['vscode.prepareTypeHierarchy', 'vscode.prepareCallHierarchy'];
 
-        // Hash the file uri and the symbol location to get the id
-        const hash = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(clearId));
-        return Array.from(new Uint8Array(hash))
-            .map((byte) => byte.toString(16).padStart(2, '0'))
-            .join('');
-    }
+        const items = await vscode.commands.executeCommand<
+            (vscode.CallHierarchyItem | vscode.TypeHierarchyItem)[]
+        >(commands[hierarchy], location.uri, location.range.start);
 
-    isInProject(uri: vscode.Uri) {
-        return !uri.fsPath.includes('adainclude');
-    }
-}
+        if (items.length == 0) return;
 
-export class CPPVisualizerHandler extends VisualizerHandler {
-    async getFunctionBodyLocation(location: vscode.Location) {
-        const implementations = await vscode.commands.executeCommand<
-            (vscode.Location | vscode.LocationLink)[]
-        >('vscode.executeDefinitionProvider', location.uri, location.range.start);
-        if (implementations.length > 0) return implementations[0];
-        return null;
-    }
+        // The middle node represent the current main symbol in the graph (the symbol the visualizer
+        // was launched on or the symbol for which we are calculating its parent or children).
+        let middleNode;
 
-    getSymbolWholeRange(
-        symbol: vscode.SymbolInformation | vscode.DocumentSymbol,
-        label: string,
-        location: vscode.Location | vscode.LocationLink,
-    ): vscode.Range | null {
-        symbol.name = symbol.name.split('(')[0];
-        label = label.split('(')[0];
-        return super.getSymbolWholeRange(symbol, label, location);
-    }
-}
+        for (const item of items) {
+            const symbol: VisualizerSymbol = {
+                name: item.name,
+                location: new vscode.Location(item.uri, item.selectionRange),
+                kind: item.kind,
+            };
+            const tmpNode = await createNodeHierarchy(symbol, hierarchy, languageId);
+            if (!tmpNode) continue;
+            middleNode = NodesSingleton.insertSymbolsMap(tmpNode);
+            // Once the process is done we want the graph to focus on this specific node.
+            middleNode.focus = true;
 
-export class JsTsVisualizerHandler extends VisualizerHandler {
-    isInProject(uri: vscode.Uri) {
-        return !uri.fsPath.includes('node_modules') && super.isInProject(uri);
+            NodesSingleton.focusedNode = middleNode;
+
+            if (direction === RelationDirection.BOTH || direction === RelationDirection.SUPER) {
+                await getHierarchy(item, RelationDirection.SUPER, middleNode, hierarchy);
+            }
+            if (direction === RelationDirection.BOTH || direction === RelationDirection.SUB) {
+                await getHierarchy(item, RelationDirection.SUB, middleNode, hierarchy);
+            }
+
+            // The middle node is expanded by default when we are getting its children.
+            middleNode.expanded =
+                direction === RelationDirection.SUPER ? middleNode.expanded : true;
+        }
+
+        // Get all the nodes that does not have parents
+        NodesSingleton.findRoots();
+        return middleNode;
     }
 }

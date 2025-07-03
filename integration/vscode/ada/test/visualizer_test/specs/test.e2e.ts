@@ -36,7 +36,7 @@ describe('VS Code Extension Testing', () => {
 
         const webview = await workbench.getAllWebviews();
         await webview[0].open();
-        const nodes = await $$('.visualizer__rectangle');
+        const nodes = await $$('.visualizer__basic_node');
         nodes.forEach((node) => node.waitForExist());
         expect(nodes.length).toBe(3);
     });

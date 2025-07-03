@@ -48,26 +48,35 @@ export type HierarchyMessage = {
     recursive: boolean;
 };
 
+/**
+ * Message use to apply function like delete or refresh to multiple node at once.
+ * The recursive field is used to apply the function to all children of the node (for delete).
+ */
 export type NodeIdsMessage = {
     nodesId: string[];
     recursive: boolean;
 };
 
+/**
+ * Message send from the server to the client to indicate which node to remove and which
+ * node to update.
+ */
 export type UpdateMessage = {
     toUpdate: NodeData[];
     toDelete: NodeData[];
 };
 
+/**
+ * Message sent to ask the server to reveal a symbol location in the code.
+ */
 export type RevealMessage = {
     nodeId: string;
     gotoImplementation: boolean;
 };
 
-export type RevealReferencesMessage = {
-    targetNodeId: string;
-    referenceNodeId: string;
-};
-
+/**
+ * Represent the location of a symbol in a file.
+ */
 export type StringLocation = {
     path: string;
     range_start: vscode.Position;
@@ -75,28 +84,66 @@ export type StringLocation = {
     string_location: string;
 };
 
+/**
+ * Message sent to the server to get all the references of targetNode in referenceNode.
+ * The server will then respond with a RevealReferenceResponse.
+ */
+export type RevealReferencesMessage = {
+    targetNodeId: string;
+    referenceNodeId: string;
+};
+
+/** Message sent to the client in response to a RevealReferencesMessage.
+ * The server sends a mapping of location name associated with all the references of the required
+ * symbol.
+ */
 export type RevealReferencesResponse = {
-    // locations: StringLocation[];
-    // locationsMap: Map<string, StringLocation[]>;
     locationsKeys: string[];
     locationsValues: StringLocation[][];
 };
 
-export enum ALS_ShowDependenciesKind {
-    SHOW_IMPORTED = 1,
-    SHOW_IMPORTING = 2,
-}
-
-export interface ALS_ShowDependenciesParams {
+/**
+ * Request send to the ALS for the als_show_dependencies request.
+ */
+export type ALS_ShowDependenciesParams = {
     uri: string /* The queried unit */;
     kind: ALS_ShowDependenciesKind /* The dependencies query kind */;
     showImplicit: boolean /* True if implicit dependencies should be returned */;
-}
+};
 
-export interface ALS_Unit_Description {
+/**
+ * Request sent from the als in response to an als_show_dependencies request.
+ */
+export type ALS_Unit_Description = {
     uri: string /* The dependency unit's file */;
     projectUri: string /* The dependency's project file */;
-}
+};
+
+/**
+ * Request sent from the als in response to an als_gpr_dependencies request.
+ */
+export type ALS_GprDependencyItem = {
+    uri: string;
+    kind: ALS_GprDependencyKind;
+};
+
+/**
+ * Request sent from the als in response to an als_gpr_dependencies request.
+ */
+export type ALS_GprDependencyParam = {
+    uri: string;
+    direction: ALS_GprDependencyDirection;
+};
+
+/**
+ * Describe a relation between a parent of this object and the target by specifying the
+ * type of edge to display
+ */
+export type Relation = {
+    target: NodeHierarchy;
+    edgeType: EdgeType;
+};
+
 /**
  * Data stored in a node client side.
  */
@@ -117,11 +164,13 @@ export type NodeData = {
     focus: boolean;
     // Boolean indicating if the symbol is located in the project or in the runtime.
     inProject: boolean;
-    // The symbol position in the project as a string
+    // The symbol position in the project as a string.
     string_location: {
         path: string;
         position: string;
     };
+
+    // A temporary position used to allow the node to slide from its parents to its real position.
     newPosition:
         | undefined
         | {
@@ -138,15 +187,15 @@ export type NodeData = {
  */
 export type NodeHierarchy = NodeData & {
     // The symbol location in the project (this structure is not well json formatted so it is stored
-    // only on the 'server side')
+    // only on the 'server side').
     location: vscode.Location;
-    // The array of parents nodes.
-    parents: NodeHierarchy[];
-    // The array of children nodes.
-    children: NodeHierarchy[];
+    // The array of parents relations.
+    parents: Relation[];
+    // The array of children relations.
+    children: Relation[];
     // The language the symbol is from.
     languageId: string;
-    // The object tasked to handle the language specific  operation (idGeneration, ...)
+    // The object tasked to handle the language specific  operation (idGeneration, ...).
     handler: VisualizerHandler;
 };
 
@@ -163,7 +212,21 @@ export type NodeEdge = {
 /**
  * Represent a directed edge.
  */
-export type DirectedEdge = { src: string; dst: string; edgeDirection: RelationDirection };
+export type DirectedEdge = {
+    src: string;
+    dst: string;
+    edgeDirection: RelationDirection;
+    edgeType: EdgeType;
+};
+
+/**
+ * Describe the minimal data necessary to get from an lsp to create a node.
+ */
+export type VisualizerSymbol = {
+    name: string;
+    location: vscode.Location;
+    kind: vscode.SymbolKind;
+};
 
 /**
  * Indicate the direction of the hierarchy call to make.
@@ -175,7 +238,7 @@ export enum RelationDirection {
 }
 
 /**
- * Store the four usual direction
+ * Store the four usual direction.
  */
 export enum Direction {
     LEFT = 'LEFT',
@@ -185,10 +248,55 @@ export enum Direction {
 }
 
 /**
- * The type of hierarchy that can be called
+ * The type of hierarchy that can be called.
  */
 export enum Hierarchy {
     TYPE,
     CALL,
     FILE,
+    GPR,
+}
+
+/**
+ * The type of an edge, which will change its appearance.
+ */
+export enum EdgeType {
+    REGULAR,
+    DOTTED,
+    BOXED,
+    TEMPORARY,
+}
+
+/**
+ * The type of the node, which will change its appearance.
+ */
+export enum NodeType {
+    REGULAR,
+    GROUP,
+}
+
+/**
+ * Store the values used for als_show_dependency.
+ */
+export enum ALS_ShowDependenciesKind {
+    SHOW_IMPORTED = 1,
+    SHOW_IMPORTING = 2,
+}
+
+/**
+ * Store the values used for als_show_dependency.
+ */
+export enum ALS_GprDependencyDirection {
+    SHOW_DEPENDENT = 1, // SUB
+    SHOW_DEPENDING = 2, // SUPER
+}
+
+/**
+ * Store the dependency kind two gpr files can have.
+ */
+export enum ALS_GprDependencyKind {
+    AGGREGATED,
+    EXTENDED,
+    EXTENDING,
+    IMPORTED,
 }

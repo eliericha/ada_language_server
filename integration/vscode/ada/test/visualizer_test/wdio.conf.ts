@@ -25,7 +25,6 @@ export const config = {
     // of the config file unless it's absolute.
     //
     specs: [
-        // ToDo: define location for spec files here
         path.join(__dirname, '/specs/**/*.e2e.ts'),
     ],
     // Patterns to exclude.

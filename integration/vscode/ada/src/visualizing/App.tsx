@@ -13,6 +13,8 @@ import {
     NodeData,
     Hierarchy,
     RevealMessage,
+    NodeType,
+    EdgeType,
 } from '../visualizerTypes';
 import {
     Node,
@@ -35,7 +37,7 @@ import '@xyflow/react/dist/style.css';
 import './visualizerStyleSheet.css';
 import { edgeFactory, edgeTypes, floatingConnectionLine } from './customEdges';
 import { moveNodes, nodeFactory, nodeTypes } from './customNodes';
-import { elkOptions, layoutSubgraph, layoutSubgraphs } from './layouting';
+import { elkOptions, layoutSubFlow, layoutSubgraph, layoutSubgraphs } from './layouting';
 import { changeEdge, focusNode, setIntervalCapped, waitingBar } from './utils';
 import { NodeContextMenu, NodeContextMenuProps } from './nodeContextMenu';
 import { closeSearchBar as onSearchBarClose, SearchBar } from './searchBar';
@@ -56,9 +58,9 @@ export const vscode = acquireVsCodeApi();
  */
 let onNodesChange;
 let onEdgesChange;
-let nodes: Node[] = [];
+let nodes: Node<NodeData>[] = [];
 let edges: Edge[] = [];
-let setNodes: React.Dispatch<React.SetStateAction<Node[]>>;
+let setNodes: React.Dispatch<React.SetStateAction<Node<NodeData>[]>>;
 let setEdges: React.Dispatch<React.SetStateAction<Edge[]>>;
 let getNodes: () => Node[];
 const nodeWidth = 250;
@@ -82,7 +84,7 @@ type Graph = {
  * @param messageData  - JSON string containing the data of all the nodes to display.
  */
 async function handleHierarchy(data: NodeEdge) {
-    const newNodes: Node[] = [];
+    const newNodes: Node<NodeData>[] = [];
     let subGraphNode: Node | undefined = undefined;
     const numNodes = nodes.length;
 
@@ -92,7 +94,25 @@ async function handleHierarchy(data: NodeEdge) {
     edges = [];
 
     for (const nodeData of data.nodesData) {
-        const newNode = nodeFactory(0, 0, nodeData, nodeWidth, nodeHeight);
+        const boxedSrc = data.edges.filter(
+            (edge) => edge.src === nodeData.id && edge.edgeType === EdgeType.BOXED,
+        );
+
+        const boxedDst = data.edges.filter(
+            (edge) => edge.dst === nodeData.id && edge.edgeType === EdgeType.BOXED,
+        );
+
+        const newNode = nodeFactory(
+            0,
+            0,
+            nodeData,
+            // For a subFlow node, the shape is a rectangle with a width of two nodes
+            // and a height of twice the number of subNodes it has to allow spacing inside the node.
+            boxedSrc.length === 0 ? nodeWidth : nodeWidth * 2,
+            boxedSrc.length === 0 ? nodeHeight : nodeHeight * boxedSrc.length * 2,
+            boxedSrc.length === 0 ? NodeType.REGULAR : NodeType.GROUP,
+            boxedDst.length !== 0 ? boxedDst[0].src : undefined,
+        );
         const foundNodeIndex = nodes.findIndex((node) => node.id === newNode.id);
 
         // Only add node that does not already exists
@@ -100,16 +120,31 @@ async function handleHierarchy(data: NodeEdge) {
             // Place the initial position of the node at the same position than the
             // parent it was expanded from.
             newNodes.push(newNode);
-            nodes.push(newNode);
+            //If its a node representing a subFlow, place it first to allow its
+            //child nodes to be processed correctly.
+            if (newNode.type === 'groupedNode') nodes.splice(0, 0, newNode);
+            else nodes.push(newNode);
         } else {
             // Update the content of the node
             nodes[foundNodeIndex] = {
                 ...nodes[foundNodeIndex],
                 selected: false,
                 data: newNode.data,
+                parentId: newNode.parentId,
+                extent: newNode.extent,
+                type: newNode.type,
+                width: newNode.width,
+                height: newNode.height,
             };
+            //If its a node representing a subFlow, place it first to allow its
+            //child nodes to be processed correctly.
+            if (nodes[foundNodeIndex].type === 'groupedNode') {
+                const tmpNode = nodes.splice(foundNodeIndex, 1);
+                if (tmpNode.length > 0) nodes.splice(0, 0, tmpNode[0]);
+            }
         }
     }
+
     const focusIndex = nodes.findIndex((node) => node.data.focus);
 
     // Focus only if the number of nodes increased
@@ -125,9 +160,10 @@ async function handleHierarchy(data: NodeEdge) {
         }
     }
 
-    data.edges.forEach(({ src, dst, edgeDirection }) => {
+    data.edges.forEach(({ src, dst, edgeDirection, edgeType }) => {
         // addEdge checks if an edge src dst already exist.
-        edges = addEdge(edgeFactory(src, dst, edgeDirection), edges);
+        if (edgeType !== EdgeType.BOXED)
+            edges = addEdge(edgeFactory(src, dst, edgeDirection, edgeType), edges);
     });
 
     // Recreate the nodes object to force the re-render
@@ -145,9 +181,23 @@ async function handleHierarchy(data: NodeEdge) {
             (subGraphNode.position.x === 0 && subGraphNode.position.y === 0))
     ) {
         await layoutSubgraph(subGraphNode, nodes, edges, currentDirection, elkOptions);
+        const subFlows = nodes.filter((node) => node.type === 'groupedNode');
+        for (const subFlow of subFlows) {
+            const subFlowNodes = data.edges
+                .filter((edge) => edge.src === subFlow.id && edge.edgeType === EdgeType.BOXED)
+                .map((edge) => nodes.find((node) => node.id === edge.dst))
+                .filter((node) => node !== undefined);
+            if (subFlowNodes.length > 0) {
+                layoutSubFlow(subFlow, subFlowNodes, currentDirection);
+            }
+        }
+        moveNodes(nodes, setNodes);
+    } else {
+        // Send a message to the server to indicate he can handle the next request.
+        vscode.postMessage({ command: 'canSendNextData', data: '' } as Message);
+        setNodes(nodes);
     }
     setEdges(edges);
-    moveNodes(nodes, setNodes);
     // stop the waiting bar only if the server has finished sending data.
     // Here the node won't be focused except if the recursive hierarchy process finished or
     // was just a single level.
@@ -176,6 +226,11 @@ function handleUpdate(data: UpdateMessage) {
         if (index === -1) continue;
         {
             nodes.splice(index, 1);
+        }
+        const children = nodes.filter((child) => child.parentId === node.id);
+        for (const child of children) {
+            child.parentId = undefined;
+            child.extent = undefined;
         }
     }
     // Recreate the nodes object to force the re-render
@@ -335,6 +390,13 @@ export default function App() {
             nodes = nodes.map((node) => {
                 return { ...node };
             });
+            const subFlows = nodes.filter((node) => node.type === 'groupedNode');
+            for (const subFlow of subFlows) {
+                const subFlowNodes = nodes.filter((node) => node.parentId === subFlow.id);
+                if (subFlowNodes.length > 0) {
+                    layoutSubFlow(subFlow, subFlowNodes, currentDirection);
+                }
+            }
             moveNodes(nodes, setNodes);
         });
     }, [nodes, edges]);
@@ -406,7 +468,8 @@ export default function App() {
     function openReferencesPicker(event: React.MouseEvent, edge: Edge, openedByClick: boolean) {
         // When using the references picker if the user selects a location without moving the
         // mouse, the picker would reopen alone causing the user to lose focus on its code.
-        if ((nodes[0].data as NodeData).hierarchy === Hierarchy.FILE) return;
+        if (nodes[0].data.hierarchy === Hierarchy.FILE || nodes[0].data.hierarchy === Hierarchy.GPR)
+            return;
         if (ref.current && canOpenReferencesPicker) {
             closeAllPopUp();
             event.preventDefault();
@@ -670,7 +733,7 @@ export default function App() {
         (focus: React.FocusEvent) => {
             // Focus on the node currently focused only the mouse is not already on it
             // (avoid triggering the focus on node click)
-            if (focus.target.classList.contains('visualizer__rectangle')) {
+            if (focus.target.classList.contains('visualizer__basic_node')) {
                 const nodeId = focus.target.getAttribute('data-node-id');
                 if (!nodeId) return;
                 if (!focus.target.matches(':hover') && lastFocus !== nodeId) {
@@ -746,7 +809,6 @@ export default function App() {
                     onNodeClick={onNodeClick}
                     onMouseMove={onMouseMove}
                     onEdgeClick={onEdgeClick}
-                    // onNodesDelete={onNodeDelete}
                     onNodesChange={onNodesChange}
                     onEdgesChange={onEdgesChange}
                     onEdgeMouseEnter={onEdgeMouseEnter}
@@ -757,7 +819,6 @@ export default function App() {
                     onNodeDoubleClick={onNodeDoubleClick}
                     onNodeContextMenu={onNodeContextMenu}
                     selectionMode={SelectionMode.Partial}
-                    // deleteKeyCode={['Delete', 'Backspace']}
                     deleteKeyCode={[]}
                     connectionLineComponent={floatingConnectionLine}
                     className="visualizer__colors"

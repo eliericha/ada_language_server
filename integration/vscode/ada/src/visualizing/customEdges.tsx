@@ -9,11 +9,13 @@ import {
 } from '@xyflow/react';
 
 import React from 'react';
-import { RelationDirection } from '../visualizerTypes';
+import { EdgeType, RelationDirection } from '../visualizerTypes';
 
 export const edgeTypes = {
     floating: floatingEdge,
 };
+const edgeString = ['floating', 'temporary'];
+
 const markerHeight = 25;
 const markerWidth = 25;
 const edgeStrokeWidth = 4;
@@ -23,12 +25,18 @@ const edgeStrokeWidth = 4;
  * @param dst - Destination node of the edge.
  * @returns A new react flow Edge.
  */
-export function edgeFactory(src: string, dst: string, edgeDirection: RelationDirection) {
+export function edgeFactory(
+    src: string,
+    dst: string,
+    edgeDirection: RelationDirection,
+    edgeType: EdgeType,
+) {
+    const index = edgeType === EdgeType.TEMPORARY ? 1 : 0;
     return {
         id: 'e' + src + '-' + dst,
         source: src,
         target: dst,
-        type: 'floating',
+        type: edgeString[index],
         markerEnd:
             edgeDirection === RelationDirection.BOTH || edgeDirection === RelationDirection.SUB
                 ? { height: markerHeight, width: markerWidth, type: MarkerType.Arrow }
@@ -37,7 +45,10 @@ export function edgeFactory(src: string, dst: string, edgeDirection: RelationDir
             edgeDirection === RelationDirection.BOTH || edgeDirection === RelationDirection.SUPER
                 ? { height: markerHeight, width: markerWidth, type: MarkerType.Arrow }
                 : undefined,
-        style: { strokeWidth: edgeStrokeWidth },
+        style: {
+            strokeWidth: edgeStrokeWidth,
+            strokeDasharray: edgeType === EdgeType.DOTTED ? '10,10' : 'none',
+        },
         data: {
             additionalClass: undefined,
         },
@@ -172,6 +183,10 @@ export function floatingEdge(floatingEdge: FloatingEdge) {
     const sourceNode = useInternalNode(floatingEdge.source);
     const targetNode = useInternalNode(floatingEdge.target);
 
+    // The multiplier to increase the zone of hover of the edge.
+    // 2 is not 100% increase but more like 25%.
+    const strokeMultiplier = 6;
+
     // If an internal node is not defined just return an empty path
     if (!sourceNode || !targetNode) {
         return <path />;
@@ -200,14 +215,34 @@ export function floatingEdge(floatingEdge: FloatingEdge) {
     // If bezier path returned nan return empty path
     if (edgePath.includes('NaN')) return <path />;
     return (
-        <path
-            id={floatingEdge.id}
-            className={pathClass}
-            d={edgePath}
-            style={floatingEdge.style}
-            markerStart={floatingEdge.markerStart}
-            markerEnd={floatingEdge.markerEnd}
-        />
+        <>
+            <path
+                id={floatingEdge.id}
+                className={pathClass}
+                d={edgePath}
+                style={floatingEdge.style}
+                markerStart={floatingEdge.markerStart}
+                markerEnd={floatingEdge.markerEnd}
+            />
+            <path
+                d={edgePath}
+                style={{
+                    stroke: 'transparent',
+                    fill: 'none',
+
+                    strokeWidth: edgeStrokeWidth * strokeMultiplier,
+                }}
+            />
+        </>
+
+        // <path
+        //     id={floatingEdge.id}
+        //     className={pathClass}
+        //     d={edgePath}
+        //     style={floatingEdge.style}
+        //     markerStart={floatingEdge.markerStart}
+        //     markerEnd={floatingEdge.markerEnd}
+        // />
     );
 }
 
@@ -241,7 +276,7 @@ export function floatingConnectionLine(floatingConnectionLine: FloatingConnectio
 
     return (
         <g>
-            <path fill="none" stroke="#222" strokeWidth={1.5} className="animated" d={edgePath} />
+            <path fill="none" stroke="#222" strokeWidth={1.5} d={edgePath} />
             <circle
                 cx={floatingConnectionLine.toX}
                 cy={floatingConnectionLine.toY}

@@ -1062,6 +1062,12 @@
                 "enablement": "config.ada.enableExperimentalFeatures"
             },
             {
+                "command": "ada.visualizeGPR",
+                "title": "Show GPR Dependencies (graph)",
+                "shortTitle": "Visualize GPR files dependencies",
+                "enablement": "config.ada.enableExperimentalFeatures"
+            },
+            {
                 "command": "ada.visualizeTypes",
                 "title": "Show Type Hierarchy (graph)",
                 "shortTitle": "Visualize type hierarchy",
@@ -1243,6 +1249,11 @@
                     "command": "ada.visualizeFiles",
                     "group": "0_navigation@6",
                     "when": "activeEditor && editorLangId == ada && config.ada.enableExperimentalFeatures"
+                },
+                {
+                    "command": "ada.visualizeGPR",
+                    "group": "0_navigation@7",
+                    "when": "activeEditor && editorLangId == gpr && config.ada.enableExperimentalFeatures"
                 }
             ],
             "editor/title/run": [

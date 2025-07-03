@@ -136,7 +136,11 @@ export function registerCommands(context: vscode.ExtensionContext, clients: Exte
             startVisualize(context, Hierarchy.FILE),
         ),
     );
-
+    context.subscriptions.push(
+        vscode.commands.registerCommand('ada.visualizeGPR', () =>
+            startVisualize(context, Hierarchy.GPR),
+        ),
+    );
     context.subscriptions.push(
         vscode.commands.registerCommand('ada.walkthroughStartDebugging', walkthroughStartDebugging),
     );

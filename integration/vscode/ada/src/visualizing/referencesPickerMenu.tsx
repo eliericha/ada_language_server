@@ -1,6 +1,6 @@
 import { Edge, Node, ReactFlowProvider } from '@xyflow/react';
 import React from 'react';
-import { NodeData, StringLocation } from '../visualizerTypes';
+import { Hierarchy, NodeData, StringLocation } from '../visualizerTypes';
 import { vscode } from './App';
 import { setIntervalCapped } from './utils';
 
@@ -9,8 +9,8 @@ export type ReferencesPickerMenuProps = {
     top: number;
     left: number;
     edge: Edge;
-    target: Node;
-    source: Node;
+    target: Node<NodeData>;
+    source: Node<NodeData>;
     openedByClick: boolean;
     locationsMap: Map<string, StringLocation[]>;
     menuWidth: number;
@@ -144,6 +144,12 @@ export function referencesPickerOnClick(
  * @returns a div containing a context menu filled with location for a specific edge.
  */
 export function ReferencesPickerMenu(props: ReferencesPickerMenuProps) {
+    if (
+        props.source.data.hierarchy === Hierarchy.FILE ||
+        props.source.data.hierarchy === Hierarchy.GPR
+    )
+        return;
+
     const [current, setCurrent] = React.useState(-1);
     const [send, setSend] = React.useState(false);
     const [canClose, setCanClose] = React.useState(true);
@@ -292,8 +298,8 @@ export function ReferencesPickerMenu(props: ReferencesPickerMenuProps) {
     const title =
         props.locationsMap.size === 0
             ? undefined
-            : `References of ${(props.source.data as NodeData).label}` +
-              ` in ${(props.target.data as NodeData).label} at` +
+            : `References of ${props.source.data.label}` +
+              ` in ${props.target.data.label} at` +
               ` ${Array.from(props.locationsMap.values())[0][0].path}`;
 
     return (

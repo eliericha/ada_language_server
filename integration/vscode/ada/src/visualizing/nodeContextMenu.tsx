@@ -15,7 +15,7 @@ import { setIntervalCapped, waitingBar } from './utils';
 import { referencesPickerOnClick, referencesPickerOnKeyDown } from './referencesPickerMenu';
 
 export type NodeContextMenuProps = {
-    node: Node;
+    node: Node<NodeData>;
     top: number | undefined;
     left: number | undefined;
     right: number | undefined;
@@ -86,7 +86,7 @@ export function NodeContextMenu(props: NodeContextMenuProps) {
     const requestHierarchy = React.useCallback(
         (event: React.MouseEvent, direction = RelationDirection.SUPER) => {
             event.preventDefault();
-            const hierarchy = (props.node.data as NodeData).hierarchy;
+            const hierarchy = props.node.data.hierarchy;
             waitingBar();
             vscode.postMessage({
                 command: 'requestHierarchy',
@@ -100,7 +100,7 @@ export function NodeContextMenu(props: NodeContextMenuProps) {
             });
             props.onContextClose();
         },
-        [props.node.data.expand, props.node.id, props.node.data.kind],
+        [props.node.data.expanded, props.node.id, props.node.data.kind],
     );
 
     /**
@@ -246,20 +246,15 @@ export function NodeContextMenu(props: NodeContextMenuProps) {
     let left: number | undefined = undefined;
     let right: number | undefined = undefined;
     let bottom: number | undefined = undefined;
-    const subContent =
-        'Get ' +
-        (props.node.data.hierarchy === Hierarchy.CALL
-            ? 'Outgoing Calls'
-            : props.node.data.hierarchy === Hierarchy.TYPE
-              ? 'Sub Types'
-              : 'imported packages');
-    const superContent =
-        'Get ' +
-        (props.node.data.hierarchy === Hierarchy.CALL
-            ? 'Incoming Calls'
-            : props.node.data.hierarchy === Hierarchy.TYPE
-              ? 'Super Types'
-              : 'importing packages');
+    const hierarchy = props.node.data.hierarchy;
+    const subArray = ['Sub Types', 'Outgoing Calls', ' imported files', 'dependent GPR file'];
+    const superArray = ['Super Types', 'Incoming Calls', ' importing files', 'depending GPR file'];
+
+    const subContent = 'Get ' + subArray[hierarchy];
+    const superContent = 'Get ' + superArray[hierarchy];
+
+    const gotoArray = ['Definition', 'Definition', 'File', 'Gpr File'];
+    const gotoText = 'Goto ' + gotoArray[hierarchy];
 
     const pickerMenuWidth = 200;
     const pickerMenuHeight = 200;
@@ -301,15 +296,19 @@ export function NodeContextMenu(props: NodeContextMenuProps) {
                 }}
                 className="visualizer__node-context-menu"
             >
-                <button className="visualizer__context-button" onClick={refreshNode}>
-                    Refresh Node
-                </button>
+                {hierarchy !== Hierarchy.GPR && (
+                    <button className="visualizer__context-button" onClick={refreshNode}>
+                        Refresh Node
+                    </button>
+                )}
                 <button className="visualizer__context-button" onClick={gotoDefinition}>
-                    Goto Definition
+                    {gotoText}
                 </button>
-                <button className="visualizer__context-button" onClick={gotoImplementation}>
-                    Goto Implementation
-                </button>
+                {hierarchy !== Hierarchy.GPR && hierarchy !== Hierarchy.FILE && (
+                    <button className="visualizer__context-button" onClick={gotoImplementation}>
+                        Goto Implementation
+                    </button>
+                )}
                 <button className="visualizer__context-button" onClick={deleteNode}>
                     Delete Node
                 </button>
@@ -319,13 +318,15 @@ export function NodeContextMenu(props: NodeContextMenuProps) {
                 >
                     {subContent}
                 </button>
-                <button
-                    className="visualizer__context-button"
-                    onClick={(event) => requestHierarchy(event, RelationDirection.SUPER)}
-                >
-                    {superContent}
-                </button>
-                {(props.node.data as NodeData).hierarchy !== Hierarchy.FILE && (
+                {hierarchy !== Hierarchy.GPR && (
+                    <button
+                        className="visualizer__context-button"
+                        onClick={(event) => requestHierarchy(event, RelationDirection.SUPER)}
+                    >
+                        {superContent}
+                    </button>
+                )}
+                {hierarchy !== Hierarchy.FILE && hierarchy !== Hierarchy.GPR && (
                     <button
                         className="visualizer__context-button"
                         id="visualizer__context-references-button"

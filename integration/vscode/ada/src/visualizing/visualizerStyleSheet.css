@@ -14,6 +14,7 @@
     --visualizer-out-of-project-background: var(--vscode-editorGroup-dropBackground);
     --visualizer-out-of-project-default: var(--vscode-editorGroup-dropIntoPromptBackground);
     --visualizer-out-of-project-hovered: var(--vscode-diffEditor-removedLineBackground);
+    --visualizer-group-node: var(--vscode-editorGroup-dropBackground);
 }
 
 :root {
@@ -24,7 +25,7 @@ body {
     padding: 0%;
 }
 /* Style the outer shape of the node. */
-.visualizer__rectangle {
+.visualizer__basic_node {
     --border-width: 1px;
     height: calc(100% - var(--border-width));
     width: calc(100% - var(--border-width));
@@ -37,14 +38,25 @@ body {
 }
 
 /* Style the outer shape of the node when selected. */
-.visualizer__rectangle.visualizer__selected,
-.visualizer__rectangle:hover,
-.visualizer__rectangle:focus {
+.visualizer__basic_node.visualizer__selected,
+.visualizer__basic_node:hover,
+.visualizer__basic_node:focus {
     transition: all 0.1s ease-in-out;
     border-color: var(--visualizer-border-color-focused);
     color: var(--visualizer-item-selected);
     background-color: var(--visualizer-item-background-selected);
     outline: none;
+}
+
+/* Style the color of a subFlow node (node that contains other nodes). */
+.react-flow__node-groupedNode {
+    background-color: var(--visualizer-group-node) !important;
+    border: 2px solid var(--visualizer-border-color);
+}
+
+.react-flow__node-groupedNode:focus,
+.react-flow__node-groupedNode:hover {
+    border: 3px solid var(--visualizer-border-color-focused);
 }
 
 /* Style the base container of the node provided by reactflow. */
@@ -80,6 +92,15 @@ body {
     border-bottom: inherit;
 }
 
+.visualizer__grouped_node-title {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    font-size: x-large;
+    padding: 5% 5% 0% 5%;
+    border-bottom: inherit;
+}
+
 /* Style the text in the body of the node. */
 .visualizer__text {
     margin-left: 3px;
@@ -90,8 +111,7 @@ body {
 
 /* Center the icons with the text. */
 .visualizer__icon {
-    margin-bottom: 10px;
-    transform: translateY(10%);
+    transform: translateY(15%);
 }
 
 /* Make sure the text doesn't overflow out of its container */
@@ -136,7 +156,7 @@ body {
 
 /* The out of project is slightly bigger than its normal counter part
 so reduce its size a little. */
-.visualizer__rectangle.visualizer__out-of-project {
+.visualizer__basic_node.visualizer__out-of-project {
     width: 98%;
     height: 98%;
     font-style: italic;
@@ -144,7 +164,8 @@ so reduce its size a little. */
 
 /* Highlight the selected or hovered edge. */
 .visualizer__highlight,
-.react-flow__edge.selectable:hover .react-flow__edge-path:hover,
+.react-flow__edge.selectable:hover,
+.react-flow__edge-path:hover,
 .react-flow__edge.selectable.selected .react-flow__edge-path {
     stroke: var(--visualizer-border-color-focused);
     stroke-width: 4px;
@@ -171,6 +192,8 @@ so reduce its size a little. */
     /* font-weight: var(--font-weight) !important; */
 }
 
+/* Add and underline effect on certain codicons that are in buttons to signify they
+have additional effect when ctrl key is pressed */
 .codicon-call-incoming:before,
 .codicon-file:before,
 .codicon-call-outgoing:before {

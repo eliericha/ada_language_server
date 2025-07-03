@@ -6,8 +6,8 @@ import {
     NodeData,
     RelationDirection,
     HierarchyMessage,
-    Hierarchy,
     Message,
+    NodeType,
 } from '../visualizerTypes';
 import { currentDirection, vscode } from './App';
 import { setIntervalCapped, waitingBar } from './utils';
@@ -15,17 +15,23 @@ import { setIntervalCapped, waitingBar } from './utils';
 type DataNode = Node<NodeData, 'data'>;
 
 export const nodeTypes = {
-    rectangle: Rectangle,
+    basicNode: BasicNode,
+    groupedNode: GroupedNode,
 };
 
-const nodeString: string[] = ['rectangle'];
+const nodeString: string[] = ['basicNode', 'groupedNode'];
 
 /**
- * Return a new react flow node
+ * Return a new react flow node.
  *
- * @param x - x position of the node
- * @param y - y position of the node
- * @param data - Data stored by the node
+ * @param x - x position of the node.
+ * @param y - y position of the node.
+ * @param data - Data stored by the node.
+ * @param width - The width of the node.
+ * @param height - The height of the node.
+ * @param nodeType - The type of the node that will influence its shape.
+ * @param parentId - The id of another node that will serve as a parent for this node. Used
+ * for subFlow graphs.
  * @returns A new react flow Node
  */
 export function nodeFactory(
@@ -34,16 +40,23 @@ export function nodeFactory(
     data: NodeData,
     width: number = 150,
     height: number = 200,
+    nodeType: NodeType,
+    parentId: string | undefined = undefined,
 ) {
     const { ...objData } = data;
     return {
         id: data.id,
-        type: nodeString[0],
+        type: nodeString[nodeType],
         position: { x: x, y: y },
         data: objData,
         width: width,
         height: height,
-    } as Node;
+        parentId: parentId,
+        style: {
+            borderRadius: '6px',
+        },
+        extent: parentId ? 'parent' : undefined,
+    } as Node<NodeData>;
 }
 
 /**
@@ -56,8 +69,8 @@ export function nodeFactory(
  * @param duration - The duration of the animation
  */
 export function moveNodes(
-    movingNodes: Node[],
-    setNodes: (payload: Node[] | ((nodes: Node[]) => Node[])) => void,
+    movingNodes: Node<NodeData>[],
+    setNodes: (payload: Node<NodeData>[] | ((nodes: Node<NodeData>[]) => Node<NodeData>[])) => void,
     duration: number = 100,
 ) {
     const newPositions: XYPosition[] = [];
@@ -124,19 +137,20 @@ export function moveNodes(
  * @param node - The base node to customize
  * @returns A react JSX object representing the node.
  */
-export function Rectangle(node: NodeProps<DataNode>) {
+function BasicNode(node: NodeProps<DataNode>) {
     const data = node.data;
     const { setCenter } = useReactFlow();
 
     // Dynamically assign class to DOM element to take into account, layouting direction,
     // type of data being displayed....
-    const color = 'var(--vscode-symbolIcon-' + data.kind + 'Foreground';
+    const color = 'var(--vscode-symbolIcon-' + data.kind + 'Foreground)';
     const nodeClass =
-        'visualizer__rectangle' +
+        'visualizer__basic_node' +
         (node.selected ? ' visualizer__selected ' : '') +
         (!data.inProject ? ' visualizer__out-of-project' : '');
     const iconClass = 'visualizer__icon codicon codicon-symbol-' + data.kind;
 
+    const subHierarchyTypeArr = ['type-hierarchy-sub', 'call-outgoing', 'file', 'unfold'];
     // Modify the icon in the button depending on the situation :
     // - Call outgoing when the user didn't request the childs nodes yet.
     // - Chevron Down when the children are unfolded.
@@ -144,11 +158,7 @@ export function Rectangle(node: NodeProps<DataNode>) {
     const subButtonClass =
         'codicon codicon-' +
         (data.hasChildren === null
-            ? data.hierarchy === Hierarchy.CALL
-                ? 'call-outgoing'
-                : data.hierarchy === Hierarchy.TYPE
-                  ? 'type-hierarchy-sub'
-                  : 'file'
+            ? subHierarchyTypeArr[data.hierarchy]
             : data.expanded
               ? 'chevron-down'
               : 'chevron-right') +
@@ -162,16 +172,13 @@ export function Rectangle(node: NodeProps<DataNode>) {
         'visualizer__sub-button-' +
         (currentDirection === Direction.RIGHT ? 'right' : 'down');
 
+    const superHierarchyTypeArr = ['type-hierarchy-super', 'call-incoming', 'file', 'unfold'];
     // Modify the icon in the button depending on the situation :
     // - Call incoming when the user didn't request the parents nodes yet.
     // - No button once the node has parents.
     const superButtonClass =
         'codicon codicon-' +
-        (node.data.hierarchy === Hierarchy.CALL
-            ? 'call-incoming'
-            : node.data.hierarchy === Hierarchy.TYPE
-              ? 'type-hierarchy-super'
-              : 'file') +
+        superHierarchyTypeArr[data.hierarchy] +
         ' visualizer__hierarchy-button visualizer__super-button-' +
         (currentDirection === Direction.RIGHT ? 'left' : 'up') +
         (!data.inProject ? ' visualizer__out-of-project' : '');
@@ -183,22 +190,26 @@ export function Rectangle(node: NodeProps<DataNode>) {
         (currentDirection === Direction.RIGHT ? 'left' : 'up') +
         (!data.inProject ? ' visualizer__out-of-project' : '');
 
+    const superTooltipTitle = [
+        'supertypes',
+        'incoming calls',
+        'dependent files',
+        'dependent gpr files',
+    ];
     // Tooltips for the buttons.
     const superButtonTitle =
-        (node.data.expanded ? 'Hide ' : 'Display ') +
-        (node.data.hierarchy === Hierarchy.CALL
-            ? 'incoming calls'
-            : Hierarchy.TYPE
-              ? 'supertypes'
-              : 'dependent files');
+        (node.data.expanded && node.data.hasParent ? 'Hide ' : 'Display ') +
+        superTooltipTitle[data.hierarchy];
 
+    const subTooltipTitle = [
+        'subtypes',
+        'outgoing calls',
+        'dependent files',
+        'dependent gpr files',
+    ];
     const subButtonTitle =
-        (node.data.expanded ? 'Hide ' : 'Display ') +
-        (node.data.hierarchy === Hierarchy.CALL
-            ? 'outgoing calls'
-            : node.data.hierarchy === Hierarchy.TYPE
-              ? 'subtypes'
-              : 'depending files');
+        (node.data.expanded && node.data.hasChildren ? 'Hide ' : 'Display ') +
+        subTooltipTitle[data.hierarchy];
 
     // Handle windows/linux/macos filesystems
     const fileName = data.string_location.path.replace(/^.*(\\|\/|:)/, '');
@@ -283,29 +294,77 @@ export function Rectangle(node: NodeProps<DataNode>) {
             <button
                 className={superButtonClass}
                 title={superButtonTitle}
-                style={{ display: data.hasParent === null ? 'inherit' : 'none' }}
+                // Null means that the presence of parents has not be checked yet.
+                style={{ display: data.hasParent !== null ? 'none' : 'inherit' }}
                 onClick={(event) => {
                     requestHierarchy(event, RelationDirection.SUPER);
                 }}
             ></button>
             <div
-                style={{ display: data.hasParent === null ? 'inherit' : 'none' }}
+                style={{
+                    display: data.hasParent !== null ? 'none' : 'inherit',
+                }}
                 className={superButtonBackgroundClass}
             ></div>
             <button
                 className={subButtonClass}
                 title={subButtonTitle}
-                // Can also be null so we need to check for false exactly.
-                style={{ display: data.hasChildren === false ? 'none' : 'inherit' }}
+                // Here we only want to hide the button when there is no child.
+                // If we don't know the request hierarchy button is displayed, if
+                //there are children the fold button is displayed.
+                style={{
+                    display: data.hasChildren === false ? 'none' : 'inherit',
+                }}
                 onClick={(event) => {
                     requestHierarchy(event, RelationDirection.SUB);
                 }}
             ></button>
             <div
-                // Can also be null so we need to check for false exactly.
                 style={{ display: data.hasChildren === false ? 'none' : 'inherit' }}
                 className={subButtonBackgroundClass}
             ></div>
+        </div>
+    );
+}
+
+function GroupedNode(node: NodeProps<DataNode>) {
+    const data = node.data;
+
+    const color = 'var(--vscode-symbolIcon-' + data.kind + 'Foreground)';
+    const iconClass = 'visualizer__icon codicon codicon-symbol-' + data.kind;
+    return (
+        <div
+            tabIndex={0}
+            className="visualizer__grouped_node"
+            data-node-id={data.id}
+            title={(data.inProject ? '' : '[out of project') + data.label}
+        >
+            {/* Hide the handles in the node and make them invisible as the user do not need to
+            connect edges */}
+            <Handle
+                className="visualizer__invis"
+                type="target"
+                position={currentDirection === Direction.RIGHT ? Position.Left : Position.Top}
+                style={{
+                    top: currentDirection === Direction.RIGHT ? undefined : '1%',
+                    left: currentDirection === Direction.RIGHT ? '1%' : undefined,
+                }}
+            />
+            <Handle
+                className="visualizer__invis"
+                type="source"
+                position={currentDirection === Direction.RIGHT ? Position.Right : Position.Bottom}
+                style={{
+                    bottom: currentDirection === Direction.RIGHT ? undefined : '1%',
+                    right: currentDirection === Direction.RIGHT ? '1%' : undefined,
+                }}
+            />
+            {/* The upper part of the node that contains the name of the symbol
+            and its kind as an icon. */}
+            <div className="visualizer__grouped_node-title">
+                <span className={iconClass} style={{ color: color, fontSize: 'x-large' }}></span>
+                <div className={'visualizer__text visualizer__ellipsis-text'}>{data.label}</div>
+            </div>
         </div>
     );
 }

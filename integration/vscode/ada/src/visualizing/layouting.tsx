@@ -1,7 +1,8 @@
-import { Edge, Node, Position } from '@xyflow/react';
+import { addEdge, Edge, Node, Position } from '@xyflow/react';
 import ELK, { ElkNode } from 'elkjs/lib/elk.bundled.js';
 import { currentDirection } from './App';
-import { Direction, NodeData } from '../visualizerTypes';
+import { Direction, EdgeType, NodeData, RelationDirection } from '../visualizerTypes';
+import { edgeFactory } from './customEdges';
 
 /**
  * Represent the smallest box that can contain all the node of a subgraph.
@@ -25,8 +26,8 @@ type Subgraph = {
 
 export const elkOptions = {
     'elk.algorithm': 'mrtree',
-    // 'elk.layered.spacing.nodeNodeBetweenLayers': '500',
-    // 'elk.layered.spacing.edgeNodeBetweenLayers': '500',
+    'elk.layered.spacing.nodeNodeBetweenLayers': '500',
+    'elk.layered.spacing.edgeNodeBetweenLayers': '500',
     'elk.spacing.nodeNode': '300',
     // 'elk.spacing.componentComponent': '300',
     'elk.layered.layering.strategy': 'INTERACTIVE',
@@ -181,7 +182,10 @@ function getSubGraphs(nodes: Node[], edges: Edge[]) {
 function concatSubgraphs(subGraphs: Subgraph[], nodes: Node[], edges: Edge[]) {
     subGraphs.forEach((subGraph) => {
         nodes.push(...subGraph.nodes);
-        edges.push(...subGraph.edges);
+        for (const edge of subGraph.edges) {
+            //We don't want to add the temporary edge to the true edge array.
+            if (edge.type !== 'temporary') edges.push(edge);
+        }
     });
     return { nodes: nodes, edges: edges } as Subgraph;
 }
@@ -260,8 +264,8 @@ function isOverlapping(
 function findNonOverlappingPosition(
     subBox: BoundingBox,
     existingBoxes: BoundingBox[],
-    padding = 150,
-    step = 150,
+    padding = 300,
+    step = 300,
 ) {
     let newX = subBox.minX;
     let newY = subBox.minY;
@@ -306,6 +310,8 @@ function findNonOverlappingPosition(
  * @param edges - The array of all the edges of the graph.
  * @param direction - The direction in which to layout the graph.
  * @param options - Elkjs option used to customize how the layout is done.
+ * @param layoutingSubFlow - True if layouting only a subFlow
+ * (case of aggregate GPR project for example)
  */
 export async function layoutSubgraph(
     currNode: Node,
@@ -314,8 +320,48 @@ export async function layoutSubgraph(
     direction = Direction.RIGHT,
     options = {},
 ) {
+    if (currNode.parentId) {
+        const tmpNode = nodes.find((node) => node.id === currNode.parentId);
+        if (!tmpNode) return;
+        currNode = tmpNode;
+    }
+
+    let layoutEdges: Edge[] = [];
+    // Get all the nodes that are in a sub Flow and for each when temporarily replace all their
+    // edges connected to the rest of the graph by edges linked to their parents node who represent
+    // the subFlow.
+    const childNodes = nodes.filter((node) => node.parentId);
+    for (const childNode of childNodes) {
+        const childEdges = edges.filter(
+            (edge) => edge.source === childNode.id || edge.target === childNode.id,
+        );
+        for (const childEdge of childEdges) {
+            // Add the temporary edges.
+            const newEdge = edgeFactory(
+                childEdge.source === childNode.id ? (childNode.parentId ?? '') : childEdge.target,
+                childEdge.source === childNode.id ? childEdge.target : (childNode.parentId ?? ''),
+                childEdge.markerStart ? RelationDirection.SUB : RelationDirection.SUPER,
+                EdgeType.TEMPORARY,
+            );
+            if (layoutEdges.find((edge) => newEdge.id === edge.id) === undefined) {
+                layoutEdges = addEdge(newEdge, layoutEdges);
+            }
+        }
+    }
+
+    // Add all the edges except the one that got replaced by a temporary edge to the layout array.
+    edges
+        .filter(
+            (edge) =>
+                childNodes.find((node) => node.id === edge.target || node.id === edge.source) ===
+                undefined,
+        )
+        .forEach((edge) => (layoutEdges = addEdge(edge, layoutEdges)));
+
+    // Remove all the nodes that are located in a subFlow.
+    const layoutNodes = nodes.filter((node) => !node.parentId);
     // Split the node and edges array into subgraph.
-    const subGraphs: Subgraph[] = getSubGraphs(nodes, edges);
+    const subGraphs: Subgraph[] = getSubGraphs(layoutNodes, layoutEdges);
 
     // Get the graph that will be layouted.
     const currSubGraph = subGraphs.find((subGraph) =>
@@ -367,8 +413,7 @@ export async function layoutSubgraph(
             },
         };
     });
-    subGraphs.push(currLayoutedSubGraph);
-    concatSubgraphs(subGraphs, nodes, edges);
+    return { nodes: nodes, edges: edges };
 }
 
 /**
@@ -385,24 +430,81 @@ export async function layoutSubgraphs(
     direction = Direction.RIGHT,
     options = {},
 ) {
+    nodes.map((node) => {
+        if (node.type === 'groupedNode') {
+            const tmp = node.width;
+            node.width = node.height;
+            node.height = tmp;
+        }
+    });
     const subgraphs: Subgraph[] = getSubGraphs(nodes, edges);
     const layoutedSubGraphs: Subgraph[] = [];
     for (const subgraph of subgraphs) {
         const layoutedSubGraph = await getLayoutedElements(subgraph, direction, options);
-        const allBoxes = layoutedSubGraphs.map((layouted) => getBoundingBox(layouted.nodes, false));
+        const allBoxes = layoutedSubGraphs.map((layouted) => getBoundingBox(layouted.nodes, true));
         const currBox = getBoundingBox(layoutedSubGraph.nodes, true);
         const newPosition = findNonOverlappingPosition(currBox, allBoxes);
         layoutedSubGraph.nodes.forEach((node) => {
             const position = (node.data as NodeData).newPosition;
-            if (position)
+            if (position && !node.parentId) {
                 // Do not change the node's position yet, it will be changed later by the
                 // moveNodes function.
                 node.data.newPosition = {
                     x: position.x + (newPosition.x - currBox.minX),
                     y: position.y + (newPosition.y - currBox.minY),
                 };
+            }
+            // If the  node is contained in a subFlow, it must not change position
+            // with the whole graph.
+            else if (node.parentId) {
+                node.data.newPosition = undefined;
+            }
         });
         layoutedSubGraphs.push(layoutedSubGraph);
     }
+
     concatSubgraphs(layoutedSubGraphs, nodes, edges);
+}
+
+/**
+ * Order the subNodes of a subFlow so they fill the subFlow.
+ * @param subFlowNode - The parent node that contains all the other nodes.
+ * @param children  - An array of node that contains all the children inside a subFlowNode.
+ * @param direction - The direction in which to layout the graph.
+ */
+export function layoutSubFlow(subFlowNode: Node, children: Node<NodeData>[], direction: Direction) {
+    if (children.length === 0) return;
+
+    // Can never be undefined but needed to remove the type error.
+    const nodeWidth = children[0].width ?? 0;
+    const nodeHeight = children[0].height ?? 0;
+
+    subFlowNode.width =
+        direction === Direction.RIGHT ? nodeWidth * 2 : nodeWidth * children.length * 2;
+    subFlowNode.height =
+        direction === Direction.RIGHT ? nodeHeight * children.length * 2 : nodeHeight * 2;
+
+    const box = getBoundingBox([subFlowNode], true);
+
+    let position: { x: number; y: number } = {
+        x:
+            direction === Direction.RIGHT
+                ? box.minX + box.width / 2 - nodeWidth / 2
+                : box.minX + nodeWidth / 2,
+        y:
+            direction === Direction.RIGHT
+                ? box.minY + nodeHeight / 2
+                : box.minY + box.height / 2 - nodeHeight / 2,
+    };
+
+    for (const child of children) {
+        child.data.newPosition = {
+            x: position.x - box.minX,
+            y: position.y - box.minY,
+        };
+        position = {
+            x: direction === Direction.RIGHT ? position.x : position.x + nodeWidth * 2,
+            y: direction === Direction.RIGHT ? position.y + nodeHeight * 2 : position.y,
+        };
+    }
 }
