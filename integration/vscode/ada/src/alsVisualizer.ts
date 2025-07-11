@@ -14,16 +14,14 @@ import {
     UpdateMessage,
     DirectedEdge,
     RevealReferencesMessage,
-    RevealReferencesResponse,
     StringLocation,
     RevealMessage,
 } from './visualizerTypes';
-import { VisualizerHandler } from './alsVisualizerProvider';
 import { logger } from './extension';
 import { convertHierarchyToData, createHandler, NodesSingleton } from './alsVisualizerUtils';
 
 // Store the webView panel for all the different hierarchy in the order of the Hierarchy Enum.
-const panels: (vscode.WebviewPanel | null)[] = [null, null, null, null];
+export const panels: (vscode.WebviewPanel | null)[] = [null, null, null, null];
 
 // Helper functions to display the execution time taken by a code block
 const startTimer = () => performance.now();
@@ -58,6 +56,8 @@ function withVizProgress(task: () => void | Promise<void>, message: string, canc
                 logger.warn('ALS: handleMessage: another command is already running');
                 return;
             }
+            // If the variable is changed here, whatever happens it will be change
+            // back before the end of the function, even when an exception is thrown.
             rejectProcess = true;
             token.onCancellationRequested(() => {
                 rejectProcess = false;
@@ -153,7 +153,8 @@ function handleMessage(message: Message) {
         // Gather all references of a symbol in an other symbol.
         case 'revealReferences': {
             const ids = message.data as RevealReferencesMessage;
-            void revealReference(ids.targetNodeId, ids.referenceNodeId);
+            const node = NodesSingleton.symbolsMap.get(ids.referenceNodeId);
+            if (node) void node.handler.revealReference(ids.targetNodeId, ids.referenceNodeId);
             break;
         }
         // Reconstruct a location and reveal the symbol under it in the code.
@@ -337,7 +338,7 @@ async function refreshNodes(nodesId: string[]) {
                     ? new vscode.Location(node.location.uri, symbol.selectionRange)
                     : symbol.location;
 
-            if (node.id === (await node.handler.generateNodeId(loc))) {
+            if (node.id === (await node.handler.generateNodeId(loc, node.label))) {
                 node.location = loc;
                 toUpdate.push(node);
                 break;
@@ -474,147 +475,6 @@ function updateNodes(toUpdate: NodeHierarchy[], toDelete: NodeHierarchy[]) {
 }
 
 /**
- * Search the full range of body of a symbol.
- *
- * @param label - The name of the symbol to search.
- * @param handler - The handler to call language specific function.
- * @param location - The location of the selection range of the symbol.
- * @returns The uri and total range of the symbol.
- */
-async function getSymbolLocation(
-    label: string,
-    handler: VisualizerHandler,
-    location: vscode.Location,
-) {
-    let symbolRange: vscode.Range | null = null;
-    let uri: vscode.Uri | null = null;
-    const implementation = await handler.getFunctionBodyLocation(location);
-    if (implementation === null) return null;
-
-    // TODO WHAT IF MULTIPLE IMPLEMENTATIONS?
-    uri = 'uri' in implementation ? implementation.uri : implementation.targetUri;
-    //TODO HANDLE TYPES?
-    const symbols = await vscode.commands.executeCommand<
-        (vscode.SymbolInformation | vscode.DocumentSymbol)[]
-    >('vscode.executeDocumentSymbolProvider', uri);
-
-    for (const symbol of symbols) {
-        const range = handler.getSymbolWholeRange(symbol, label, implementation);
-        if (range) {
-            symbolRange = range;
-            break;
-        }
-    }
-    return { uri, functionRange: symbolRange };
-}
-
-/**
- * Search all the references of a specific symbol in an other. If no target is provided, the
- * references will all be gathered, ordered regarding the symbol the are located in and then
- * sended to the client side.
- *
- * @param targetNodeId - The symbol in which to search for references, or null for all.
- * @param referenceNodeId - The references to search.
- */
-async function revealReference(targetNodeId: string, referenceNodeId: string) {
-    const symbolsMap = NodesSingleton.symbolsMap;
-
-    const targetNode = symbolsMap.get(targetNodeId);
-    const referenceNode = symbolsMap.get(referenceNodeId);
-    if (!referenceNode) return;
-
-    const symbolLocations: [vscode.Range, vscode.Uri, string][] = [];
-    // Case where a target is given.
-    if (targetNode) {
-        const location = await getSymbolLocation(
-            targetNode.label,
-            targetNode.handler,
-            targetNode.location,
-        );
-
-        if (location === null || location.functionRange === null) return;
-        symbolLocations.push([location.functionRange, location.uri, targetNode.label]);
-    }
-    // Case where we get all the references.
-    else {
-        // Query all the incoming symbol in the node.
-        const prepare = await vscode.commands.executeCommand<
-            (vscode.CallHierarchyItem | vscode.TypeHierarchyItem)[]
-        >(
-            referenceNode.hierarchy === Hierarchy.CALL
-                ? 'vscode.prepareCallHierarchy'
-                : 'prepareTypeHierarchy',
-            referenceNode.location.uri,
-            referenceNode.location.range.start,
-        );
-        if (prepare.length > 0) {
-            const incomings = await vscode.commands.executeCommand<
-                (vscode.CallHierarchyIncomingCall | vscode.TypeHierarchyItem)[]
-            >(
-                referenceNode.hierarchy === Hierarchy.CALL
-                    ? 'vscode.provideIncomingCalls'
-                    : 'vscode.provideSupertypes',
-                prepare[0],
-            );
-            for (const incoming of incomings) {
-                // TODO HANDLE TYPES
-                if (referenceNode.hierarchy === Hierarchy.CALL) {
-                    const incomingItem = incoming as vscode.CallHierarchyIncomingCall;
-                    const location = await getSymbolLocation(
-                        incomingItem.from.name,
-                        referenceNode.handler,
-                        new vscode.Location(incomingItem.from.uri, incomingItem.from.range.start),
-                    );
-                    if (location === null || location.functionRange === null) return;
-                    symbolLocations.push([
-                        location.functionRange,
-                        location.uri,
-                        incomingItem.from.name,
-                    ]);
-                }
-            }
-        }
-    }
-
-    if (!fs.existsSync(referenceNode.location.uri.fsPath)) return;
-
-    const locations = await vscode.commands.executeCommand<vscode.Location[]>(
-        'vscode.executeReferenceProvider',
-        referenceNode.location.uri,
-        referenceNode.location.range.start,
-    );
-    const stringLocationsMap: Map<string, StringLocation[]> = new Map();
-    for (const location of locations) {
-        // Don't sort by file name but by the parent function
-        const symbolLocation = symbolLocations.find(
-            (symbolLocation) =>
-                symbolLocation[0].contains(location.range) &&
-                symbolLocation[1].fsPath === location.uri.fsPath,
-        );
-        if (symbolLocation) {
-            if (!stringLocationsMap.has(symbolLocation[2]))
-                stringLocationsMap.set(symbolLocation[2], []);
-            stringLocationsMap.get(symbolLocation[2])?.push({
-                path: location.uri.fsPath,
-                range_start: location.range.start,
-                range_end: location.range.end,
-                string_location:
-                    `Ln ${location.range.start.line}, ` + `Col ${location.range.start.character}`,
-            } as StringLocation);
-        }
-    }
-    const panel = panels[referenceNode.hierarchy];
-    panel?.webview.postMessage({
-        command: 'revealResponse',
-        data: {
-            // locations: stringLocations,
-            locationsKeys: Array.from(stringLocationsMap.keys()),
-            locationsValues: Array.from(stringLocationsMap.values()),
-        } as RevealReferencesResponse,
-    });
-}
-
-/**
  * Get the document linked to the node's symbol and focus the user on it
  *
  * @param id - The id of the node to reveal
@@ -687,6 +547,7 @@ function convertToMessage(
 ) {
     nodes.push(convertHierarchyToData(root));
     const queue: NodeHierarchy[] = [];
+
     if (root.expanded) queue.push(...root.children.map((child) => child.target));
     while (queue.length !== 0) {
         const node: NodeHierarchy = queue.splice(0, 1)[0];

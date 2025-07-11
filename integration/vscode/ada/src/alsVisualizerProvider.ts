@@ -6,9 +6,17 @@ import {
     Hierarchy,
     NodeHierarchy,
     RelationDirection,
+    RevealReferencesResponse,
+    StringLocation,
     VisualizerSymbol,
 } from './visualizerTypes';
-import { bindNodes, createNodeHierarchy, NodesSingleton } from './alsVisualizerUtils';
+import {
+    bindNodes,
+    createNodeHierarchy,
+    getSymbolLocation,
+    NodesSingleton,
+} from './alsVisualizerUtils';
+import { panels } from './alsVisualizer';
 
 /**
  * Base class for all the VisualizerHandler, provide a default implementation of the function.
@@ -24,24 +32,8 @@ export class VisualizerHandler {
      * @param nodeLocation - The location of the node in the project
      * @returns An position-independent id for the symbol.
      */
-    async generateNodeId(nodeLocation: vscode.Location, label: string = '') {
-        void label;
-        const hovers = await vscode.commands.executeCommand<vscode.Hover[]>(
-            'vscode.executeHoverProvider',
-            nodeLocation.uri,
-            nodeLocation.range.start,
-        );
-        let hoverValues = '';
-        for (const hover of hovers) {
-            for (const content of hover.contents) {
-                hoverValues +=
-                    (hoverValues.length === 0 ? '' : '/') +
-                    // Collapse multiple following whitespaces into one
-                    (content as vscode.MarkdownString).value.replace(/\s+/g, ' ').trim();
-            }
-        }
-
-        const clearId = nodeLocation.uri.fsPath + ':' + hoverValues;
+    async generateNodeId(nodeLocation: vscode.Location, label: string) {
+        const clearId = nodeLocation.uri.fsPath + ':' + label;
 
         // Hash the file uri and the symbol location to get the id
         const hash = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(clearId));
@@ -140,6 +132,7 @@ export class VisualizerHandler {
                 ['vscode.provideSupertypes', 'vscode.provideIncomingCalls'],
                 ['vscode.provideSubtypes', 'vscode.provideOutgoingCalls'],
             ];
+            // Request the hierarchy items and cast them to a unified type of data.
             const items: (vscode.TypeHierarchyItem | vscode.CallHierarchyItem)[] = (
                 await vscode.commands.executeCommand<
                     | vscode.TypeHierarchyItem[]
@@ -149,6 +142,7 @@ export class VisualizerHandler {
             ).map((item) => ('name' in item ? item : 'from' in item ? item.from : item.to));
 
             for (const item of items) {
+                // Get only the useful information from the item.
                 const symbol = {
                     name: item.name,
                     location: new vscode.Location(item.uri, item.selectionRange),
@@ -161,14 +155,21 @@ export class VisualizerHandler {
                     middleNode.languageId,
                 );
                 if (!newNodeTmp) continue;
+
+                //Link the two nodes together.
                 bindNodes(middleNode, newNodeTmp, direction, EdgeType.REGULAR);
             }
+
+            // Update the parent ands children marker of middleNode.
             if (direction === RelationDirection.SUB && middleNode.children.length === 0)
                 middleNode.hasChildren = false;
             if (direction === RelationDirection.SUPER && middleNode.parents.length === 0)
                 middleNode.hasParent = false;
         }
+
         // -------------------------------- END NESTED FUNCTIONS --------------------------------
+
+        // Other type of Hierarchy will be called from subclass of this class.
         if (hierarchy !== Hierarchy.CALL && hierarchy !== Hierarchy.TYPE) {
             logger.error(
                 'alsVisualizerProvider.ts: provideHierarchy: This hierarchy types is not handled.',
@@ -217,5 +218,121 @@ export class VisualizerHandler {
         // Get all the nodes that does not have parents
         NodesSingleton.findRoots();
         return middleNode;
+    }
+
+    /**
+     * Search all the references of a specific symbol in an other. If no target is provided, the
+     * references will all be gathered, ordered regarding the symbol the are located in and then
+     * sended to the client side.
+     *
+     * @param targetNodeId - The symbol in which to search for references, or null for all.
+     * @param referenceNodeId - The references to search.
+     */
+    async revealReference(targetNodeId: string, referenceNodeId: string) {
+        const symbolsMap = NodesSingleton.symbolsMap;
+
+        const targetNode = symbolsMap.get(targetNodeId);
+        const referenceNode = symbolsMap.get(referenceNodeId);
+
+        if (
+            !referenceNode ||
+            (referenceNode.hierarchy !== Hierarchy.CALL &&
+                referenceNode.hierarchy !== Hierarchy.TYPE)
+        )
+            return;
+
+        const symbolLocations: [vscode.Range, vscode.Uri, string][] = [];
+        // Case where the target is known.
+        if (targetNode) {
+            //TODO HANDLES TYPES
+            const location = await getSymbolLocation(
+                targetNode.label,
+                targetNode.handler,
+                targetNode.location,
+            );
+
+            if (location === null || location.functionRange === null) return;
+            symbolLocations.push([location.functionRange, location.uri, targetNode.label]);
+        }
+        // Case where the target is unknown and we need all the references.
+        else {
+            // Query all the incoming symbol in the node.
+            const prepare = await vscode.commands.executeCommand<
+                (vscode.CallHierarchyItem | vscode.TypeHierarchyItem)[]
+            >(
+                referenceNode.hierarchy === Hierarchy.CALL
+                    ? 'vscode.prepareCallHierarchy'
+                    : 'prepareTypeHierarchy',
+                referenceNode.location.uri,
+                referenceNode.location.range.start,
+            );
+            if (prepare.length > 0) {
+                const incomings = await vscode.commands.executeCommand<
+                    (vscode.CallHierarchyIncomingCall | vscode.TypeHierarchyItem)[]
+                >(
+                    referenceNode.hierarchy === Hierarchy.CALL
+                        ? 'vscode.provideIncomingCalls'
+                        : 'vscode.provideSupertypes',
+                    prepare[0],
+                );
+                for (const incoming of incomings) {
+                    // TODO HANDLE TYPES
+                    let incomingItem = null;
+                    if (referenceNode.hierarchy === Hierarchy.CALL) {
+                        incomingItem = (incoming as vscode.CallHierarchyIncomingCall).from;
+                    } else if (referenceNode.hierarchy === Hierarchy.TYPE) {
+                        incomingItem = incoming as vscode.TypeHierarchyItem;
+                    }
+
+                    if (!incomingItem) continue;
+
+                    const location = await getSymbolLocation(
+                        incomingItem.name,
+                        referenceNode.handler,
+                        new vscode.Location(incomingItem.uri, incomingItem.range.start),
+                    );
+                    if (location === null || location.functionRange === null) return;
+                    symbolLocations.push([location.functionRange, location.uri, incomingItem.name]);
+                }
+            }
+        }
+
+        if (!fs.existsSync(referenceNode.location.uri.fsPath)) return;
+
+        const locations = await vscode.commands.executeCommand<vscode.Location[]>(
+            'vscode.executeReferenceProvider',
+            referenceNode.location.uri,
+            referenceNode.location.range.start,
+        );
+        const stringLocationsMap: Map<string, StringLocation[]> = new Map();
+        for (const location of locations) {
+            // Don't sort by file name but by the parent function
+            const symbolLocation = symbolLocations.find(
+                (symbolLocation) =>
+                    symbolLocation[0].contains(location.range) &&
+                    symbolLocation[1].fsPath === location.uri.fsPath,
+            );
+            if (symbolLocation) {
+                if (!stringLocationsMap.has(symbolLocation[2]))
+                    stringLocationsMap.set(symbolLocation[2], []);
+                stringLocationsMap.get(symbolLocation[2])?.push({
+                    path: location.uri.fsPath,
+                    range_start: location.range.start,
+                    range_end: location.range.end,
+                    string_location:
+                        `Ln ${location.range.start.line}, ` +
+                        `Col ${location.range.start.character}`,
+                } as StringLocation);
+            }
+        }
+        const panel = panels[referenceNode.hierarchy];
+        panel?.webview.postMessage({
+            command: 'revealResponse',
+            data: {
+                // locations: stringLocations,
+                locationsKeys: Array.from(stringLocationsMap.keys()),
+                locationsValues: Array.from(stringLocationsMap.values()),
+            } as RevealReferencesResponse,
+        });
     }
 }

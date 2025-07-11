@@ -485,6 +485,10 @@ export default function App() {
             } else if (edge.data.edgeDirection === RelationDirection.SUPER) {
                 targetNodeId = edge.target;
                 referenceNodeId = edge.source;
+            } else {
+                // TODO Handle both direction
+                console.warn('openReferencesPicker: both direction is not handled yet');
+                return;
             }
 
             //Make sure the popup doesn't overflow thought the left or right side.

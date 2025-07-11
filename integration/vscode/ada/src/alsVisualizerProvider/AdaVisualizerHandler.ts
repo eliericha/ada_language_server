@@ -16,6 +16,9 @@ import { logger } from '../extension';
 export class AdaVisualizerHandler extends VisualizerHandler {
     async generateNodeId(nodeLocation: vscode.Location, label: string = '') {
         let hoverValues: string = '';
+
+        let path = nodeLocation.uri.fsPath;
+
         if (fs.existsSync(nodeLocation.uri.fsPath)) {
             const hovers = await vscode.commands.executeCommand<vscode.Hover[]>(
                 'vscode.executeHoverProvider',
@@ -28,11 +31,11 @@ export class AdaVisualizerHandler extends VisualizerHandler {
                     // Collapse multiple following whitespaces into one
                     (hover.contents[0] as vscode.MarkdownString).value.replace(/\s+/g, ' ').trim();
             }
+            path = fs.realpathSync(nodeLocation.uri.fsPath);
         } else hoverValues = label;
 
         // Expand the symlinks to avoid getting the same node twice with a different path.
-        const realPath = fs.realpathSync(nodeLocation.uri.fsPath);
-        const clearId = realPath + ':' + hoverValues;
+        const clearId = path + ':' + hoverValues;
 
         // Hash the file uri and the symbol location to get the id
         const hash = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(clearId));

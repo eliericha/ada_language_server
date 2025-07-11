@@ -47,8 +47,8 @@ export class GprVisualizerHandler extends VisualizerHandler {
                 uri: location.uri.toString(),
                 direction:
                     direction === RelationDirection.SUB
-                        ? ALS_GprDependencyDirection.SHOW_DEPENDENT
-                        : ALS_GprDependencyDirection.SHOW_DEPENDING,
+                        ? ALS_GprDependencyDirection.SHOW_OUTGOING
+                        : ALS_GprDependencyDirection.SHOW_INCOMING,
             } as ALS_GprDependencyParam,
         );
 

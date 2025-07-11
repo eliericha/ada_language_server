@@ -287,8 +287,8 @@ export enum ALS_ShowDependenciesKind {
  * Store the values used for als_show_dependency.
  */
 export enum ALS_GprDependencyDirection {
-    SHOW_DEPENDENT = 1, // SUB
-    SHOW_DEPENDING = 2, // SUPER
+    SHOW_OUTGOING = 1,
+    SHOW_INCOMING = 2,
 }
 
 /**

@@ -8,13 +8,18 @@ package body Cycle is
    function Bar (t : Integer) return Integer is
    begin
       return Foo (t) +
-      Foo(t) + Foo(t) +
-      Foo(t) + Foo(t) +
-      Foo(t) + Foo(t) +
-      Foo(t) + Foo(t) +
-      Foo(t) + Foo(t) +
-      Foo(t) + Foo(t) +
-      Foo(t) + Foo(t);
+      Foo(t) +
+      Foo(t) +
+      Foo(t) +
+      Foo(t) +
+      Foo(t) +
+      Foo(t) +
+      Foo(t) +
+      Foo(t) +
+      Foo(t) +
+      Foo(t) +
+      Foo(t) +
+      Foo(t);
    end;
 
    function Foo (t : Integer) return Integer is
@@ -48,4 +53,4 @@ package body Cycle is
    end Bat;
 
 
-end Cycle;ç
+end Cycle;

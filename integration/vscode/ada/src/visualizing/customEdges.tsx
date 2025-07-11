@@ -51,6 +51,7 @@ export function edgeFactory(
         },
         data: {
             additionalClass: undefined,
+            edgeDirection: edgeDirection,
         },
     } as Edge;
 }

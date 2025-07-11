@@ -41,6 +41,12 @@ export function createHandler(languageId: string): VisualizerHandler {
  */
 type SymbolsMap = Map<string, NodeHierarchy>;
 
+/**
+ * Singleton class that holds all the node related structure for easy access and to
+ * guarantee uniqueness.
+ *
+ * Provide a few helped function to manipulate those structure.
+ */
 export class NodesSingleton {
     private static instance: NodesSingleton;
 
@@ -143,12 +149,12 @@ export async function createNodeHierarchy(
 ) {
     let range = hierarchyItem.location.range;
 
-    // Expand the symlinks to avoid getting the same node twice with a different path.
-    const realPath = fs.realpathSync(hierarchyItem.location.uri.fsPath);
-    let uri = vscode.Uri.file(realPath);
-
+    let uri = hierarchyItem.location.uri;
     let hasParent: boolean | null = null;
     if (fs.existsSync(uri.fsPath)) {
+        // Expand the symlinks to avoid getting the same node twice with a different path.
+        const realPath = fs.realpathSync(hierarchyItem.location.uri.fsPath);
+        uri = vscode.Uri.file(realPath);
         if (wantDeclarationLocation) {
             const decPosition = await vscode.commands.executeCommand<
                 vscode.Location[] | vscode.LocationLink[]
@@ -173,7 +179,7 @@ export async function createNodeHierarchy(
 
     return {
         //Node Data
-        id: await handler.generateNodeId(location),
+        id: await handler.generateNodeId(location, hierarchyItem.name),
         label: hierarchyItem.name,
         kind: vscode.SymbolKind[hierarchyItem.kind].toLowerCase(),
         expanded: true,
@@ -225,7 +231,7 @@ export function convertHierarchyToData(nodeHierarchy: NodeHierarchy) {
 }
 
 /**
- * Bind two node together as parent/child. Check if they are not already related.
+ * Bind two node together as parent-child. Check if they are not already related.
  *
  * @param middleNode - The main node of the hierarchy.
  * @param otherNode - The node that will be bound to the middleNode.
@@ -249,7 +255,7 @@ export function bindNodes(
             newNode.hasParent = true;
         }
     }
-    // Only add recursive node when adding children
+    // Only add self connection to a node when adding children
     else if (middleNode !== newNode) {
         if (!middleNode.parents.some((node) => node.target.id === newNode.id)) {
             middleNode.parents.push({ target: newNode, edgeType: edgeType });
@@ -262,4 +268,39 @@ export function bindNodes(
         // We check if we just created middleNode or it is a node created previously
         if (newNode === otherNode) newNode.expanded = true;
     }
+}
+
+/**
+ * Search the full range of body of a symbol.
+ *
+ * @param label - The name of the symbol to search.
+ * @param handler - The handler to call language specific function.
+ * @param location - The location of the selection range of the symbol.
+ * @returns The uri and total range of the symbol.
+ */
+export async function getSymbolLocation(
+    label: string,
+    handler: VisualizerHandler,
+    location: vscode.Location,
+) {
+    let symbolRange: vscode.Range | null = null;
+    let uri: vscode.Uri | null = null;
+    const implementation = await handler.getFunctionBodyLocation(location);
+    if (implementation === null) return null;
+
+    // TODO WHAT IF MULTIPLE IMPLEMENTATIONS?
+    uri = 'uri' in implementation ? implementation.uri : implementation.targetUri;
+    //TODO HANDLE TYPES?
+    const symbols = await vscode.commands.executeCommand<
+        (vscode.SymbolInformation | vscode.DocumentSymbol)[]
+    >('vscode.executeDocumentSymbolProvider', uri);
+
+    for (const symbol of symbols) {
+        const range = handler.getSymbolWholeRange(symbol, label, implementation);
+        if (range) {
+            symbolRange = range;
+            break;
+        }
+    }
+    return { uri, functionRange: symbolRange };
 }
