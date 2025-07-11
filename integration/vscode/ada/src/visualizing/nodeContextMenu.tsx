@@ -12,7 +12,11 @@ import {
     StringLocation,
 } from '../visualizerTypes';
 import { setIntervalCapped, waitingBar } from './utils';
-import { referencesPickerOnClick, referencesPickerOnKeyDown } from './referencesPickerMenu';
+import {
+    referencePickerCreateList,
+    referencesPickerOnClick,
+    referencesPickerOnKeyDown,
+} from './referencesPickerMenu';
 
 export type NodeContextMenuProps = {
     node: Node<NodeData>;
@@ -36,14 +40,9 @@ let intervalId: NodeJS.Timeout | null = null;
  * @returns a div containing a context menu for a specific node
  */
 export function NodeContextMenu(props: NodeContextMenuProps) {
-    const [locations, setLocations] = React.useState<React.JSX.Element[]>([]);
     const [current, setCurrent] = React.useState(-1);
     const [canClose, setCanClose] = React.useState(true);
-    const [referencesMap, setReferencesMap] = React.useState<
-        Map<React.JSX.Element, React.JSX.Element[]>
-    >(new Map());
-    void setReferencesMap;
-    void setLocations;
+    const locations: React.JSX.Element[] = [];
 
     // Close the context menu if the mouse leave the window
     React.useEffect(() => {
@@ -116,6 +115,7 @@ export function NodeContextMenu(props: NodeContextMenuProps) {
                 data: {
                     referenceNodeId: props.node.id,
                     targetNodeId: '',
+                    bothDirection: false,
                 } as RevealReferencesMessage,
             });
         }
@@ -201,46 +201,7 @@ export function NodeContextMenu(props: NodeContextMenuProps) {
 
     // If no locations has been registered yet create all the list elements.
     if (locations.length === 0) {
-        for (const key of props.locationsMap.keys()) {
-            const stringLocation = props.locationsMap.get(key);
-            if (!stringLocation || stringLocation.length === 0) continue;
-            const fileName = stringLocation[0].path.replace(/^.*(\\|\/|:)/, '');
-            const headerName = `${key}: ${fileName}`;
-            const header = (
-                <li
-                    className={
-                        'visualizer__references-picker-item' +
-                        ' visualizer__references-picker-header' +
-                        ' visualizer__ellipsis-text'
-                    }
-                    key={headerName}
-                    data-header={headerName}
-                    title={stringLocation[0].path}
-                >
-                    <span>{headerName}</span>
-                </li>
-            );
-            referencesMap.set(header, []);
-            locations.push(header);
-            stringLocation.forEach((location) => {
-                // Handle windows/linux/macos filesystems
-                const loc = `${location.string_location}`;
-                const position = (
-                    <li
-                        className="visualizer__references-picker-item"
-                        onClick={onClick}
-                        key={loc}
-                        data-string-loc={location.string_location}
-                        title={loc}
-                        style={{ textIndent: '1em' }}
-                    >
-                        {loc}
-                    </li>
-                );
-                referencesMap.get(header)?.push(position);
-                locations.push(position);
-            });
-        }
+        referencePickerCreateList(props.locationsMap, locations, onClick, true);
     }
 
     let left: number | undefined = undefined;

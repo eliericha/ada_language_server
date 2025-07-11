@@ -162,4 +162,34 @@ export class AdaVisualizerHandler extends VisualizerHandler {
         NodesSingleton.findRoots();
         return middleNode;
     }
+
+    getParentSymbolWholeRange(
+        symbol: vscode.SymbolInformation | vscode.DocumentSymbol,
+        label: string,
+        location: vscode.Location | vscode.LocationLink,
+    ): { name: string; range: vscode.Range } | null {
+        const range = 'range' in location ? location.range : location.targetRange;
+        // If children property is set this is a DocumentSymbol
+        if ('children' in symbol) {
+            // If the symbol has the same name and selection range we directly return it.
+            if (symbol.name === label && symbol.selectionRange.isEqual(range))
+                return { name: symbol.name, range: symbol.range };
+            // Else if the symbol contains the range we check if we can find a smaller range
+            // and return the small range found.
+            else if (symbol.range.contains(range)) {
+                for (const child of symbol.children) {
+                    // In Ada a type declaration is considered a class but its scope
+                    // is to small so we ignore it to get the super scope.
+                    if (child.kind === vscode.SymbolKind.Class) continue;
+                    const range = this.getParentSymbolWholeRange(child, label, location);
+                    if (range !== null) return range;
+                }
+                return { name: symbol.name, range: symbol.range };
+            } else return null;
+        }
+        // Else it is a SymbolInformation
+        else if (symbol.name === label && symbol.location.range.contains(range))
+            return { name: symbol.name, range: symbol.location.range };
+        return null;
+    }
 }

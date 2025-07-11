@@ -154,7 +154,12 @@ function handleMessage(message: Message) {
         case 'revealReferences': {
             const ids = message.data as RevealReferencesMessage;
             const node = NodesSingleton.symbolsMap.get(ids.referenceNodeId);
-            if (node) void node.handler.revealReference(ids.targetNodeId, ids.referenceNodeId);
+            if (node)
+                void node.handler.revealReference(
+                    ids.targetNodeId,
+                    ids.referenceNodeId,
+                    ids.bothDirection,
+                );
             break;
         }
         // Reconstruct a location and reveal the symbol under it in the code.

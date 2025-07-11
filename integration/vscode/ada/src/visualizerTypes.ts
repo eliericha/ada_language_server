@@ -91,6 +91,7 @@ export type StringLocation = {
 export type RevealReferencesMessage = {
     targetNodeId: string;
     referenceNodeId: string;
+    bothDirection: boolean;
 };
 
 /** Message sent to the client in response to a RevealReferencesMessage.

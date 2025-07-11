@@ -479,16 +479,15 @@ export default function App() {
             const menuWidth = nodeWidth;
             const pane = ref.current.getBoundingClientRect();
             if (!edge.data) return;
-            if (edge.data.edgeDirection === RelationDirection.SUB) {
+            if (
+                edge.data.edgeDirection === RelationDirection.SUB ||
+                edge.data.edgeDirection === RelationDirection.BOTH
+            ) {
                 targetNodeId = edge.source;
                 referenceNodeId = edge.target;
             } else if (edge.data.edgeDirection === RelationDirection.SUPER) {
                 targetNodeId = edge.target;
                 referenceNodeId = edge.source;
-            } else {
-                // TODO Handle both direction
-                console.warn('openReferencesPicker: both direction is not handled yet');
-                return;
             }
 
             //Make sure the popup doesn't overflow thought the left or right side.
@@ -523,6 +522,7 @@ export default function App() {
                     data: {
                         targetNodeId: targetNodeId,
                         referenceNodeId: referenceNodeId,
+                        bothDirection: edge.data.edgeDirection === RelationDirection.BOTH,
                     } as RevealReferencesMessage,
                 });
 

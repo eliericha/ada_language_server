@@ -10,13 +10,13 @@ export class CPPVisualizerHandler extends VisualizerHandler {
         return null;
     }
 
-    getSymbolWholeRange(
+    getParentSymbolWholeRange(
         symbol: vscode.SymbolInformation | vscode.DocumentSymbol,
         label: string,
         location: vscode.Location | vscode.LocationLink,
-    ): vscode.Range | null {
+    ): { name: string; range: vscode.Range } | null {
         symbol.name = symbol.name.split('(')[0];
         label = label.split('(')[0];
-        return super.getSymbolWholeRange(symbol, label, location);
+        return super.getParentSymbolWholeRange(symbol, label, location);
     }
 }

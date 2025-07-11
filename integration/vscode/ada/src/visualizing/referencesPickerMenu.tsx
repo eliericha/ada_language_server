@@ -137,6 +137,62 @@ export function referencesPickerOnClick(
 }
 
 /**
+ * Populate the array of JSX element with the locationMap passed as arguments.
+ *
+ * @param locationsMap - The map containing all the location and the name of their parent scope.
+ * @param locations - The array of element to be populated.
+ * @param onClick - The click callback function to be added to each elements.
+ * @param includeHeaders - Whether or not add the header to each category of symbol with the name
+ * of the parent scope.
+ */
+export function referencePickerCreateList(
+    locationsMap: Map<string, StringLocation[]>,
+    locations: React.JSX.Element[],
+    onClick: (event: React.MouseEvent<HTMLLIElement>) => void,
+    includeHeaders: boolean,
+) {
+    for (const key of locationsMap.keys()) {
+        const stringLocation = locationsMap.get(key);
+        if (!stringLocation || stringLocation.length === 0) continue;
+        if (includeHeaders) {
+            const fileName = stringLocation[0].path.replace(/^.*(\\|\/|:)/, '');
+            const headerName = `${key}: ${fileName}`;
+            const header = (
+                <li
+                    className={
+                        'visualizer__references-picker-item' +
+                        ' visualizer__references-picker-header' +
+                        ' visualizer__ellipsis-text'
+                    }
+                    key={headerName}
+                    data-header={headerName}
+                    title={stringLocation[0].path}
+                >
+                    <span>{headerName}</span>
+                </li>
+            );
+            locations.push(header);
+        }
+        stringLocation.forEach((location) => {
+            // Handle windows/linux/macos filesystems
+            const loc = `${location.string_location}`;
+            const position = (
+                <li
+                    className="visualizer__references-picker-item"
+                    onClick={onClick}
+                    key={loc}
+                    data-string-loc={location.string_location}
+                    title={loc}
+                    style={{ textIndent: '1em' }}
+                >
+                    {loc}
+                </li>
+            );
+            locations.push(position);
+        });
+    }
+}
+/**
  * Open a menu with the location of all the references of of the symbol contained in
  * the target node.
  *
@@ -229,25 +285,12 @@ export function ReferencesPickerMenu(props: ReferencesPickerMenuProps) {
     }
 
     if (props.locationsMap.size > 0) {
-        for (const key of props.locationsMap.keys()) {
-            const stringLocation = props.locationsMap.get(key);
-            if (!stringLocation || stringLocation.length === 0) continue;
-            const fileName = stringLocation[0].path.replace(/^.*(\\|\/|:)/, '');
-            stringLocation.forEach((location) => {
-                const loc = `${fileName} : ${location.string_location}`;
-                locations.push(
-                    <li
-                        className="visualizer__references-picker-item"
-                        onClick={onClick}
-                        key={loc}
-                        data-string-loc={location.string_location}
-                        title={loc}
-                    >
-                        {location.string_location}
-                    </li>,
-                );
-            });
-        }
+        referencePickerCreateList(
+            props.locationsMap,
+            locations,
+            onClick,
+            props.locationsMap.size > 1,
+        );
     } else {
         locations.push(
             <li className='"visualizer__references-picker-item' key="No references">

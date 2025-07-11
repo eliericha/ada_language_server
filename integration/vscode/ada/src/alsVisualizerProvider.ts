@@ -54,21 +54,6 @@ export class VisualizerHandler {
     }
 
     /**
-     * Get the location (uri and range) of the body of a specific node.
-     *
-     * @param node - The node to get the body location from.
-     * @returns The symbol's body location.
-     */
-    async getFunctionBodyLocation(location: vscode.Location) {
-        if (!fs.existsSync(location.uri.fsPath)) return null;
-        const implementations = await vscode.commands.executeCommand<
-            (vscode.Location | vscode.LocationLink)[]
-        >('vscode.executeImplementationProvider', location.uri, location.range.start);
-        if (implementations.length > 0) return implementations[0];
-        return null;
-    }
-
-    /**
      * Get the entire range of a symbol (for a function, its entire body for
      * example).
      *
@@ -77,22 +62,47 @@ export class VisualizerHandler {
      * @param location  - The selection range of the symbol to search.
      * @returns
      */
-    getSymbolWholeRange(
+    getParentSymbolWholeRange(
         symbol: vscode.SymbolInformation | vscode.DocumentSymbol,
         label: string,
         location: vscode.Location | vscode.LocationLink,
-    ): vscode.Range | null {
+    ): { name: string; range: vscode.Range } | null {
         const range = 'range' in location ? location.range : location.targetRange;
+        // If children property is set this is a DocumentSymbol
         if ('children' in symbol) {
-            if (symbol.name === label && symbol.selectionRange.isEqual(range)) return symbol.range;
-            else {
+            // If the symbol has the same name and selection range we directly return it.
+            if (symbol.name === label && symbol.selectionRange.isEqual(range))
+                return { name: symbol.name, range: symbol.range };
+            // Else if the symbol contains the range we check if we can find a smaller range
+            // and return the small range found.
+            else if (symbol.range.contains(range)) {
                 for (const child of symbol.children) {
-                    const range = this.getSymbolWholeRange(child, label, location);
+                    const range = this.getParentSymbolWholeRange(child, label, location);
                     if (range !== null) return range;
                 }
-            }
-        } else if (symbol.name === label && symbol.location.range.contains(range))
-            return symbol.location.range;
+                return { name: symbol.name, range: symbol.range };
+            } else return null;
+        }
+        // Else it is a SymbolInformation
+        else if (symbol.name === label && symbol.location.range.contains(range))
+            return { name: symbol.name, range: symbol.location.range };
+        return null;
+    }
+
+    /**
+     * Get the location (uri and range) of the body of a specific node.
+     *
+     * @param node - The node to get the body location from.
+     * @returns The symbol's body location.
+     */
+    async getBodyLocation(location: vscode.Location, hierarchy: Hierarchy) {
+        if (!fs.existsSync(location.uri.fsPath)) return null;
+        if (hierarchy === Hierarchy.TYPE) return location;
+
+        const implementations = await vscode.commands.executeCommand<
+            (vscode.Location | vscode.LocationLink)[]
+        >('vscode.executeImplementationProvider', location.uri, location.range.start);
+        if (implementations.length > 0) return implementations[0];
         return null;
     }
 
@@ -227,8 +237,10 @@ export class VisualizerHandler {
      *
      * @param targetNodeId - The symbol in which to search for references, or null for all.
      * @param referenceNodeId - The references to search.
+     * @param bothDirection - True if the edge between target and reference node goes into the
+     * two direction.
      */
-    async revealReference(targetNodeId: string, referenceNodeId: string) {
+    async revealReference(targetNodeId: string, referenceNodeId: string, bothDirection: boolean) {
         const symbolsMap = NodesSingleton.symbolsMap;
 
         const targetNode = symbolsMap.get(targetNodeId);
@@ -236,23 +248,37 @@ export class VisualizerHandler {
 
         if (
             !referenceNode ||
+            !fs.existsSync(referenceNode.location.uri.fsPath) ||
             (referenceNode.hierarchy !== Hierarchy.CALL &&
                 referenceNode.hierarchy !== Hierarchy.TYPE)
         )
             return;
 
+        // We first gather the name and range of all the symbol that contains a reference
+        // to the referenced symbol.
         const symbolLocations: [vscode.Range, vscode.Uri, string][] = [];
-        // Case where the target is known.
-        if (targetNode) {
-            //TODO HANDLES TYPES
+        // Case where the target is known and it is a callGraph.
+        if (targetNode && targetNode.hierarchy === Hierarchy.CALL) {
             const location = await getSymbolLocation(
                 targetNode.label,
-                targetNode.handler,
                 targetNode.location,
+                targetNode.handler,
+                referenceNode.hierarchy,
             );
 
             if (location === null || location.functionRange === null) return;
-            symbolLocations.push([location.functionRange, location.uri, targetNode.label]);
+            symbolLocations.push([location.functionRange, location.uri, location.name]);
+            if (bothDirection) {
+                const location = await getSymbolLocation(
+                    referenceNode.label,
+                    referenceNode.location,
+                    referenceNode.handler,
+                    referenceNode.hierarchy,
+                );
+
+                if (location === null || location.functionRange === null) return;
+                symbolLocations.push([location.functionRange, location.uri, location.name]);
+            }
         }
         // Case where the target is unknown and we need all the references.
         else {
@@ -262,7 +288,7 @@ export class VisualizerHandler {
             >(
                 referenceNode.hierarchy === Hierarchy.CALL
                     ? 'vscode.prepareCallHierarchy'
-                    : 'prepareTypeHierarchy',
+                    : 'vscode.prepareTypeHierarchy',
                 referenceNode.location.uri,
                 referenceNode.location.range.start,
             );
@@ -276,8 +302,9 @@ export class VisualizerHandler {
                     prepare[0],
                 );
                 for (const incoming of incomings) {
-                    // TODO HANDLE TYPES
                     let incomingItem = null;
+                    // Convert the result of the request to a unified result to ease the
+                    // rest of the function.
                     if (referenceNode.hierarchy === Hierarchy.CALL) {
                         incomingItem = (incoming as vscode.CallHierarchyIncomingCall).from;
                     } else if (referenceNode.hierarchy === Hierarchy.TYPE) {
@@ -288,22 +315,30 @@ export class VisualizerHandler {
 
                     const location = await getSymbolLocation(
                         incomingItem.name,
-                        referenceNode.handler,
                         new vscode.Location(incomingItem.uri, incomingItem.range.start),
+                        referenceNode.handler,
+                        referenceNode.hierarchy,
                     );
                     if (location === null || location.functionRange === null) return;
-                    symbolLocations.push([location.functionRange, location.uri, incomingItem.name]);
+                    symbolLocations.push([location.functionRange, location.uri, location.name]);
                 }
             }
         }
-
-        if (!fs.existsSync(referenceNode.location.uri.fsPath)) return;
 
         const locations = await vscode.commands.executeCommand<vscode.Location[]>(
             'vscode.executeReferenceProvider',
             referenceNode.location.uri,
             referenceNode.location.range.start,
         );
+        if (bothDirection && targetNode && targetNode.hierarchy === Hierarchy.CALL) {
+            locations.push(
+                ...(await vscode.commands.executeCommand<vscode.Location[]>(
+                    'vscode.executeReferenceProvider',
+                    targetNode.location.uri,
+                    targetNode.location.range.start,
+                )),
+            );
+        }
         const stringLocationsMap: Map<string, StringLocation[]> = new Map();
         for (const location of locations) {
             // Don't sort by file name but by the parent function
@@ -313,8 +348,10 @@ export class VisualizerHandler {
                     symbolLocation[1].fsPath === location.uri.fsPath,
             );
             if (symbolLocation) {
+                // Check if the key already exist and add it if not.
                 if (!stringLocationsMap.has(symbolLocation[2]))
                     stringLocationsMap.set(symbolLocation[2], []);
+                // Add the location to array pointed by the key.
                 stringLocationsMap.get(symbolLocation[2])?.push({
                     path: location.uri.fsPath,
                     range_start: location.range.start,
@@ -329,7 +366,6 @@ export class VisualizerHandler {
         panel?.webview.postMessage({
             command: 'revealResponse',
             data: {
-                // locations: stringLocations,
                 locationsKeys: Array.from(stringLocationsMap.keys()),
                 locationsValues: Array.from(stringLocationsMap.values()),
             } as RevealReferencesResponse,

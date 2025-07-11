@@ -12,7 +12,7 @@ import { VisualizerHandler } from './alsVisualizerProvider';
 import { AdaVisualizerHandler } from './alsVisualizerProvider/AdaVisualizerHandler';
 import { CPPVisualizerHandler } from './alsVisualizerProvider/CPPVisualizerHandler';
 import { JsTsVisualizerHandler } from './alsVisualizerProvider/JsTsVisualizerHandler';
-import { GprVisualizerHandler } from './alsVisualizerProvider/GprVisualizerHanlder';
+import { GprVisualizerHandler } from './alsVisualizerProvider/GprVisualizerHandler';
 
 /**
  * Create a new VisualizerHandler based on a language ID.
@@ -274,18 +274,21 @@ export function bindNodes(
  * Search the full range of body of a symbol.
  *
  * @param label - The name of the symbol to search.
- * @param handler - The handler to call language specific function.
  * @param location - The location of the selection range of the symbol.
+ * @param handler - The handler to call language specific function.
+ * @param hierarchy - The type of hierarchy.
  * @returns The uri and total range of the symbol.
  */
 export async function getSymbolLocation(
     label: string,
-    handler: VisualizerHandler,
     location: vscode.Location,
+    handler: VisualizerHandler,
+    hierarchy: Hierarchy,
 ) {
     let symbolRange: vscode.Range | null = null;
+    let name: string = label;
     let uri: vscode.Uri | null = null;
-    const implementation = await handler.getFunctionBodyLocation(location);
+    const implementation = await handler.getBodyLocation(location, hierarchy);
     if (implementation === null) return null;
 
     // TODO WHAT IF MULTIPLE IMPLEMENTATIONS?
@@ -296,11 +299,12 @@ export async function getSymbolLocation(
     >('vscode.executeDocumentSymbolProvider', uri);
 
     for (const symbol of symbols) {
-        const range = handler.getSymbolWholeRange(symbol, label, implementation);
+        const range = handler.getParentSymbolWholeRange(symbol, label, implementation);
         if (range) {
-            symbolRange = range;
+            symbolRange = range.range;
+            name = range.name;
             break;
         }
     }
-    return { uri, functionRange: symbolRange };
+    return { uri, functionRange: symbolRange, name };
 }
