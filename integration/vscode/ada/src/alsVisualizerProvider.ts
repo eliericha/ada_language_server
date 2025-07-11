@@ -93,16 +93,17 @@ export class VisualizerHandler {
      * Get the location (uri and range) of the body of a specific node.
      *
      * @param node - The node to get the body location from.
-     * @returns The symbol's body location.
+     * @returns The symbol's bodies location.
      */
     async getBodyLocation(location: vscode.Location, hierarchy: Hierarchy) {
         if (!fs.existsSync(location.uri.fsPath)) return null;
-        if (hierarchy === Hierarchy.TYPE) return location;
+        if (hierarchy === Hierarchy.TYPE) return [location];
 
         const implementations = await vscode.commands.executeCommand<
             (vscode.Location | vscode.LocationLink)[]
         >('vscode.executeImplementationProvider', location.uri, location.range.start);
-        if (implementations.length > 0) return implementations[0];
+
+        if (implementations.length > 0) return implementations;
         return null;
     }
 
@@ -259,25 +260,34 @@ export class VisualizerHandler {
         const symbolLocations: [vscode.Range, vscode.Uri, string][] = [];
         // Case where the target is known and it is a callGraph.
         if (targetNode && targetNode.hierarchy === Hierarchy.CALL) {
-            const location = await getSymbolLocation(
+            const locations = await getSymbolLocation(
                 targetNode.label,
                 targetNode.location,
                 targetNode.handler,
                 referenceNode.hierarchy,
             );
 
-            if (location === null || location.functionRange === null) return;
-            symbolLocations.push([location.functionRange, location.uri, location.name]);
+            if (locations === null) return;
+
+            for (const location of locations) {
+                if (location.functionRange === null) return;
+                symbolLocations.push([location.functionRange, location.uri, location.name]);
+            }
             if (bothDirection) {
-                const location = await getSymbolLocation(
+                const locations = await getSymbolLocation(
                     referenceNode.label,
                     referenceNode.location,
                     referenceNode.handler,
                     referenceNode.hierarchy,
                 );
-
-                if (location === null || location.functionRange === null) return;
-                symbolLocations.push([location.functionRange, location.uri, location.name]);
+                // If locations is null don't return just continue to at least
+                //display the first direction.
+                if (locations !== null) {
+                    for (const location of locations) {
+                        if (location.functionRange === null) return;
+                        symbolLocations.push([location.functionRange, location.uri, location.name]);
+                    }
+                }
             }
         }
         // Case where the target is unknown and we need all the references.
@@ -313,14 +323,17 @@ export class VisualizerHandler {
 
                     if (!incomingItem) continue;
 
-                    const location = await getSymbolLocation(
+                    const locations = await getSymbolLocation(
                         incomingItem.name,
                         new vscode.Location(incomingItem.uri, incomingItem.range.start),
                         referenceNode.handler,
                         referenceNode.hierarchy,
                     );
-                    if (location === null || location.functionRange === null) return;
-                    symbolLocations.push([location.functionRange, location.uri, location.name]);
+                    if (locations === null) return;
+                    for (const location of locations) {
+                        if (location.functionRange === null) return;
+                        symbolLocations.push([location.functionRange, location.uri, location.name]);
+                    }
                 }
             }
         }

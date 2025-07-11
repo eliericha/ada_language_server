@@ -277,7 +277,7 @@ export function bindNodes(
  * @param location - The location of the selection range of the symbol.
  * @param handler - The handler to call language specific function.
  * @param hierarchy - The type of hierarchy.
- * @returns The uri and total range of the symbol.
+ * @returns An array containing the uri, total range and name of the symbol implementation.
  */
 export async function getSymbolLocation(
     label: string,
@@ -288,23 +288,25 @@ export async function getSymbolLocation(
     let symbolRange: vscode.Range | null = null;
     let name: string = label;
     let uri: vscode.Uri | null = null;
-    const implementation = await handler.getBodyLocation(location, hierarchy);
-    if (implementation === null) return null;
+    const implementations = await handler.getBodyLocation(location, hierarchy);
+    if (implementations === null) return null;
 
-    // TODO WHAT IF MULTIPLE IMPLEMENTATIONS?
-    uri = 'uri' in implementation ? implementation.uri : implementation.targetUri;
-    //TODO HANDLE TYPES?
-    const symbols = await vscode.commands.executeCommand<
-        (vscode.SymbolInformation | vscode.DocumentSymbol)[]
-    >('vscode.executeDocumentSymbolProvider', uri);
+    const returnInfo = [];
+    for (const implementation of implementations) {
+        uri = 'uri' in implementation ? implementation.uri : implementation.targetUri;
+        const symbols = await vscode.commands.executeCommand<
+            (vscode.SymbolInformation | vscode.DocumentSymbol)[]
+        >('vscode.executeDocumentSymbolProvider', uri);
 
-    for (const symbol of symbols) {
-        const range = handler.getParentSymbolWholeRange(symbol, label, implementation);
-        if (range) {
-            symbolRange = range.range;
-            name = range.name;
-            break;
+        for (const symbol of symbols) {
+            const range = handler.getParentSymbolWholeRange(symbol, label, implementation);
+            if (range) {
+                symbolRange = range.range;
+                name = range.name;
+                break;
+            }
         }
+        returnInfo.push({ uri, functionRange: symbolRange, name });
     }
-    return { uri, functionRange: symbolRange, name };
+    return returnInfo;
 }
