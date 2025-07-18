@@ -16,6 +16,7 @@ import {
     NodeType,
     EdgeType,
 } from '../visualizerTypes';
+
 import {
     Node,
     Edge,
@@ -76,6 +77,35 @@ let timeoutId: NodeJS.Timeout | null = null;
 type Graph = {
     nodes: Node[];
     edges: Edge[];
+};
+
+/**
+ * Dispatch the message received according to the command passed as a field to the message.
+ *
+ * @param text - A message received by the client
+ */
+const handleMessage = (text: MessageEvent<Message>) => {
+    switch (text.data.command) {
+        case 'hierarchy': {
+            void handleHierarchy(text.data.data as NodeEdge);
+            break;
+        }
+        case 'updateNodes': {
+            void handleUpdate(text.data.data as UpdateMessage);
+            break;
+        }
+        case 'isRendered': {
+            vscode.postMessage({ command: 'rendered', data: '' } as Message);
+            break;
+        }
+        case 'revealResponse': {
+            void handleReveal(text.data.data as RevealReferencesResponse);
+            break;
+        }
+        default:
+            console.log('Command not found or empty');
+            break;
+    }
 };
 
 /**
@@ -256,35 +286,6 @@ function handleReveal(response: RevealReferencesResponse) {
         setNodeContextMenu({ ...nodeContextMenu, locationsMap: locationsMap });
     }
 }
-
-/**
- * Dispatch the message received according to the command passed as a field to the message.
- *
- * @param text - A message received by the client
- */
-const handleMessage = (text: MessageEvent<Message>) => {
-    switch (text.data.command) {
-        case 'hierarchy': {
-            void handleHierarchy(text.data.data as NodeEdge);
-            break;
-        }
-        case 'updateNodes': {
-            void handleUpdate(text.data.data as UpdateMessage);
-            break;
-        }
-        case 'isRendered': {
-            vscode.postMessage({ command: 'rendered', data: '' } as Message);
-            break;
-        }
-        case 'revealResponse': {
-            void handleReveal(text.data.data as RevealReferencesResponse);
-            break;
-        }
-        default:
-            console.log('Command not found or empty');
-            break;
-    }
-};
 
 /**
  * Main function that configure and render the graph.
@@ -785,6 +786,16 @@ export default function App() {
         if (!canOpenReferencesPicker) setCanOpenReferencesPicker(true);
     }, [canOpenReferencesPicker]);
 
+    /**
+     * Close all popup when starting to drag a node.
+     */
+    const onNodeDrag = React.useCallback(() => {
+        closeAllPopUp();
+    }, []);
+
+    /**
+     * Track the escape key to close all popup on press.
+     */
     const onKeyDown = React.useCallback((event: React.KeyboardEvent) => {
         if (event.key === 'Escape') closeAllPopUp();
     }, []);
@@ -808,6 +819,7 @@ export default function App() {
                     // The nodes remains focusable by their inner objects not the outer.
                     nodesFocusable={false}
                     edgesFocusable={false}
+                    onNodeDrag={onNodeDrag}
                     nodesConnectable={false}
                     onPaneClick={onPaneClick}
                     onNodeClick={onNodeClick}
@@ -830,12 +842,12 @@ export default function App() {
                     <Controls>
                         <ControlButton
                             className="codicon codicon-layout"
-                            title="Layout the graph"
+                            title="Layout Graph"
                             onClick={() => onLayout()}
                         />
                         <ControlButton
                             className="codicon codicon-record visualizer__bottom-button"
-                            title="Center the view"
+                            title="Center View"
                             onClick={onCenter}
                         />
                     </Controls>

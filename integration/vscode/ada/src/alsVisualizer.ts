@@ -253,7 +253,11 @@ function requestHierarchy(data: HierarchyMessage) {
                                 if (data.direction === RelationDirection.SUB)
                                     queue.push(
                                         ...currNode.children
-                                            .filter((child) => child.target.inProject)
+                                            .filter(
+                                                (child) =>
+                                                    child.target.inProject &&
+                                                    child.target.id !== currNode.id,
+                                            )
                                             .map((child) => child.target),
                                     );
                                 else
@@ -519,11 +523,13 @@ async function revealSymbol(
             }
         }
     }
+    // If the tab does not exist in a column yet, place in on the left of the webView column
+    // (or the right if it is the first one).
     if (viewColumn === undefined) {
         const panel = panels[hierarchy];
         if (panel && panel.viewColumn) {
             if (panel.viewColumn !== vscode.ViewColumn.One) viewColumn = panel.viewColumn - 1;
-            else viewColumn = vscode.ViewColumn.Beside;
+            else viewColumn = panel.viewColumn + 1;
         }
     }
     const document = await vscode.workspace.openTextDocument(location.uri);

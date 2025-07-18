@@ -119,22 +119,26 @@ export function NodeContextMenu(props: NodeContextMenuProps) {
                 } as RevealReferencesMessage,
             });
         }
-        if (intervalId !== null) clearInterval(intervalId);
-        // Try to focus on the list, retry until it works once.
-        intervalId = setIntervalCapped(
-            () => {
-                const ul = document.getElementById(
-                    'visualizer__context-references-button',
-                ) as HTMLUListElement;
-                if (ul) {
-                    ul.focus();
-                    if (intervalId !== null) clearInterval(intervalId);
-                    intervalId = null;
-                }
-            },
-            50,
-            50,
-        );
+
+        // If the list is already focused do not focus it again.
+        if (!document.activeElement?.classList.contains('visualizer__references-picker-list')) {
+            if (intervalId !== null) clearInterval(intervalId);
+            // Try to focus on the list, retry until it works once.
+            intervalId = setIntervalCapped(
+                () => {
+                    const ul = document.getElementById(
+                        'visualizer__context-references-button',
+                    ) as HTMLUListElement;
+                    if (ul) {
+                        ul.focus();
+                        if (intervalId !== null) clearInterval(intervalId);
+                        intervalId = null;
+                    }
+                },
+                50,
+                50,
+            );
+        }
     }, []);
 
     /**
@@ -170,7 +174,7 @@ export function NodeContextMenu(props: NodeContextMenuProps) {
                 'visualizer__context-references-button',
             );
         },
-        [current],
+        [current, props.locationsMap],
     );
 
     /**
@@ -200,7 +204,8 @@ export function NodeContextMenu(props: NodeContextMenuProps) {
     }, []);
 
     // If no locations has been registered yet create all the list elements.
-    if (locations.length === 0) {
+    if (locations.length === 0 && props.locationsMap.size > 0) {
+        // setLocationsMap(props.locationsMap);
         referencePickerCreateList(props.locationsMap, locations, onClick, true);
     }
 
@@ -215,7 +220,7 @@ export function NodeContextMenu(props: NodeContextMenuProps) {
     const superContent = 'Get ' + superArray[hierarchy];
 
     const gotoArray = ['Definition', 'Definition', 'File', 'Gpr File'];
-    const gotoText = 'Goto ' + gotoArray[hierarchy];
+    const gotoText = 'Go To ' + gotoArray[hierarchy];
 
     const pickerMenuWidth = 200;
     const pickerMenuHeight = 200;
@@ -238,7 +243,7 @@ export function NodeContextMenu(props: NodeContextMenuProps) {
         // context menu.
 
         // Handle the overflow through the sides.
-        if (rect.right + pickerMenuWidth < props.pane.width) {
+        if (rect.right + pickerMenuWidth < props.pane.width || rect.left < pickerMenuHeight) {
             left = rect.width;
             right = undefined;
         } else {
@@ -295,7 +300,7 @@ export function NodeContextMenu(props: NodeContextMenuProps) {
                         onMouseLeave={onMouseLeave}
                         onKeyDown={onKeyDown}
                     >
-                        <span> Go to References </span>{' '}
+                        <span> Go To References </span>{' '}
                         <div className="codicon codicon-chevron-right" />
                         <div
                             className={

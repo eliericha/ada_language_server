@@ -26,6 +26,7 @@ let intervalId: NodeJS.Timeout | null = null;
  * @param event - The react keyboard event.
  * @param current - The index of the current choice (or -1 if no selection).
  * @param setCurrent - Modify the index's state.
+ * @param setCanClose - Update the state boolean indicating if the menu can close.
  * @param closeFunction - The function to close the menu.
  * @param props - The object containing the information
  * @param locations - The different references locations the user can choose from.
@@ -102,6 +103,7 @@ export function referencesPickerOnKeyDown(
         );
     } else {
         setCanClose(true);
+        closeFunction();
     }
 
     childs[newCurrent].classList.add('visualizer__references-picker-item-selected');
@@ -113,6 +115,7 @@ export function referencesPickerOnKeyDown(
  *
  * @param event - The react mouse event.
  * @param locations - The different references locations the user can choose from.
+ * @param setCanClose - Update the state boolean indicating if the menu can close.
  * @param closeFunction - The function to close the menu.
  */
 export function referencesPickerOnClick(
@@ -223,7 +226,6 @@ export function ReferencesPickerMenu(props: ReferencesPickerMenuProps) {
             if (edgeMenu.length > 0) {
                 edgeMenu[0].classList.add('visualizer__close');
             }
-            console.log(canClose);
             setTimeout(() => {
                 props.onReferencesPickerClose();
             }, 300);
@@ -264,7 +266,7 @@ export function ReferencesPickerMenu(props: ReferencesPickerMenuProps) {
                 'visualizer__references-picker-list',
             );
         },
-        [current, canClose],
+        [current, canClose, props.locationsMap],
     );
 
     // If the user clicked on the edge and there is only one element directly reveal this location.
@@ -299,22 +301,25 @@ export function ReferencesPickerMenu(props: ReferencesPickerMenuProps) {
         );
     }
 
-    if (intervalId !== null) clearInterval(intervalId);
-    // Try to focus on the list, retry until it works once.
-    intervalId = setIntervalCapped(
-        () => {
-            const ul = document.getElementById(
-                'visualizer__references-picker-list',
-            ) as HTMLUListElement;
-            if (ul) {
-                ul.focus();
-                if (intervalId !== null) clearInterval(intervalId);
-                intervalId = null;
-            }
-        },
-        50,
-        50,
-    );
+    // If the list is already focused do not focus it again.
+    if (!document.activeElement?.classList.contains('visualizer__references-picker-list')) {
+        if (intervalId !== null) clearInterval(intervalId);
+        // Try to focus on the list, retry until it works once.
+        intervalId = setIntervalCapped(
+            () => {
+                const ul = document.getElementById(
+                    'visualizer__references-picker-list',
+                ) as HTMLUListElement;
+                if (ul) {
+                    ul.focus();
+                    if (intervalId !== null) clearInterval(intervalId);
+                    intervalId = null;
+                }
+            },
+            50,
+            50,
+        );
+    }
 
     let top = props.top;
     const menuMaxHeight = 220;

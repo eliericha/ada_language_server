@@ -235,15 +235,6 @@ export function floatingEdge(floatingEdge: FloatingEdge) {
                 }}
             />
         </>
-
-        // <path
-        //     id={floatingEdge.id}
-        //     className={pathClass}
-        //     d={edgePath}
-        //     style={floatingEdge.style}
-        //     markerStart={floatingEdge.markerStart}
-        //     markerEnd={floatingEdge.markerEnd}
-        // />
     );
 }
 
