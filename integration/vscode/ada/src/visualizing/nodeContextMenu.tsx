@@ -66,8 +66,9 @@ export function NodeContextMenu(props: NodeContextMenuProps) {
         waitingBar();
         vscode.postMessage({
             command: 'refreshNodes',
-            data: { nodesId: [props.node.id] } as NodeIdsMessage,
-        });
+            nodesId: [props.node.id],
+            recursive: false,
+        } as NodeIdsMessage);
         props.onContextClose();
     }, [props.node.id]);
 
@@ -89,14 +90,12 @@ export function NodeContextMenu(props: NodeContextMenuProps) {
             waitingBar();
             vscode.postMessage({
                 command: 'requestHierarchy',
-                data: {
-                    id: props.node.id,
-                    direction: direction,
-                    expand: props.node.data.expanded,
-                    hierarchy: hierarchy,
-                    recursive: event.ctrlKey,
-                } as HierarchyMessage,
-            });
+                id: props.node.id,
+                direction: direction,
+                expand: props.node.data.expanded,
+                hierarchy: hierarchy,
+                recursive: event.ctrlKey,
+            } as HierarchyMessage);
             props.onContextClose();
         },
         [props.node.data.expanded, props.node.id, props.node.data.kind],
@@ -112,12 +111,10 @@ export function NodeContextMenu(props: NodeContextMenuProps) {
         if (props.locationsMap.size === 0) {
             vscode.postMessage({
                 command: 'revealReferences',
-                data: {
-                    referenceNodeId: props.node.id,
-                    targetNodeId: '',
-                    bothDirection: false,
-                } as RevealReferencesMessage,
-            });
+                referenceNodeId: props.node.id,
+                targetNodeId: '',
+                bothDirection: false,
+            } as RevealReferencesMessage);
         }
 
         // If the list is already focused do not focus it again.
@@ -183,11 +180,9 @@ export function NodeContextMenu(props: NodeContextMenuProps) {
     const gotoDefinition = React.useCallback(() => {
         vscode.postMessage({
             command: 'revealNode',
-            data: {
-                nodeId: props.node.id,
-                gotoImplementation: false,
-            } as RevealMessage,
-        });
+            nodeId: props.node.id,
+            gotoImplementation: false,
+        } as RevealMessage);
     }, []);
 
     /**
@@ -196,11 +191,9 @@ export function NodeContextMenu(props: NodeContextMenuProps) {
     const gotoImplementation = React.useCallback(() => {
         vscode.postMessage({
             command: 'revealNode',
-            data: {
-                nodeId: props.node.id,
-                gotoImplementation: true,
-            } as RevealMessage,
-        });
+            nodeId: props.node.id,
+            gotoImplementation: true,
+        } as RevealMessage);
     }, []);
 
     // If no locations has been registered yet create all the list elements.

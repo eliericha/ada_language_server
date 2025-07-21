@@ -707,7 +707,7 @@
                         "scope": "window",
                         "type": "boolean",
                         "default": false,
-                        "description": "Enable additional features still in development."
+                        "description": "Enable experimental features still in development."
                     }
                 }
             }
@@ -1057,26 +1057,23 @@
             },
             {
                 "command": "ada.visualizeFiles",
-                "title": "Show File Dependencies (graph)",
-                "shortTitle": "Visualize file dependencies",
+                "title": "Ada: Show File Dependencies Graph",
                 "enablement": "config.ada.enableExperimentalFeatures"
             },
             {
                 "command": "ada.visualizeGPR",
-                "title": "Show GPR Dependencies (graph)",
-                "shortTitle": "Visualize GPR files dependencies",
+                "title": "Ada: Show GPR Dependencies Graph",
                 "enablement": "config.ada.enableExperimentalFeatures"
             },
             {
                 "command": "ada.visualizeTypes",
-                "title": "Show Type Hierarchy (graph)",
-                "shortTitle": "Visualize type hierarchy",
+                "title": "Ada: Show Type Hierarchy Graph",
                 "enablement": "config.ada.enableExperimentalFeatures"
             },
             {
                 "command": "ada.visualizeCalls",
-                "title": "Show Call Hierarchy (graph)",
-                "shortTitle": "Visualize call hierarchy",
+                "title": "Ada: Show Call Hierarchy Graph",
+                "shortTitle": "Show Call Hierarchy Graph",
                 "enablement": "config.ada.enableExperimentalFeatures"
             },
             {

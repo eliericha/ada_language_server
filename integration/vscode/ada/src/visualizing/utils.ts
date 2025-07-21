@@ -111,7 +111,7 @@ export function focusNode(
 
     const distance = Math.sqrt(Math.pow(regX - newX, 2) + Math.pow(regY - newY, 2));
     const duration = Math.max(Math.min(distance * baseSpeed, maxDuration), minDuration);
-    void setCenter(newX, newY, { duration: duration, zoom: 1 });
+    void setCenter(newX, newY, { duration: duration, zoom: zoom });
 }
 
 /**

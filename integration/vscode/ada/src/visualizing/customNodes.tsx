@@ -6,8 +6,8 @@ import {
     NodeData,
     RelationDirection,
     HierarchyMessage,
-    Message,
     NodeType,
+    SendNextDataMessage,
 } from '../visualizerTypes';
 import { currentDirection, vscode } from './App';
 import { setIntervalCapped, waitingBar } from './utils';
@@ -119,7 +119,7 @@ export function moveNodes(
                         for (const parent of parents) {
                             parent.style.transition = 'inherit';
                         }
-                        vscode.postMessage({ command: 'canSendNextData', data: '' } as Message);
+                        vscode.postMessage({ command: 'canSendNextData' } as SendNextDataMessage);
                     }, duration);
                 }, 100);
                 // Stop the interval loop
@@ -139,7 +139,7 @@ export function moveNodes(
  */
 function BasicNode(node: NodeProps<DataNode>) {
     const data = node.data;
-    const { setCenter } = useReactFlow();
+    const { setCenter, getViewport } = useReactFlow();
 
     // Dynamically assign class to DOM element to take into account, layouting direction,
     // type of data being displayed....
@@ -220,8 +220,9 @@ function BasicNode(node: NodeProps<DataNode>) {
         const x = node.positionAbsoluteX + (node.width ?? 0) / 2;
         const y = node.positionAbsoluteY + (node.height ?? 0) / 2;
 
+        const viewPort = getViewport();
         void setCenter(x, y, {
-            zoom: 0.5,
+            zoom: viewPort.zoom,
             duration: 250,
         });
     }
@@ -233,19 +234,17 @@ function BasicNode(node: NodeProps<DataNode>) {
             waitingBar();
             vscode.postMessage({
                 command: 'requestHierarchy',
-                data: {
-                    id: data.id,
-                    direction: direction,
-                    expand:
-                        direction === RelationDirection.SUB && data.hasChildren
-                            ? !data.expanded
-                            : data.expanded,
-                    hierarchy: data.hierarchy,
-                    // If the actual button is the folding button the recursive expansion cannot be
-                    // triggered.
-                    recursive: subButtonClass.includes('chevron') ? false : event.ctrlKey,
-                } as HierarchyMessage,
-            });
+                id: data.id,
+                direction: direction,
+                expand:
+                    direction === RelationDirection.SUB && data.hasChildren
+                        ? !data.expanded
+                        : data.expanded,
+                hierarchy: data.hierarchy,
+                // If the actual button is the folding button the recursive expansion cannot be
+                // triggered.
+                recursive: subButtonClass.includes('chevron') ? false : event.ctrlKey,
+            } as HierarchyMessage);
         },
         [data.id, data.kind, data.expanded, data.hasChildren],
     );

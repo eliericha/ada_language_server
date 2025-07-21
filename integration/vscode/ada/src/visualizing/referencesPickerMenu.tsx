@@ -1,6 +1,11 @@
 import { Edge, Node, ReactFlowProvider } from '@xyflow/react';
 import React from 'react';
-import { Hierarchy, NodeData, StringLocation } from '../visualizerTypes';
+import {
+    Hierarchy,
+    NodeData,
+    RevealLocationMessage as RevealLocationMessage,
+    StringLocation,
+} from '../visualizerTypes';
 import { vscode } from './App';
 import { setIntervalCapped } from './utils';
 
@@ -81,10 +86,7 @@ export function referencesPickerOnKeyDown(
         .flat()
         .find((location) => location.string_location === location_string);
 
-    vscode.postMessage({
-        command: 'revealLocation',
-        data: location,
-    });
+    vscode.postMessage({ ...location, command: 'revealLocation' } as RevealLocationMessage);
 
     // If the enter key was not pressed, refocus on the  list.
     if (event.key !== 'Enter') {
@@ -134,8 +136,8 @@ export function referencesPickerOnClick(
         .find((location) => location.string_location === location_string);
     vscode.postMessage({
         command: 'revealLocation',
-        data: location,
-    });
+        ...location,
+    } as RevealLocationMessage);
     closeFunction();
 }
 
@@ -280,7 +282,7 @@ export function ReferencesPickerMenu(props: ReferencesPickerMenuProps) {
 
             vscode.postMessage({
                 command: 'revealLocation',
-                data: Array.from(props.locationsMap.values())[0][0],
+                ...Array.from(props.locationsMap.values())[0][0],
             });
         }
         return;

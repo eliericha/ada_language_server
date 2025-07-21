@@ -378,10 +378,8 @@ export class VisualizerHandler {
         const panel = panels[referenceNode.hierarchy];
         panel?.webview.postMessage({
             command: 'revealResponse',
-            data: {
-                locationsKeys: Array.from(stringLocationsMap.keys()),
-                locationsValues: Array.from(stringLocationsMap.values()),
-            } as RevealReferencesResponse,
-        });
+            locationsKeys: Array.from(stringLocationsMap.keys()),
+            locationsValues: Array.from(stringLocationsMap.values()),
+        } as RevealReferencesResponse);
     }
 }

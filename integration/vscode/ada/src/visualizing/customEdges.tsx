@@ -6,15 +6,19 @@ import {
     InternalNode,
     MarkerType,
     Edge,
+    BaseEdge,
+    useReactFlow,
 } from '@xyflow/react';
 
 import React from 'react';
-import { EdgeType, RelationDirection } from '../visualizerTypes';
+import { Direction, EdgeType, RelationDirection } from '../visualizerTypes';
+import { currentDirection } from './App';
 
 export const edgeTypes = {
     floating: floatingEdge,
+    selfConnection: selfConnection,
 };
-const edgeString = ['floating', 'temporary'];
+const edgeString = ['floating', 'selfConnection', 'temporary'];
 
 const markerHeight = 25;
 const markerWidth = 25;
@@ -31,7 +35,9 @@ export function edgeFactory(
     edgeDirection: RelationDirection,
     edgeType: EdgeType,
 ) {
-    const index = edgeType === EdgeType.TEMPORARY ? 1 : 0;
+    // If the Type is DOTTED or BOXED, keep it as regular and the change will be applied on
+    // top of it.
+    const index = edgeType > EdgeType.TEMPORARY ? 0 : edgeType;
     return {
         id: 'e' + src + '-' + dst,
         source: src,
@@ -162,13 +168,17 @@ function getEdgeParams(source: InternalNode, target: InternalNode) {
     };
 }
 
-type FloatingEdge = {
+type EdgeProps = {
     id: string;
     source: string;
     target: string;
     style?: React.CSSProperties;
     markerEnd?: string;
     markerStart?: string;
+    sourceX: number;
+    sourceY: number;
+    targetX: number;
+    targetY: number;
     data: {
         additionalClass?: string;
     };
@@ -180,7 +190,7 @@ type FloatingEdge = {
  * @param floatingEdge - The data necessary to create the edge and style it.
  * @returns A react JSX element representing the edge.
  */
-export function floatingEdge(floatingEdge: FloatingEdge) {
+export function floatingEdge(floatingEdge: EdgeProps) {
     const sourceNode = useInternalNode(floatingEdge.source);
     const targetNode = useInternalNode(floatingEdge.target);
 
@@ -278,5 +288,25 @@ export function floatingConnectionLine(floatingConnectionLine: FloatingConnectio
                 strokeWidth={1.5}
             />
         </g>
+    );
+}
+
+export function selfConnection(props: EdgeProps) {
+    if (props.source !== props.target) return floatingEdge(props);
+
+    const { sourceX, sourceY, targetX, targetY, markerEnd } = props;
+
+    const { getNode } = useReactFlow();
+    const node = getNode(props.source);
+    const radiusX = currentDirection === Direction.RIGHT ? node?.width : (node?.width ?? 0) / 2;
+    const radiusY = currentDirection === Direction.RIGHT ? (node?.height ?? 0) / 2 : node?.height;
+    const edgePath =
+        `M ${sourceX} ${sourceY} A ${radiusX} ${radiusY} 0 1 0` + ` ${targetX} ${targetY}`;
+
+    let pathClass = 'react-flow__edge-path';
+    if (props.data.additionalClass !== undefined) pathClass += ' ' + props.data.additionalClass;
+
+    return (
+        <BaseEdge path={edgePath} markerEnd={markerEnd} className={pathClass} style={props.style} />
     );
 }

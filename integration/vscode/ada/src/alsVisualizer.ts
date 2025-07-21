@@ -10,12 +10,10 @@ import {
     NodeHierarchy,
     Hierarchy,
     NodeEdge as NodeEdgeMessage,
-    NodeIdsMessage,
     UpdateMessage,
     DirectedEdge,
-    RevealReferencesMessage,
-    StringLocation,
-    RevealMessage,
+    EdgeType,
+    IsRenderedMessage,
 } from './visualizerTypes';
 import { logger } from './extension';
 import { convertHierarchyToData, createHandler, NodesSingleton } from './alsVisualizerUtils';
@@ -67,11 +65,11 @@ function withVizProgress(task: () => void | Promise<void>, message: string, canc
                 await task();
             } catch (error) {
                 logger.error(error);
-                rejectProcess = false;
                 return;
+            } finally {
+                rejectProcess = false;
             }
             return new Promise<void>((resolve) => {
-                rejectProcess = false;
                 resolve();
             });
         },
@@ -122,7 +120,7 @@ export function startVisualize(context: vscode.ExtensionContext, hierarchy: Hier
                         }
                     });
                     // Check if the client has already been rendered
-                    panel.webview.postMessage({ command: 'isRendered', data: '' } as Message);
+                    panel.webview.postMessage({ command: 'isRendered' } as IsRenderedMessage);
                 }
             }
         }
@@ -138,50 +136,45 @@ function handleMessage(message: Message) {
     switch (message.command) {
         // Add new nodes to the graph or fold/unfold.
         case 'requestHierarchy': {
-            const data = message.data as HierarchyMessage;
-            void requestHierarchy(data);
+            void requestHierarchy(message);
             break;
         }
         // Reveal the definition symbol of a specific node.
         case 'revealNode': {
-            const data = message.data as RevealMessage;
-            const node = NodesSingleton.symbolsMap.get(data.nodeId);
+            const node = NodesSingleton.symbolsMap.get(message.nodeId);
             if (node === undefined) return;
-            void revealSymbol(node.location, node.hierarchy, data.gotoImplementation);
+            void revealSymbol(node.location, node.hierarchy, message.gotoImplementation);
             break;
         }
         // Gather all references of a symbol in an other symbol.
         case 'revealReferences': {
-            const ids = message.data as RevealReferencesMessage;
-            const node = NodesSingleton.symbolsMap.get(ids.referenceNodeId);
+            const node = NodesSingleton.symbolsMap.get(message.referenceNodeId);
             if (node)
                 void node.handler.revealReference(
-                    ids.targetNodeId,
-                    ids.referenceNodeId,
-                    ids.bothDirection,
+                    message.targetNodeId,
+                    message.referenceNodeId,
+                    message.bothDirection,
                 );
             break;
         }
         // Reconstruct a location and reveal the symbol under it in the code.
         case 'revealLocation': {
-            const location_data = message.data as StringLocation;
             const location = new vscode.Location(
-                vscode.Uri.file(location_data.path),
-                new vscode.Range(location_data.range_start, location_data.range_end),
+                vscode.Uri.file(message.path),
+                new vscode.Range(message.range_start, message.range_end),
             );
             void revealSymbol(location, Hierarchy.CALL, false);
             break;
         }
         // Delete a set of nodes and their childs.
         case 'deleteNodes': {
-            const data = message.data as NodeIdsMessage;
-            deleteNodes(data.nodesId, data.recursive);
+            deleteNodes(message.nodesId, message.recursive);
             break;
         }
         // Refresh the location of a node in the code.
         case 'refreshNodes': {
             withVizProgress(() => {
-                const data = message.data as NodeIdsMessage;
+                const data = message;
                 void refreshNodes(data.nodesId);
             }, 'Visualizing');
             break;
@@ -475,11 +468,9 @@ function updateNodes(toUpdate: NodeHierarchy[], toDelete: NodeHierarchy[]) {
         const panel = panels[(sendUpdate.length !== 0 ? sendUpdate[0] : sendDelete[0]).hierarchy];
         panel?.webview.postMessage({
             command: 'updateNodes',
-            data: {
-                toUpdate: sendUpdate,
-                toDelete: sendDelete,
-            } as UpdateMessage,
-        });
+            toUpdate: sendUpdate,
+            toDelete: sendDelete,
+        } as UpdateMessage);
     }
 }
 
@@ -577,7 +568,8 @@ function convertToMessage(
                     src: parent.target.id,
                     dst: node.id,
                     edgeDirection: RelationDirection.SUB,
-                    edgeType: parent.edgeType,
+                    edgeType:
+                        parent.target.id === node.id ? EdgeType.SELF_CONNECTED : parent.edgeType,
                 });
             else if (edge.src === node.id) edge.edgeDirection = RelationDirection.BOTH;
         }
@@ -602,14 +594,12 @@ function sendMessage(nodeId: string, hierarchy: Hierarchy, focus = true) {
     if (nodes.length !== 0) {
         const panel = panels[hierarchy];
         panel?.webview.postMessage({
-            command: 'hierarchy',
-            data: {
-                nodesData: nodes,
-                edges: edges,
-                mainNodeId: nodeId,
-                focus: focus,
-            } as NodeEdgeMessage,
-        });
+            command: 'hierarchyResponse',
+            nodesData: nodes,
+            edges: edges,
+            mainNodeId: nodeId,
+            focus: focus,
+        } as NodeEdgeMessage);
         panel?.reveal();
     }
     if (NodesSingleton.focusedNode) NodesSingleton.focusedNode.focus = false;

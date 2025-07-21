@@ -15,6 +15,8 @@ import {
     RevealMessage,
     NodeType,
     EdgeType,
+    RenderedMessage,
+    SendNextDataMessage,
 } from '../visualizerTypes';
 
 import {
@@ -32,6 +34,8 @@ import {
     Background,
     Panel,
     useOnSelectionChange,
+    XYPosition,
+    useStore,
 } from '@xyflow/react';
 
 import '@xyflow/react/dist/style.css';
@@ -86,20 +90,20 @@ type Graph = {
  */
 const handleMessage = (text: MessageEvent<Message>) => {
     switch (text.data.command) {
-        case 'hierarchy': {
-            void handleHierarchy(text.data.data as NodeEdge);
+        case 'hierarchyResponse': {
+            void handleHierarchy(text.data);
             break;
         }
         case 'updateNodes': {
-            void handleUpdate(text.data.data as UpdateMessage);
+            void handleUpdate(text.data);
             break;
         }
         case 'isRendered': {
-            vscode.postMessage({ command: 'rendered', data: '' } as Message);
+            vscode.postMessage({ command: 'rendered' } as RenderedMessage);
             break;
         }
         case 'revealResponse': {
-            void handleReveal(text.data.data as RevealReferencesResponse);
+            void handleReveal(text.data);
             break;
         }
         default:
@@ -224,7 +228,7 @@ async function handleHierarchy(data: NodeEdge) {
         moveNodes(nodes, setNodes);
     } else {
         // Send a message to the server to indicate he can handle the next request.
-        vscode.postMessage({ command: 'canSendNextData', data: '' } as Message);
+        vscode.postMessage({ command: 'canSendNextData' } as SendNextDataMessage);
         setNodes(nodes);
     }
     setEdges(edges);
@@ -340,9 +344,11 @@ export default function App() {
             // If ctrl is pressed as the same time also remove all of its children not linked to
             // other part of the graph.
             if (event.key === 'Delete' || event.key === 'Backspace') {
-                waitingBar();
                 const toDeleteId = nodes.filter((node) => node.selected).map((node) => node.id);
-                deleteNodes(toDeleteId, event.ctrlKey);
+                if (toDeleteId.length > 0) {
+                    waitingBar();
+                    deleteNodes(toDeleteId, event.ctrlKey);
+                }
             }
         };
 
@@ -370,11 +376,9 @@ export default function App() {
             waitingBar();
             vscode.postMessage({
                 command: 'deleteNodes',
-                data: {
-                    nodesId: toDeleteId,
-                    recursive: recursive,
-                } as NodeIdsMessage,
-            });
+                nodesId: toDeleteId,
+                recursive: recursive,
+            } as NodeIdsMessage);
 
             setNodes(nodes);
         },
@@ -410,11 +414,9 @@ export default function App() {
             return;
         vscode.postMessage({
             command: 'revealNode',
-            data: {
-                nodeId: node.id,
-                gotoImplementation: event.ctrlKey,
-            } as RevealMessage,
-        });
+            nodeId: node.id,
+            gotoImplementation: event.ctrlKey,
+        } as RevealMessage);
 
         // Unselect the node after the double click.
         const nodeElem = document.querySelector(`[data-node-id="${node.id}"]`) as HTMLElement;
@@ -520,12 +522,10 @@ export default function App() {
                 // Ask the server for the references that will fill the references picker.
                 vscode.postMessage({
                     command: 'revealReferences',
-                    data: {
-                        targetNodeId: targetNodeId,
-                        referenceNodeId: referenceNodeId,
-                        bothDirection: edge.data.edgeDirection === RelationDirection.BOTH,
-                    } as RevealReferencesMessage,
-                });
+                    targetNodeId: targetNodeId,
+                    referenceNodeId: referenceNodeId,
+                    bothDirection: edge.data.edgeDirection === RelationDirection.BOTH,
+                } as RevealReferencesMessage);
 
             // Wait until the menu is created before adding it the class to open it.
             const intervalId = setIntervalCapped(
@@ -678,7 +678,7 @@ export default function App() {
      * Send a message to server side when initialized to indicate it can start sending information.
      */
     const onInit = React.useCallback(() => {
-        vscode.postMessage({ command: 'rendered', data: '' } as Message);
+        vscode.postMessage({ command: 'rendered' } as RenderedMessage);
     }, []);
 
     /**

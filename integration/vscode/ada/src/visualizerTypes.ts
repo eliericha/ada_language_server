@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { VisualizerHandler } from './alsVisualizerProvider';
 
-type MessageCommand =
+/*type MessageCommand =
     // Sent from Client Side
     | 'requestHierarchy'
     | 'revealNode'
@@ -18,29 +18,31 @@ type MessageCommand =
     | 'hierarchy'
     | 'updateNodes'
     | 'revealResponse';
-
+*/
 /**
  * The base format of all message exchanged between server side and client side.
  */
-export type Message = {
-    command: MessageCommand;
-    data:
-        | string
-        | HierarchyMessage
-        | NodeIdsMessage
-        | UpdateMessage
-        | RevealMessage
-        | RevealReferencesMessage
-        | RevealReferencesResponse
-        | StringLocation
-        | NodeEdge;
-};
+export type Message =
+    | HierarchyMessage
+    | DeleteMessage
+    | UpdateMessage
+    | RefreshMessage
+    | StopProcess
+    | SendNextDataMessage
+    | IsRenderedMessage
+    | RenderedMessage
+    | RevealMessage
+    | RevealLocationMessage
+    | RevealReferencesMessage
+    | RevealReferencesResponse
+    | NodeEdge;
 
 /**
  * Message sent from the client to the server side to request for new
  * node up or down from the hierarchy.
  */
 export type HierarchyMessage = {
+    command: 'requestHierarchy';
     id: string;
     direction: RelationDirection;
     expand: boolean;
@@ -57,23 +59,51 @@ export type NodeIdsMessage = {
     recursive: boolean;
 };
 
+export type DeleteMessage = NodeIdsMessage & {
+    command: 'deleteNodes';
+};
+
+export type RefreshMessage = NodeIdsMessage & {
+    command: 'refreshNodes';
+};
+
+export type StopProcess = {
+    command: 'stopProcess';
+};
+
 /**
  * Message send from the server to the client to indicate which node to remove and which
  * node to update.
  */
 export type UpdateMessage = {
+    command: 'updateNodes';
     toUpdate: NodeData[];
     toDelete: NodeData[];
 };
 
+export type SendNextDataMessage = {
+    command: 'canSendNextData';
+};
+
+export type IsRenderedMessage = {
+    command: 'isRendered';
+};
+
+export type RenderedMessage = {
+    command: 'rendered';
+};
 /**
  * Message sent to ask the server to reveal a symbol location in the code.
  */
 export type RevealMessage = {
+    command: 'revealNode';
     nodeId: string;
     gotoImplementation: boolean;
 };
 
+export type RevealLocationMessage = StringLocation & {
+    command: 'revealLocation';
+};
 /**
  * Represent the location of a symbol in a file.
  */
@@ -89,6 +119,7 @@ export type StringLocation = {
  * The server will then respond with a RevealReferenceResponse.
  */
 export type RevealReferencesMessage = {
+    command: 'revealReferences';
     targetNodeId: string;
     referenceNodeId: string;
     bothDirection: boolean;
@@ -99,6 +130,7 @@ export type RevealReferencesMessage = {
  * symbol.
  */
 export type RevealReferencesResponse = {
+    command: 'revealResponse';
     locationsKeys: string[];
     locationsValues: StringLocation[][];
 };
@@ -204,6 +236,7 @@ export type NodeHierarchy = NodeData & {
  * Contain all the nodes and edge that will be displayed on the viewPort.
  */
 export type NodeEdge = {
+    command: 'hierarchyResponse';
     nodesData: NodeData[];
     edges: DirectedEdge[];
     focus: boolean;
@@ -263,9 +296,10 @@ export enum Hierarchy {
  */
 export enum EdgeType {
     REGULAR,
+    SELF_CONNECTED,
+    TEMPORARY,
     DOTTED,
     BOXED,
-    TEMPORARY,
 }
 
 /**

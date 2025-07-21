@@ -433,5 +433,5 @@ See the documentation on [ALS Traces](traces.md) for more information.
 
 ### enableExperimentalFeatures
 
-This option enable the use of experimental features, that are still in development and might not completely work yet.
+This option enable the use of experimental features which are still under development.
 
