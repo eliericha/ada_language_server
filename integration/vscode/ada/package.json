@@ -1472,15 +1472,6 @@
         "webpack": "^5.98.0",
         "webpack-cli": "^6.0.1"
     },
-    "overrides": {
-        "ws": "^8.18.0",
-        "webdriverio": "^8.44.1",
-        "tar-fs": "^3.0.8",
-        "rimraf": "^6.0.1",
-        "test-exclude": "^7.0.1",
-        "geckodriver": "^5.0.0",
-        "brace-expansion": "2.0.1"
-    },
     "scripts": {
         "check-licenses": "npx license-checker-rseidelsohn --summary --onlyAllow \"0BSD;Apache-2.0;BSD-2-Clause;BSD-3-Clause;BlueOak-1.0.0;CC0-1.0;GPL-3.0;GPL-3.0-or-later;ISC;MIT;Python-2.0;Zlib;EPL-2.0\" --excludePackages \"@vscode/vsce-sign-linux-x64;@vscode/vsce-sign-win32-x64;@vscode/vsce-sign\"",
         "vscode:prepublish": "npm run esbuild-base -- --minify --sourcemap",
