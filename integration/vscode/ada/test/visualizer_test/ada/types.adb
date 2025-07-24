@@ -1,4 +1,4 @@
-package body Types is 
+package body Types is
 
    procedure FooBar is
       type Foo is new Integer;

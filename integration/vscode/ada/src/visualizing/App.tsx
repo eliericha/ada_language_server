@@ -1,7 +1,6 @@
 import * as React from 'react';
 import ReactDOM from 'react-dom/client';
 import {
-    NodeIdsMessage as NodeIdsMessage,
     Direction,
     Message,
     NodeEdge,
@@ -17,6 +16,7 @@ import {
     EdgeType,
     RenderedMessage,
     SendNextDataMessage,
+    DeleteMessage,
 } from '../visualizerTypes';
 
 import {
@@ -34,7 +34,6 @@ import {
     Background,
     Panel,
     useOnSelectionChange,
-    XYPosition,
     useStore,
 } from '@xyflow/react';
 
@@ -320,6 +319,7 @@ export default function App() {
     // let his mouse hover on the edge after closing the picker for example.
     const [canOpenReferencesPicker, setCanOpenReferencesPicker] = React.useState(true);
     const ref = React.useRef<HTMLDivElement>(null);
+    const dom = useStore((s) => s.domNode); // Get container DOM element
 
     const { setCenter, getNode, getNodes: getNodes_, getViewport } = useReactFlow();
     getNodes = getNodes_;
@@ -378,7 +378,7 @@ export default function App() {
                 command: 'deleteNodes',
                 nodesId: toDeleteId,
                 recursive: recursive,
-            } as NodeIdsMessage);
+            } as DeleteMessage);
 
             setNodes(nodes);
         },
@@ -743,12 +743,22 @@ export default function App() {
                 if (!nodeId) return;
                 if (!focus.target.matches(':hover') && lastFocus !== nodeId) {
                     const node = getNode(nodeId);
-                    if (node) focusNode(node, getViewport(), setCenter);
+                    if (node) {
+                        const viewPort = getViewport();
+                        if (!dom) return;
+
+                        const x = node.position.x * viewPort.zoom + viewPort.x;
+                        const y = node.position.y * viewPort.zoom + viewPort.y;
+
+                        if (x < 0 || x > dom.clientWidth || y < 0 || y > dom.clientHeight) {
+                            focusNode(node, getViewport(), setCenter);
+                            setLastFocus(nodeId);
+                        }
+                    }
                 }
-                setLastFocus(nodeId);
             } else setLastFocus('');
         },
-        [lastFocus],
+        [lastFocus, dom],
     );
 
     /**

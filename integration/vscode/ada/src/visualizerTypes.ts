@@ -27,7 +27,7 @@ export type Message =
     | DeleteMessage
     | UpdateMessage
     | RefreshMessage
-    | StopProcess
+    | StopProcessMessage
     | SendNextDataMessage
     | IsRenderedMessage
     | RenderedMessage
@@ -51,23 +51,30 @@ export type HierarchyMessage = {
 };
 
 /**
- * Message use to apply function like delete or refresh to multiple node at once.
- * The recursive field is used to apply the function to all children of the node (for delete).
+ * Message sent from the client to the server used to indicate which node
+ * to delete from the storage.
+ * The recursive field is used to apply the delete  function to all children of the node.
  */
-export type NodeIdsMessage = {
+export type DeleteMessage = {
+    command: 'deleteNodes';
     nodesId: string[];
     recursive: boolean;
 };
 
-export type DeleteMessage = NodeIdsMessage & {
-    command: 'deleteNodes';
-};
-
-export type RefreshMessage = NodeIdsMessage & {
+/**
+ * Message sent from the client to the server uses to indicate which node
+ * to refresh from the storage.
+ */
+export type RefreshMessage = {
     command: 'refreshNodes';
+    nodesId: string[];
 };
 
-export type StopProcess = {
+/**
+ * Message sent from the client to the server to stop a process currently running
+ * (when the user is recursively discovering nodes for example).
+ */
+export type StopProcessMessage = {
     command: 'stopProcess';
 };
 
@@ -81,19 +88,31 @@ export type UpdateMessage = {
     toDelete: NodeData[];
 };
 
+/**
+ * Message sent from the client to the server to indicate it can send the next batch of data.
+ */
 export type SendNextDataMessage = {
     command: 'canSendNextData';
 };
 
+/**
+ * Message sent from the server to the client to check if it is initialized and
+ * the interface is rendered to the user.
+ */
 export type IsRenderedMessage = {
     command: 'isRendered';
 };
 
+/**
+ * Message sent from the client to the server as a response when it has finished to render
+ * the interface.
+ */
 export type RenderedMessage = {
     command: 'rendered';
 };
 /**
- * Message sent to ask the server to reveal a symbol location in the code.
+ * Message sent from the client to the server to ask the server to reveal a
+ * symbol location in the code.
  */
 export type RevealMessage = {
     command: 'revealNode';
@@ -101,9 +120,14 @@ export type RevealMessage = {
     gotoImplementation: boolean;
 };
 
+/**
+ * Message sent from the client to the server used to reveal a specific symbol location
+ * from the graph in the code base.
+ */
 export type RevealLocationMessage = StringLocation & {
     command: 'revealLocation';
 };
+
 /**
  * Represent the location of a symbol in a file.
  */
@@ -115,7 +139,8 @@ export type StringLocation = {
 };
 
 /**
- * Message sent to the server to get all the references of targetNode in referenceNode.
+ * Message sent from the client to the server to get all the references of
+ * targetNode in referenceNode.
  * The server will then respond with a RevealReferenceResponse.
  */
 export type RevealReferencesMessage = {
@@ -125,7 +150,7 @@ export type RevealReferencesMessage = {
     bothDirection: boolean;
 };
 
-/** Message sent to the client in response to a RevealReferencesMessage.
+/** Message sent from the server to the client in response to a RevealReferencesMessage.
  * The server sends a mapping of location name associated with all the references of the required
  * symbol.
  */
@@ -145,7 +170,7 @@ export type ALS_ShowDependenciesParams = {
 };
 
 /**
- * Request sent from the als in response to an als_show_dependencies request.
+ * Request sent from the ALS in response to an als_show_dependencies request.
  */
 export type ALS_Unit_Description = {
     uri: string /* The dependency unit's file */;
@@ -153,7 +178,7 @@ export type ALS_Unit_Description = {
 };
 
 /**
- * Request sent from the als in response to an als_gpr_dependencies request.
+ * Request sent from the ALS in response to an als_gpr_dependencies request.
  */
 export type ALS_GprDependencyItem = {
     uri: string;
@@ -161,7 +186,7 @@ export type ALS_GprDependencyItem = {
 };
 
 /**
- * Request sent from the als in response to an als_gpr_dependencies request.
+ * Request sent from the ALS in response to an als_gpr_dependencies request.
  */
 export type ALS_GprDependencyParam = {
     uri: string;

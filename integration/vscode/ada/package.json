@@ -1073,7 +1073,6 @@
             {
                 "command": "ada.visualizeCalls",
                 "title": "Ada: Show Call Hierarchy Graph",
-                "shortTitle": "Show Call Hierarchy Graph",
                 "enablement": "config.ada.enableExperimentalFeatures"
             },
             {

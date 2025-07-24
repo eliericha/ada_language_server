@@ -5,7 +5,7 @@ import {
     Hierarchy,
     HierarchyMessage,
     NodeData,
-    NodeIdsMessage,
+    RefreshMessage,
     RelationDirection,
     RevealMessage,
     RevealReferencesMessage,
@@ -68,7 +68,7 @@ export function NodeContextMenu(props: NodeContextMenuProps) {
             command: 'refreshNodes',
             nodesId: [props.node.id],
             recursive: false,
-        } as NodeIdsMessage);
+        } as RefreshMessage);
         props.onContextClose();
     }, [props.node.id]);
 
