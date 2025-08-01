@@ -1,5 +1,9 @@
 import * as path from 'path';
 console.log(__dirname);
+const debug = process.env.DEBUG;
+
+const cidToSpec = new Map<string, string>();
+
 export const config = {
     //
     // ====================
@@ -24,9 +28,7 @@ export const config = {
     // The path of the spec files will be resolved relative from the directory of
     // of the config file unless it's absolute.
     //
-    specs: [
-        path.join(__dirname, '/specs/**/*.e2e.ts'),
-    ],
+    specs: [path.join(__dirname, '/specs/**/*.e2e.ts')],
     // Patterns to exclude.
     exclude: [
         // 'path/to/excluded/files'
@@ -47,7 +49,7 @@ export const config = {
     // and 30 processes will get spawned. The property handles how many capabilities
     // from the same test should run tests.
     //
-    maxInstances: 10,
+    maxInstances: 1,
     //
     // If you have trouble getting all important capabilities together, check out the
     // Sauce Labs platform configurator - a great tool to configure your capabilities:
@@ -70,6 +72,8 @@ export const config = {
             },
         },
     ],
+
+    execArg: debug ? ['--inspect'] : [],
     //
     // ===================
     // Test Configurations
@@ -141,13 +145,32 @@ export const config = {
     // Test reporter for stdout.
     // The only one supported by default is 'dot'
     // see also: https://webdriver.io/docs/dot-reporter
-    reporters: ['spec'],
+    reporters: [
+        [
+            'junit',
+            {
+                outputDir: process.env.MOCHA_RESULTS_DIR,
+                outputFileFormat: function (options: { cid: string; capabilities: any }) {
+                    let specFile = cidToSpec.get(options.cid);
+                    if (!specFile) specFile = 'unknown';
+                    const baseName = path.basename(specFile, path.extname(specFile));
+                    return `junit-${baseName}.${options.cid}.xml`;
+                },
+            },
+        ],
+    ],
+
+    beforeSession: function (_config: any, _capabilities: any, specs: string[], cid: string) {
+        if (specs && specs.length > 0) {
+            cidToSpec.set(cid, specs[0]);
+        }
+    },
 
     // Options to be passed to Mocha.
     // See the full list at http://mochajs.org/
     mochaOpts: {
         ui: 'bdd',
-        timeout: 60000,
+        timeout: debug ? 99999999 : 60000,
     },
 
     //

@@ -2,8 +2,10 @@
 /*.vsix
 /out/
 /.vscode-test/
-/.wdio-vscode-service/
-/.vscode/
+/**/.wdio-vscode-service/
+/**/.vscode/
+/**/CMakeFiles/
+/**/compile_commands.json
 
 # Locations of ALS executable in VS Code extension. VS Code is supported on arm,
 # arm64 and x64 so we only consider those architectures.

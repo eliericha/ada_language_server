@@ -179,7 +179,7 @@ endif
 
 vscode-test:
 	# Run the VS Code integration testsuite.
-	cd integration/vscode/ada; MOCHA_ALS_UPDATE=$(MOCHA_ALS_UPDATE) LD_LIBRARY_PATH= npm run test $(NPM_TEST_ARGS)
+	cd integration/vscode/ada; MOCHA_ALS_UPDATE=$(MOCHA_ALS_UPDATE) LD_LIBRARY_PATH= npm run test $(NPM_TEST_ARGS); npm run wdio
 
 vscode-package:
 	cd integration/vscode/ada; LD_LIBRARY_PATH= $(VSCE) package

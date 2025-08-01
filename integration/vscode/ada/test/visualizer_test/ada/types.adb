@@ -2,7 +2,9 @@ package body Types is
 
    procedure FooBar is
       type Foo is new Integer;
-      type Bar is new Foo;
+      type Qux is new Foo;
+      type Bar is new Qux;
+      type Baz is new Bar;
       f: Foo := 5;
       b: Bar := 5;
    begin

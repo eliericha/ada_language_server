@@ -8,7 +8,7 @@ This extension provide a tool allowing to display the code base as an interactiv
 
 This extension relies on LSP to gather data for the graphs which means most of the extension should work on any language as long as there is a Language Server implemented for it and linked to VS Code.
 
-/!\ All Languages Servers differs in their implementation of the Language Server Protocol which means that some features might not work optimally for all languages, the implementation being made to work on _most language_.
+/!\ All Languages Servers differs in their implementation of the Language Server Protocol which means that some features might not work optimally for all languages if their Language Server does not implement the standard LSP requests used in the project.
 
 To counter this issue, it is possible to add [language-specific features](#multi-language-handler).
 

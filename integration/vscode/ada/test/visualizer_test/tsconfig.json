@@ -8,6 +8,6 @@
         "esModuleInterop": true,
         "experimentalDecorators": true
     },
-    "include": ["specs", "./wdio.conf.ts"],
+    "include": ["specs", "helpers", "./wdio.conf.ts", "specs/TypeGraphTest.e2e.ts", "specs/CallGraphTest.e2e.ts"],
     "exclude": []
 }
