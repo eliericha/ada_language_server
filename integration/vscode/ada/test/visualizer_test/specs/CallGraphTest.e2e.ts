@@ -17,6 +17,7 @@ before('finish loading extension', async () => {});
 describe('Test the Call Graph', () => {
     before(async () => {
         await openWebView('cycle.adb', 13, 'Foo', WebViewName.CALL);
+
         // Un-zoom to make sur that all object are visible on the plan or else
         // wdio will not find them and the selector will return false results.
         // /!\ Always make sure that every element is visible!
@@ -63,12 +64,10 @@ describe('Test the Call Graph', () => {
 
         button.click();
 
-        await browser.waitUntil(
-            async () => {
-                nodes = await getNodes();
-                return baseLen !== nodes.length;
-            },
-        );
+        await browser.waitUntil(async () => {
+            nodes = await getNodes();
+            return baseLen !== nodes.length;
+        });
 
         // The 5 nodes from the previous tests are still there and Baz has 2 parents.
         expect(nodes.length).toBe(7);
@@ -88,12 +87,10 @@ describe('Test the Call Graph', () => {
 
         await button.click();
 
-        await browser.waitUntil(
-            async () => {
-                nodes = await getNodes();
-                return baseLen !== nodes.length;
-            },
-        );
+        await browser.waitUntil(async () => {
+            nodes = await getNodes();
+            return baseLen !== nodes.length;
+        });
 
         expect(nodes.length).toBe(6);
 
@@ -117,12 +114,10 @@ describe('Test the Call Graph', () => {
 
         await button.click();
 
-        await browser.waitUntil(
-            async () => {
-                nodes = await getNodes();
-                return baseLen !== nodes.length;
-            },
-        );
+        await browser.waitUntil(async () => {
+            nodes = await getNodes();
+            return baseLen !== nodes.length;
+        });
 
         await fitView();
 

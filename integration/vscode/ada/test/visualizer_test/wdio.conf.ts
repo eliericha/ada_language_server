@@ -28,7 +28,7 @@ export const config = {
     // The path of the spec files will be resolved relative from the directory of
     // of the config file unless it's absolute.
     //
-    specs: [path.join(__dirname, '/specs/**/*.e2e.ts')],
+    specs: [path.join(__dirname, '/specs/**/*.e2e.js')],
     // Patterns to exclude.
     exclude: [
         // 'path/to/excluded/files'
@@ -62,8 +62,8 @@ export const config = {
             browserVersion: 'stable',
             'wdio:vscodeOptions': {
                 // points to directory where extension package.json is located
-                extensionPath: path.join(__dirname, '../../'),
-                workspacePath: path.join(__dirname, 'ada/'),
+                extensionPath: path.join(__dirname, '../../../'),
+                workspacePath: path.join(__dirname, '../../../test/visualizer_test/ada/'),
                 // optional VS Code settings
                 userSettings: {
                     'editor.fontSize': 14,
@@ -170,7 +170,7 @@ export const config = {
     // See the full list at http://mochajs.org/
     mochaOpts: {
         ui: 'bdd',
-        timeout: debug ? 99999999 : 60000,
+        timeout: debug ? 0 : 60000,
     },
 
     //
