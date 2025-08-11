@@ -71,6 +71,9 @@ export const config = {
                     'editor.fontSize': 14,
                     'ada.enableExperimentalFeatures': true,
                 },
+                env: {
+                    DISPLAY: process.env.DISPLAY ?? ':99',
+                },
             },
         },
     ],
@@ -156,7 +159,7 @@ export const config = {
                     let specFile = cidToSpecFile.get(options.cid);
                     if (!specFile) specFile = 'unknown';
                     const baseName = path.basename(specFile, path.extname(specFile));
-                    return `junit-${baseName}.${options.cid}.xml`;
+                    return `${baseName}.${options.cid}.xml`;
                 },
             },
         ],
