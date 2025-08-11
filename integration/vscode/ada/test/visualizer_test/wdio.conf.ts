@@ -2,7 +2,7 @@ import * as path from 'path';
 console.log(__dirname);
 const debug = process.env.DEBUG;
 
-const cidToSpec = new Map<string, string>();
+const cidToSpecFile = new Map<string, string>();
 
 export const config = {
     //
@@ -61,7 +61,9 @@ export const config = {
             // also possible: "insiders" or a specific version e.g. "1.80.0"
             browserVersion: 'stable',
             'wdio:vscodeOptions': {
+                binary: process.env.VSCODE ? process.env.VSCODE : undefined,
                 // points to directory where extension package.json is located
+                // __dirname here will be out/test/visualizer_test
                 extensionPath: path.join(__dirname, '../../../'),
                 workspacePath: path.join(__dirname, '../../../test/visualizer_test/ada/'),
                 // optional VS Code settings
@@ -81,7 +83,7 @@ export const config = {
     // Define all options that are relevant for the WebdriverIO instance here
     //
     // Level of logging verbosity: trace | debug | info | warn | error | silent
-    logLevel: 'info',
+    logLevel: 'warn',
     //
     // Set specific log levels per logger
     // loggers:
@@ -151,7 +153,7 @@ export const config = {
             {
                 outputDir: process.env.MOCHA_RESULTS_DIR,
                 outputFileFormat: function (options: { cid: string; capabilities: any }) {
-                    let specFile = cidToSpec.get(options.cid);
+                    let specFile = cidToSpecFile.get(options.cid);
                     if (!specFile) specFile = 'unknown';
                     const baseName = path.basename(specFile, path.extname(specFile));
                     return `junit-${baseName}.${options.cid}.xml`;
@@ -162,7 +164,7 @@ export const config = {
 
     beforeSession: function (_config: any, _capabilities: any, specs: string[], cid: string) {
         if (specs && specs.length > 0) {
-            cidToSpec.set(cid, specs[0]);
+            cidToSpecFile.set(cid, specs[0]);
         }
     },
 

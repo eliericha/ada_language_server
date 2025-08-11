@@ -1,8 +1,10 @@
-#include "iostream";
-void toto();
+#include <iostream>
 
-void toto() {
+int toto();
+
+int toto() {
     std::cout << "Hello!\n";
+    return 5;
 }
 void titi() {
     toto();
