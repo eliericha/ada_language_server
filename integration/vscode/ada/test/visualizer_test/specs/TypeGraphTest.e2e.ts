@@ -2,19 +2,13 @@ import { browser, expect } from '@wdio/globals';
 import {
     closeVSCodePopUpNotifications,
     fitView,
-    getEdge,
-    getEdgeDestination,
     getEdges,
-    getEdgeSource,
-    getIdfromEdge,
     getNodeId,
     getNodes,
     getSubButton,
     getSuperButton,
     openWebView,
-    SHA1_LEN,
     SubButtonType,
-    zoomOut,
     WebViewName,
 } from '../helpers/testUtils';
 

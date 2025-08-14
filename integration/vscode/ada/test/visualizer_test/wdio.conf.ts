@@ -62,8 +62,7 @@ export const config = {
             browserVersion: '1.97.0',
 
             'wdio:vscodeOptions': {
-                // binary: process.env.VSCODE ? process.env.VSCODE : undefined,
-                binary: '/home/rome/work/VSCode-linux-x64/code',
+                binary: process.env.VSCODE ? process.env.VSCODE : undefined,
 
                 // points to directory where extension package.json is located
                 // __dirname here will be out/test/visualizer_test
@@ -79,7 +78,7 @@ export const config = {
                 },
             },
             'wdio:chromedriverOptions': {
-                binary: '/home/rome/work/chromedriver-linux64/chromedriver',
+                binary: process.env.CHROMEDRIVER ? process.env.CHROMEDRIVER : undefined,
             },
         },
     ],
