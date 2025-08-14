@@ -59,9 +59,12 @@ export const config = {
         {
             browserName: 'vscode',
             // also possible: "insiders" or a specific version e.g. "1.80.0"
-            browserVersion: 'stable',
+            browserVersion: '1.97.0',
+
             'wdio:vscodeOptions': {
-                binary: process.env.VSCODE ? process.env.VSCODE : undefined,
+                // binary: process.env.VSCODE ? process.env.VSCODE : undefined,
+                binary: '/home/rome/work/VSCode-linux-x64/code',
+
                 // points to directory where extension package.json is located
                 // __dirname here will be out/test/visualizer_test
                 extensionPath: path.join(__dirname, '../../../'),
@@ -75,6 +78,9 @@ export const config = {
                     DISPLAY: process.env.DISPLAY ?? ':99',
                 },
             },
+            'wdio:chromedriverOptions': {
+                binary: '/home/rome/work/chromedriver-linux64/chromedriver',
+            },
         },
     ],
 
@@ -86,7 +92,7 @@ export const config = {
     // Define all options that are relevant for the WebdriverIO instance here
     //
     // Level of logging verbosity: trace | debug | info | warn | error | silent
-    logLevel: 'warn',
+    logLevel: 'error',
     //
     // Set specific log levels per logger
     // loggers:

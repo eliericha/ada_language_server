@@ -321,6 +321,12 @@ export function selfConnection(props: EdgeProps) {
     if (props.data.additionalClass !== undefined) pathClass += ' ' + props.data.additionalClass;
 
     return (
-        <BaseEdge path={edgePath} markerEnd={markerEnd} className={pathClass} style={props.style} />
+        <BaseEdge
+            id={props.id}
+            path={edgePath}
+            markerEnd={markerEnd}
+            className={pathClass}
+            style={props.style}
+        />
     );
 }

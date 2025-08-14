@@ -1,0 +1,8 @@
+[
+{
+  "directory": "/home/rome/work/ancr/src/als/integration/vscode/ada/test/visualizer_test/cpp",
+  "command": "/usr/bin/c++   -std=gnu++17 -o CMakeFiles/test.dir/test.cpp.o -c /home/rome/work/ancr/src/als/integration/vscode/ada/test/visualizer_test/cpp/test.cpp",
+  "file": "/home/rome/work/ancr/src/als/integration/vscode/ada/test/visualizer_test/cpp/test.cpp",
+  "output": "CMakeFiles/test.dir/test.cpp.o"
+}
+]

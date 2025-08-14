@@ -262,30 +262,42 @@ export function NodeContextMenu(props: NodeContextMenuProps) {
                 className="visualizer__node-context-menu"
             >
                 {hierarchy !== Hierarchy.GPR && (
-                    <button className="visualizer__context-button" onClick={refreshNode}>
+                    <button
+                        className="visualizer__context-button visualizer__refresh_button"
+                        onClick={refreshNode}
+                    >
                         Refresh Node
                     </button>
                 )}
-                <button className="visualizer__context-button" onClick={gotoDefinition}>
+                <button
+                    className="visualizer__context-button visualizer__goto_def_button"
+                    onClick={gotoDefinition}
+                >
                     {gotoText}
                 </button>
                 {hierarchy !== Hierarchy.GPR && hierarchy !== Hierarchy.FILE && (
-                    <button className="visualizer__context-button" onClick={gotoImplementation}>
+                    <button
+                        className="visualizer__context-button visualizer__goto_impl_button"
+                        onClick={gotoImplementation}
+                    >
                         Goto Implementation
                     </button>
                 )}
-                <button className="visualizer__context-button" onClick={deleteNode}>
+                <button
+                    className="visualizer__context-button visualizer__delete_button"
+                    onClick={deleteNode}
+                >
                     Delete Node
                 </button>
                 <button
-                    className="visualizer__context-button"
+                    className="visualizer__context-button visualizer__sub_hierarchy_button"
                     onClick={(event) => requestHierarchy(event, RelationDirection.SUB)}
                 >
                     {subContent}
                 </button>
                 {hierarchy !== Hierarchy.GPR && (
                     <button
-                        className="visualizer__context-button"
+                        className="visualizer__context-button visualizer__super_hierarchy_button"
                         onClick={(event) => requestHierarchy(event, RelationDirection.SUPER)}
                     >
                         {superContent}
