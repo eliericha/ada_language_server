@@ -31,6 +31,14 @@ describe('Test the Call Graph', async () => {
         await openWebView('cycle.adb', 13, 'Foo', WebViewName.CALL);
     });
 
+    beforeEach(async function () {
+        await browser.saveScreenshot(`./dbg-${this.currentTest?.fullTitle()}-before.png`);
+    });
+
+    afterEach(async function () {
+        await browser.saveScreenshot(`./dbg-${this.currentTest?.fullTitle()}-after.png`);
+    });
+
     it('should load the right number of node at the beginning', async () => {
         const expectedNodeLen = 4;
         const expectedEdgeLen = 3;
