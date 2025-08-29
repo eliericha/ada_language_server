@@ -58,7 +58,37 @@ export const config = {
     capabilities: [
         {
             browserName: 'vscode',
-            // also possible: "insiders" or a specific version e.g. "1.80.0"
+
+            /**
+             * Version identifiers like "insiders" are also supported.
+             *
+             * NOTE Each version of VS Code is compatible with a specific
+             * version of Chromedriver. Here is the process for updating the VS
+             * Code version and figuring out the corresponding Chromedriver
+             * version.
+             *
+             * 1. Update the browserVersion field below to the desired VS Code
+             *    version.
+             *
+             * 2. Delete the
+             *    integration/vscode/ada/.wdio-vscode-service/versions.txt file.
+             *
+             * 3. Run the wdio testsuite locally in online mode (i.e. without
+             *    providing local installations of VS Code and Chromedriver in
+             *    VSCODE and CHROMEDRIVER env variables)
+             *
+             *    This should download the desired VS Code version, and the
+             *    corresponding Chromedriver version.
+             *
+             * 4. Inspect the
+             *    integration/vscode/ada/.wdio-vscode-service/versions.txt file.
+             *    It should contain the needed Chromedriver version.
+             *
+             * 5. Follow the procedure in vscode.anod and chromedriver.anod for
+             *    downloading specific versions of these components.
+             *
+             * 6. Commit the updated versions.txt file.
+             */
             browserVersion: '1.97.0',
 
             'wdio:vscodeOptions': {
@@ -159,7 +189,7 @@ export const config = {
         [
             'junit',
             {
-                outputDir: process.env.MOCHA_RESULTS_DIR,
+                outputDir: process.env.MOCHA_RESULTS_DIR ?? '.',
                 outputFileFormat: function (options: { cid: string; capabilities: any }) {
                     let specFile = cidToSpecFile.get(options.cid);
                     if (!specFile) specFile = 'unknown';
