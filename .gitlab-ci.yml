@@ -127,6 +127,8 @@ als-cov:linux:
   variables:
     RUNNER_AFTER_SCRIPT_TIMEOUT: 10m
   after_script:
+    - gl-sections open --collapsed "Collecting logs and coverage data"
+
     # Source the env prepared by generic_anod_ci
     - cat /tmp/ci_env.sh
     - . /tmp/ci_env.sh
@@ -148,6 +150,7 @@ als-cov:linux:
     # display coverage stats for global reporting
     - echo_coverage_stats --coverage-file $RESULTS_DIR/coverage-xml/index.xml
 
+    - gl-sections open --collapsed "Publishing coverage report"
     # export to gitlab pages
     - |
       if [[ $CI_PIPELINE_SOURCE = "merge_request_event" ]]; then
@@ -184,6 +187,8 @@ vscode-extension:linux:
     # Trigger just the Linux coverage run in scheduled pipelines
     - if: $CI_PIPELINE_SOURCE == "schedule"
   after_script:
+    - gl-sections open --collapsed "Collecting logs and coverage data"
+
     # Source the env prepared by generic_anod_ci
     - cat /tmp/ci_env.sh
     - . /tmp/ci_env.sh
@@ -196,6 +201,7 @@ vscode-extension:linux:
     # Copy coverage reports
     - cp -r $VSCODE_BUILD_SPACE/test/integration/vscode/ada/coverage $CI_PROJECT_DIR
 
+    - gl-sections open --collapsed "Publishing coverage report"
     # export to gitlab pages
     - |
       if [[ $CI_PIPELINE_SOURCE = "merge_request_event" ]]; then

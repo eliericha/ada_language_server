@@ -6,7 +6,7 @@ node_modules/
 out/
 src/
 test/
-.eslintrc.jso,n
+.eslintrc.json
 .gitignore
 .prettierrc
 debug.code-workspace
