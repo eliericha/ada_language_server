@@ -328,3 +328,17 @@ function isGNATcovTask(t: vscode.Task): boolean {
  * such as GNAT SAS or GNATtest.
  */
 export const isCoreTask = and(negate(isGNATSASTask), negate(isGNATTestTask), negate(isGNATcovTask));
+
+export function screenshot(basename: string) {
+    if (process.platform === 'win32') {
+        /**
+         * Call the screenshot.ps1 script
+         */
+        const script = path.join(__dirname, 'screenshot.ps1');
+        const outFile = path.join(__dirname, '..', 'screenshots', `${basename}.png`);
+
+        spawnSync('powershell', ['-ExecutionPolicy', 'Bypass', '-File', script, outFile], {
+            stdio: 'inherit',
+        });
+    }
+}
