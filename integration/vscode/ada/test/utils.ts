@@ -7,6 +7,7 @@ import { CodeLens, Uri, window, workspace } from 'vscode';
 import { adaExtState } from '../src/extension';
 import { getArgValue, setTerminalEnvironment } from '../src/helpers';
 import {
+    ExecutionWithCustomCommands,
     SimpleTaskProvider,
     findTaskByName,
     getConventionalTaskLabel,
@@ -94,21 +95,19 @@ export async function getCommandLines(
         tasks = tasks.filter(filter);
     }
 
-    const actualCommandLines = (
-        await Promise.all(
-            tasks.map(async (t) => {
-                return { task: t, execution: (await prov.resolveTask(t))?.execution };
+    const actualCommandLines = await Promise.all(
+        tasks
+            .map((t) => {
+                return { task: t, execution: prov.resolveTask(t)?.execution };
+            })
+            .filter(function ({ execution }) {
+                return execution instanceof ExecutionWithCustomCommands;
+            })
+            .map(async function ({ task, execution }) {
+                assert(execution instanceof ExecutionWithCustomCommands);
+                return `${task.source}: ${task.name} - ${await getCmdLine(execution)}`;
             }),
-        )
-    )
-        .filter(function ({ execution }) {
-            return execution instanceof vscode.ShellExecution;
-        })
-        .map(function ({ task, execution }) {
-            assert(execution instanceof vscode.ShellExecution);
-            return `${task.source}: ${task.name} - ${getCmdLine(execution)}`;
-        })
-        .join('\n');
+    ).then((lines) => lines.join('\n'));
     return actualCommandLines;
 }
 
@@ -117,19 +116,25 @@ export async function getCommandLines(
  * @param exec - a ShellExecution
  * @returns the command line of the ShellExecution as a string
  */
-export function getCmdLine(exec: vscode.ShellExecution): string {
-    return exec.command
-        ? [exec.command]
-              .concat(exec.args)
-              .map((s) => {
-                  if (typeof s == 'object') {
-                      return s.value;
-                  } else {
-                      return s;
-                  }
-              })
-              .join(' ')
-        : (exec.commandLine ?? '');
+export async function getCmdLine(
+    exec: vscode.ShellExecution | ExecutionWithCustomCommands,
+): Promise<string> {
+    if (exec instanceof vscode.ShellExecution) {
+        return exec.command
+            ? [exec.command]
+                  .concat(exec.args)
+                  .map((s) => {
+                      if (typeof s == 'object') {
+                          return s.value;
+                      } else {
+                          return s;
+                      }
+                  })
+                  .join(' ')
+            : (exec.commandLine ?? '');
+    } else {
+        return await exec.getEvaluatedCmdLine().then((cmdLine) => cmdLine.join(' '));
+    }
 }
 
 /**
@@ -188,6 +193,8 @@ export async function testTask(
                     msg += '\nIt is likely that the executable is not on PATH';
                 }
             }
+        } else if (task.execution instanceof ExecutionWithCustomCommands) {
+            msg += `\nOutput:\n${task.execution.getTaskOutput()}`;
         }
 
         assert.fail(msg);

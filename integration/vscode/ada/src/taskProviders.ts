@@ -17,9 +17,12 @@
 ----------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { ChildProcessWithoutNullStreams, spawn } from 'child_process';
 import { existsSync } from 'fs';
 import path, { basename } from 'path';
+import split from 'split2';
 import * as vscode from 'vscode';
+import { RealEval } from './commands';
 import {
     CMD_GPR_PROJECT_ARGS,
     CMD_SPARK_CURRENT_GNATPROVE_OPTIONS,
@@ -28,7 +31,7 @@ import {
 } from './constants';
 import { adaExtState, logger } from './extension';
 import { getGnatTestDriverProjectPath } from './gnattest';
-import { AdaMain, getAdaMains, showErrorMessageWithOpenLogButton } from './helpers';
+import { AdaMain, getAdaMains, getFullTerminalEnv } from './helpers';
 
 export const TASK_TYPE_ADA = 'ada';
 export const TASK_TYPE_SPARK = 'spark';
@@ -41,11 +44,11 @@ export interface SimpleTaskDef extends vscode.TaskDefinition {
     /**
      * The name of the executable to invoke.
      */
-    command?: string | vscode.ShellQuotedString;
+    command?: string;
     /**
      * Arguments to pass to the invocation.
      */
-    args?: (string | vscode.ShellQuotedString)[];
+    args?: string[];
     /**
      * This property should not occur at the same time as command and args.
      * {@link SimpleTaskProvider.resolveTask} checks that in case it occurs in
@@ -88,7 +91,7 @@ const TASK_BUILD_PROJECT: PredefinedTask = {
     taskDef: {
         type: TASK_TYPE_ADA,
         command: 'gprbuild',
-        args: [`\${command:${CMD_GPR_PROJECT_ARGS}}`, "'-cargs:ada'", '-gnatef'],
+        args: [`\${command:${CMD_GPR_PROJECT_ARGS}}`, '-cargs:ada', '-gnatef'],
     },
     problemMatchers: DEFAULT_PROBLEM_MATCHERS,
     taskGroup: vscode.TaskGroup.Build,
@@ -146,7 +149,7 @@ const adaTasks: PredefinedTask[] = [
                 '-gnatc',
                 `\${command:${CMD_GPR_PROJECT_ARGS}}`,
                 '${fileBasename}',
-                "'-cargs:ada'",
+                '-cargs:ada',
                 '-gnatef',
             ],
         },
@@ -164,7 +167,7 @@ const adaTasks: PredefinedTask[] = [
                 '-u',
                 `\${command:${CMD_GPR_PROJECT_ARGS}}`,
                 '${fileBasename}',
-                "'-cargs:ada'",
+                '-cargs:ada',
                 '-gnatef',
             ],
         },
@@ -489,7 +492,7 @@ export class SimpleTaskProvider implements vscode.TaskProvider {
                             args: [
                                 `\${command:${CMD_GPR_PROJECT_ARGS}}`,
                                 main.mainRelPath(),
-                                "'-cargs:ada'",
+                                '-cargs:ada',
                                 '-gnatef',
                             ],
                         },
@@ -620,7 +623,7 @@ export class SimpleTaskProvider implements vscode.TaskProvider {
                     taskDef: {
                         type: TASK_TYPE_ADA,
                         command: 'gprbuild',
-                        args: ['-P', harnessPrj, "'-cargs:ada'", '-gnatef'],
+                        args: ['-P', harnessPrj, '-cargs:ada', '-gnatef'],
                     },
                     problemMatchers: DEFAULT_PROBLEM_MATCHERS,
                     taskGroup: vscode.TaskGroup.Build,
@@ -661,7 +664,7 @@ export class SimpleTaskProvider implements vscode.TaskProvider {
              * how VS Code works. This method is expected to return fully
              * resolved tasks, hence we must resolve pre-defined tasks here.
              */
-            const resolvedTask = await this.resolveTask(task, token);
+            const resolvedTask = this.resolveTask(task, token);
 
             if (resolvedTask) {
                 /**
@@ -691,16 +694,17 @@ export class SimpleTaskProvider implements vscode.TaskProvider {
         return result;
     }
 
-    async resolveTask(
-        task: vscode.Task,
-        token?: vscode.CancellationToken,
-    ): Promise<vscode.Task | undefined> {
+    resolveTask(task: vscode.Task, token?: vscode.CancellationToken): vscode.Task | undefined {
         /**
          * Note that this method is never called for tasks created by the
          * provideTasks method above (see parent method documentation). It is
          * called for tasks defined (/customized by the user) in the tasks.json
          * file.
          */
+
+        if (task.execution) {
+            return task;
+        }
 
         if (token?.isCancellationRequested) {
             throw new vscode.CancellationError();
@@ -726,32 +730,11 @@ export class SimpleTaskProvider implements vscode.TaskProvider {
             execution = new SequentialExecutionByName(task.name, taskDef.compound);
         } else {
             /**
-             * It's a shell invocation task.
+             * Use CustomExecutionWithCommandEval to handle command evaluation.
+             * This is allows us to keep `resolveTask` efficient and defer
+             * command evaluation to the moment a task is actually run.
              */
-            assert(taskDef.command);
-            /**
-             * We support working with just the command property, in which case
-             * fallback to an empty args array.
-             */
-            const args = taskDef.args ?? [];
-            try {
-                const evaluatedArgs: (string | vscode.ShellQuotedString)[] =
-                    await evaluateArgs(args);
-                execution = new vscode.ShellExecution(taskDef.command, evaluatedArgs);
-            } catch (err) {
-                if (err instanceof vscode.CancellationError) {
-                    // It's just a cancellation, propagate as is
-                    throw err;
-                }
-                let msg = 'Error while evaluating task arguments.';
-                logger.error(msg);
-                logger.error(err);
-                if (err instanceof Error) {
-                    msg += ' ' + err.message;
-                }
-                void showErrorMessageWithOpenLogButton(msg);
-                return undefined;
-            }
+            execution = new CustomExecutionWithCommandEval(task, taskDef);
         }
 
         return new vscode.Task(
@@ -814,6 +797,218 @@ export class SimpleTaskProvider implements vscode.TaskProvider {
 }
 
 /**
+ * A custom task execution implementation that evaluates `${ada.*}` command
+ * evaluation within a task definition before executing the task as a child
+ * process.
+ *
+ * This is necessary because native VS Code command evaluation in tasks only
+ * allows commands to return plain strings. In our case some commands need to
+ * return multiple arguments (e.g. project scenario arguments).
+ *
+ * However, `${ada.*}` commands will still be evaluated by VS Code when a task
+ * is started and would fail if they return arrays. To avoid this, we make
+ * these commands return dummy strings when called by VS Code natively. They
+ * return the actual array values when called from this class with a special
+ * parameter (see {@link RealEval}).
+ *
+ */
+export class CustomExecutionWithCommandEval extends vscode.CustomExecution {
+    private taskOutput: string[] = [];
+
+    constructor(
+        private origTask: vscode.Task,
+        private taskDef: SimpleTaskDef,
+    ) {
+        super((resolvedTaskDef) => this.callback(resolvedTaskDef));
+    }
+
+    /**
+     * Get the output produced by the task so far.
+     *
+     * @returns the output produced by the task so far.
+     */
+    public getTaskOutput(): string {
+        return this.taskOutput.join('');
+    }
+
+    /**
+     * This callback is called when the task is executed.
+     *
+     * @returns a Pseudoterminal object that controls a Terminal in the VS Code UI.
+     */
+    private callback(resolvedTaskDef: SimpleTaskDef): Thenable<vscode.Pseudoterminal> {
+        return new Promise((resolve) => {
+            const writeEmitter = new vscode.EventEmitter<string>();
+            const closeEmitter = new vscode.EventEmitter<number>();
+
+            /**
+             * Capture all output written to the terminal in taskOutput
+             */
+            const disposable = writeEmitter.event((data) => {
+                this.taskOutput.push(data);
+            });
+
+            const pseudoTerminal: vscode.Pseudoterminal = {
+                onDidWrite: writeEmitter.event,
+                onDidClose: closeEmitter.event,
+                open: () => {
+                    void this.executeWithCustomCommands(
+                        resolvedTaskDef,
+                        writeEmitter,
+                        closeEmitter,
+                    );
+                },
+                close() {
+                    disposable.dispose();
+                },
+            };
+            resolve(pseudoTerminal);
+        });
+    }
+
+    /**
+     * Evaluates and resolves the command line arguments for a task.
+     *
+     * This method combines the original task definition with a resolved task definition
+     * to create a fully evaluated command line. For arguments containing ada.* commands,
+     * it evaluates them using the evalArg function. For all other arguments, it uses
+     * the already resolved values from VS Code's task resolution.
+     *
+     * @param resolvedTaskDef - The resolved task definition containing VS Code resolved variables.
+     *                         Defaults to the original task definition for testing scenarios
+     *                         where resolved definitions may not be available.
+     * @returns A promise that resolves to an array of fully evaluated command line arguments.
+     */
+    public async getEvaluatedCmdLine(
+        /**
+         * In testing, we sometimes want to compute the evaluated command line
+         * without providing a resolved task definition which is only available
+         * when we actually run tasks. In this case we fallback to the original
+         * task definition.
+         */
+        resolvedTaskDef: SimpleTaskDef = this.taskDef,
+    ): Promise<string[]> {
+        /**
+         * Create full command line arrays from this.taskDef and
+         * resolvedTaskDef, and iterate both command lines.
+         *
+         * For each arg the taskDef command line, if it is an ada.* command,
+         * evaluate it with evalArg. Otherwise, take the already resolved value
+         * from the resolvedTaskDef command line.
+         *
+         * This way, we ensure that all ada.* commands are evaluated, while
+         * other variables are already resolved by VS Code.
+         *
+         */
+        const originalCmdLine = [this.taskDef.command!].concat(this.taskDef.args ?? []);
+        const resolvedCmdLine = [resolvedTaskDef.command!].concat(resolvedTaskDef.args ?? []);
+
+        const evaluatedCmdLine: Promise<string[]>[] = originalCmdLine.map(
+            async (originalArg, index) => {
+                // Check if this argument contains an ada.* command
+                if (matchAdaCommand(originalArg)) {
+                    // Evaluate the ada.* command
+                    return evalArg(originalArg);
+                } else {
+                    // Use the already resolved value from VS Code
+                    return [resolvedCmdLine[index]];
+                }
+            },
+        );
+
+        const results = await Promise.all(evaluatedCmdLine);
+        return results.flat();
+    }
+
+    /**
+     * Evaluates custom ada.* commands in the arguments and then executes the
+     * task using a subprocess.
+     */
+    private async executeWithCustomCommands(
+        resolvedTaskDef: SimpleTaskDef,
+        writeEmitter: vscode.EventEmitter<string>,
+        closeEmitter: vscode.EventEmitter<number>,
+    ): Promise<void> {
+        function writeLine(line: string | Buffer) {
+            const decodedLine: string = typeof line === 'string' ? line : line.toLocaleString();
+            writeEmitter.fire(decodedLine + '\r\n');
+        }
+
+        try {
+            // Evaluate custom ada.* commands in the arguments
+            const evaluatedCmdLine = await this.getEvaluatedCmdLine(resolvedTaskDef);
+            const evaluatedCommand = evaluatedCmdLine[0];
+            const evaluatedArgs = evaluatedCmdLine.slice(1);
+
+            // Execute the task as a subprocess
+
+            function quoteIfNeeded(s: string): string {
+                if (s.includes(' ')) {
+                    return `'${s}'`;
+                }
+
+                return s;
+            }
+
+            const commandStr = quoteIfNeeded(evaluatedCommand);
+            const argsStr = evaluatedArgs.map(quoteIfNeeded).join(' ');
+
+            writeLine(`Executing: ${commandStr} ${argsStr}`);
+
+            let cwd;
+            if (typeof this.origTask.scope === 'object') {
+                cwd = this.origTask.scope.uri.fsPath;
+            } else if (this.origTask.scope === vscode.TaskScope.Workspace) {
+                cwd = vscode.workspace.workspaceFolders![0].uri.fsPath;
+            } else {
+                cwd = undefined;
+            }
+
+            let child: ChildProcessWithoutNullStreams | undefined;
+            try {
+                child = spawn(evaluatedCommand, evaluatedArgs, {
+                    env: getFullTerminalEnv(),
+                    cwd: cwd,
+                });
+                const spawnResult: number = await new Promise<number>((resolve) => {
+                    if (child) {
+                        child.on('error', (err) => {
+                            writeLine(`Error spawning subprocess: ${err.message}`);
+                            resolve(-1);
+                        });
+                        child.stdout.pipe(split()).on('data', writeLine);
+                        child.stderr.pipe(split()).on('data', writeLine);
+                        child.on('close', (result) => {
+                            writeEmitter.fire('\r\n');
+                            if (result === null) {
+                                writeLine('Task was terminated');
+                                resolve(-1);
+                            } else {
+                                resolve(result);
+                            }
+                        });
+                    } else {
+                        writeLine('Error spawning subprocess');
+                        resolve(-1);
+                    }
+                });
+                closeEmitter.fire(spawnResult);
+            } catch {
+                closeEmitter.fire(-1);
+            }
+        } catch (error) {
+            const errorMsg = `Error executing task: ${error instanceof Error ? error.message : String(error)}`;
+            writeLine(errorMsg);
+            /**
+             * Also show a popup message in the UI to get the User's attention.
+             */
+            void vscode.window.showErrorMessage(errorMsg);
+            closeEmitter.fire(-1);
+        }
+    }
+}
+
+/**
  *
  * @returns true if ALIRE should be used for task execution, i.e. when the
  * workspace contains a `alire.toml` file.
@@ -833,57 +1028,76 @@ async function useAlire() {
  * then the array is inserted into the argument array at the location of the
  * command.
  */
-async function evaluateArgs(args: (string | vscode.ShellQuotedString)[]) {
-    const commandRegex = new RegExp(
-        `^\\\${command:\\s*((${TASK_TYPE_ADA}|${TASK_TYPE_SPARK})\\.[^}]*)\\s*}$`,
-    );
-    const evaluatedArgs: (string | vscode.ShellQuotedString)[] = (
-        await Promise.all(
-            args.flatMap(async function (
-                a: string | vscode.ShellQuotedString,
-            ): Promise<(string | vscode.ShellQuotedString)[]> {
-                if (typeof a == 'string') {
-                    /**
-                     * Perform command evaluation in strings, not in ShellQuotedStrings
-                     */
-                    const match = a.match(commandRegex);
-                    if (match) {
-                        /**
-                         * The string matches an ada.* command, so evaluate it.
-                         */
-                        const command = match[1];
-                        const evalRes = await vscode.commands.executeCommand(command);
-                        if (typeof evalRes == 'string') {
-                            /**
-                             * Result is a string so wrap it in an array for flattening.
-                             */
-                            return [evalRes];
-                        } else if (isNonEmptyStringArray(evalRes)) {
-                            /**
-                             * Return the array result.
-                             */
-                            return evalRes as string[];
-                        } else if (isEmptyArray(evalRes)) {
-                            /**
-                             * Not sure if evalRes can be casted to string[] in
-                             * this case so it's easier to just return an empty
-                             * array.
-                             */
-                            return [];
-                        } else {
-                            /**
-                             * Do not use the evaluated result. The original value
-                             * will be returned below.
-                             */
-                        }
-                    }
-                }
-
-                return [a];
-            }),
-        )
-    ).flat();
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+async function evaluateArgs(args: string[]) {
+    const evaluatedArgs: string[] = (await Promise.all(args.flatMap(evalArg))).flat();
     return evaluatedArgs;
+}
+
+async function evalArg(a: string): Promise<string[]> {
+    /**
+     * Perform command evaluation
+     */
+    const match = matchAdaCommand(a);
+    if (match) {
+        /**
+         * The string matches a command, so evaluate it.
+         */
+        const command = match[1];
+        const evalRes = await vscode.commands.executeCommand(
+            command,
+            /**
+             * Native VS Code command evaluation in the context of
+             * tasks passes the array of arguments as a first argument.
+             * So we replicate that here.
+             */
+            [],
+            /**
+             * Pass this object to indicate that we want the
+             * commands to return the real value.
+             */
+            {
+                realEval: true,
+            } satisfies RealEval,
+        );
+        if (typeof evalRes == 'string') {
+            /**
+             * Result is a string so wrap it in an array for flattening.
+             */
+            return [evalRes];
+        } else if (isNonEmptyStringArray(evalRes)) {
+            /**
+             * Return the array result.
+             */
+            return evalRes as string[];
+        } else if (isEmptyArray(evalRes)) {
+            /**
+             * Not sure if evalRes can be casted to string[] in
+             * this case so it's easier to just return an empty
+             * array.
+             */
+            return [];
+        } else {
+            /**
+             * Do not use the evaluated result. The original value
+             * will be returned below.
+             */
+        }
+    }
+
+    return [a];
+}
+
+/**
+ * Match the given string against the pattern of command substitution `${ada.*}`.
+ *
+ * @param a - a string
+ * @returns a match
+ */
+function matchAdaCommand(a: string): RegExpMatchArray | null {
+    const commandRegex = new RegExp(`^\\\${command:\\s*(${TASK_TYPE_ADA}\\.[^}]*)\\s*}$`);
+    const match = a.match(commandRegex);
+    return match;
 }
 
 /**
@@ -1344,7 +1558,7 @@ function updateToAlire(taskDef: SimpleTaskDef): SimpleTaskDef {
              * scenario args because they are managed by ALIRE.
              *
              */
-            args.splice(0, args.length, 'build', '--', "'-cargs:ada'", '-gnatef');
+            args.splice(0, args.length, 'build', '--', '-cargs:ada', '-gnatef');
         } else if (taskDef == TASK_CLEAN_PROJECT.taskDef) {
             /**
              * Replace the entire command with `alr clean`. Ignore project and
@@ -1387,15 +1601,27 @@ function isAlire(command: string | vscode.ShellQuotedString): boolean {
  * task finishes execution.
  */
 export async function runTaskAndGetResult(task: vscode.Task): Promise<number | undefined> {
-    return await new Promise<number | undefined>((resolve, reject) => {
-        let started = false;
+    // We can only run resolved tasks
+    assert(task.execution, 'Task must be resolved before it can be executed');
+
+    return new Promise<number | undefined>((resolve, reject) => {
+        const timer = setTimeout(() => {
+            /**
+             * If the task has not started within the timeout below, it means an
+             * error occured during startup. Reject the promise.
+             */
+            const msg = `The task '${getConventionalTaskLabel(
+                task,
+            )}' was not started, likely due to an error.\n`;
+            reject(Error(msg));
+        }, 20000);
 
         const startDisposable = vscode.tasks.onDidStartTask((e) => {
             if (e.execution.task == task) {
                 /**
                  * Task was started, let's listen to the end.
                  */
-                started = true;
+                clearTimeout(timer);
                 startDisposable.dispose();
             }
         });
@@ -1407,20 +1633,11 @@ export async function runTaskAndGetResult(task: vscode.Task): Promise<number | u
             }
         });
 
-        setTimeout(() => {
-            /**
-             * If the task has not started within the timeout below, it means an
-             * error occured during startup. Reject the promise.
-             */
-            if (!started) {
-                const msg = `The task '${getConventionalTaskLabel(
-                    task,
-                )}' was not started, likely due to an error.\n`;
-                reject(Error(msg));
-            }
-        }, 3000);
-
-        void vscode.tasks.executeTask(task);
+        void vscode.tasks.executeTask(task).then(
+            () => {},
+            // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
+            (err) => reject(err),
+        );
     }).catch(async (reason) => {
         if (reason instanceof Error) {
             let msg = 'The current list of tasks is:\n';
@@ -1469,7 +1686,7 @@ export async function getOrCreateTask(
         /**
          * If there's no existing task of that name, create one on the fly.
          */
-        task = (await adaTP.resolveTask(
+        task = adaTP.resolveTask(
             new vscode.Task(
                 await taskDef(),
                 vscode.TaskScope.Workspace,
@@ -1478,7 +1695,7 @@ export async function getOrCreateTask(
                 undefined,
                 DEFAULT_PROBLEM_MATCHERS,
             ),
-        ))!;
+        )!;
         task.presentationOptions.reveal =
             task.presentationOptions.reveal ?? vscode.TaskRevealKind.Never;
     }

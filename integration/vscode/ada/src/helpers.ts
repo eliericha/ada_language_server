@@ -727,3 +727,9 @@ export function getMatchingPrefixes(
  * environment.
  */
 export const inTesting = process.env['ALS_VSCODE_TEST_ENV'] === '1';
+
+export function getFullTerminalEnv(): NodeJS.ProcessEnv {
+    const env = { ...process.env };
+    setTerminalEnvironment(env);
+    return env;
+}

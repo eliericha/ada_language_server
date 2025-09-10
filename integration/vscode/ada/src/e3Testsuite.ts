@@ -9,7 +9,7 @@ import * as vscode from 'vscode';
 import * as yaml from 'yaml';
 import { NotificationType, TestsuiteNotification } from './e3TestsuiteNotifications';
 import { logger } from './extension';
-import { setTerminalEnvironment } from './helpers';
+import { getFullTerminalEnv } from './helpers';
 
 interface Testsuite {
     uri: vscode.Uri;
@@ -116,7 +116,7 @@ export function activateE3TestsuiteIntegration(context: vscode.ExtensionContext)
                  * variable in the environment given by getEnv() will decide
                  * which Python gets used.
                  */
-                env: getEnv(),
+                env: getFullTerminalEnv(),
             });
             p.stdout.on('data', (chunk) => {
                 // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
@@ -218,7 +218,7 @@ export function activateE3TestsuiteIntegration(context: vscode.ExtensionContext)
 
         const run = controller.createTestRun(request, 'e3-testsuite');
 
-        const env = getEnv();
+        const env = getFullTerminalEnv();
         if (enableEventSystem) {
             const modulePath = context.asAbsolutePath('media');
             const module = 'e3_notify_vscode';
@@ -598,12 +598,6 @@ export function getTestsuite() {
 
     const ts: Testsuite = { uri: tsAbsUri, python: python };
     return ts;
-}
-
-function getEnv(): NodeJS.ProcessEnv {
-    const env = { ...process.env };
-    setTerminalEnvironment(env);
-    return env;
 }
 
 function loadReportIndex(indexPath: string): ReportIndex {

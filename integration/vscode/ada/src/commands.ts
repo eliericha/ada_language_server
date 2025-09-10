@@ -55,6 +55,40 @@ import {
 import { Hierarchy } from './visualizerTypes';
 import { createHelloWorldProject, walkthroughStartDebugging } from './walkthrough';
 
+/**
+ * Commands can be used in task definitions to get dynamic values. However the
+ * native VS Code mechanism does not allow returning arrays of strings. Only
+ * plain may be returned. That prevents using commands to return a dynamic
+ * array of CLI arguments.
+ *
+ * To work around that, we define a CustomExecution for 'ada' and 'spark' tasks
+ * which calls commands with a special argument (of type RealEval) telling them
+ * that they can return arrays. Otherwise the wrapper returns an empty string.
+ *
+ * This allows the native VS Code mechanism to receive dummy strings, while the
+ * actual task execution can get the real values.
+ *
+ */
+export type RealEval = {
+    realEval: true;
+};
+
+function forTaskEval(
+    cmdHandler: () => string | string[] | Promise<string | string[]>,
+): (...args: unknown[]) => Promise<string | string[]> {
+    return async (_args, realEval) => {
+        if (
+            realEval &&
+            typeof realEval === 'object' &&
+            'realEval' in realEval &&
+            (realEval as RealEval).realEval
+        ) {
+            return cmdHandler();
+        }
+        return '';
+    };
+}
+
 export function registerCommands(context: vscode.ExtensionContext, clients: ExtensionState) {
     context.subscriptions.push(
         vscode.commands.registerCommand(CMD_RESTART_LANG_SERVERS, restartLanguageServers),
@@ -174,14 +208,18 @@ export function registerCommands(context: vscode.ExtensionContext, clients: Exte
             buildAndDebugSpecifiedMainWithGNATemulator,
         ),
     );
+
     context.subscriptions.push(
-        vscode.commands.registerCommand(CMD_GPR_PROJECT_ARGS, gprProjectArgs),
+        vscode.commands.registerCommand(CMD_GPR_PROJECT_ARGS, forTaskEval(gprProjectArgs)),
     );
     context.subscriptions.push(
-        vscode.commands.registerCommand(CMD_SPARK_LIMIT_SUBP_ARG, sparkLimitSubpArg),
+        vscode.commands.registerCommand(CMD_SPARK_LIMIT_SUBP_ARG, forTaskEval(sparkLimitSubpArg)),
     );
     context.subscriptions.push(
-        vscode.commands.registerCommand(CMD_SPARK_LIMIT_REGION_ARG, sparkLimitRegionArg),
+        vscode.commands.registerCommand(
+            CMD_SPARK_LIMIT_REGION_ARG,
+            forTaskEval(sparkLimitRegionArg),
+        ),
     );
     context.subscriptions.push(
         vscode.commands.registerCommand(CMD_SPARK_PROVE_SUBP, sparkProveSubprogram),
@@ -189,7 +227,10 @@ export function registerCommands(context: vscode.ExtensionContext, clients: Exte
 
     context.subscriptions.push(commands.registerCommand(CMD_SPARK_ASK_OPTIONS, askSPARKOptions));
     context.subscriptions.push(
-        commands.registerCommand(CMD_SPARK_CURRENT_GNATPROVE_OPTIONS, getLastSPARKOptions),
+        commands.registerCommand(
+            CMD_SPARK_CURRENT_GNATPROVE_OPTIONS,
+            forTaskEval(getLastSPARKOptions),
+        ),
     );
 
     context.subscriptions.push(
@@ -939,9 +980,10 @@ export async function getProjectFromConfigOrALS(): Promise<string> {
     /**
      * If ada.projectFile is set, use the $\{config:ada.projectFile\} macro
      */
-    return vscode.workspace.getConfiguration().get('ada.projectFile')
-        ? PROJECT_FROM_CONFIG
-        : await adaExtState.getProjectFile();
+    return (
+        vscode.workspace.getConfiguration().get('ada.projectFile') ??
+        (await adaExtState.getProjectFile())
+    );
 }
 
 /**
@@ -955,19 +997,16 @@ export async function sparkLimitSubpArg(): Promise<string[]> {
     return getEnclosingSymbol(vscode.window.activeTextEditor, [vscode.SymbolKind.Function]).then(
         (Symbol) => {
             if (Symbol) {
+                assert(vscode.window.activeTextEditor);
                 const range = Symbol.range;
-                return [getLimitSubpArg('${fileBasename}', range)];
+                return [
+                    getLimitSubpArg(
+                        path.basename(vscode.window.activeTextEditor.document.fileName),
+                        range,
+                    ),
+                ];
             } else {
-                /**
-                 * If we can't find a subprogram, we use the VS Code predefined
-                 * variable lineNumber to avoid raising an Error. This function
-                 * is called through the corresponding command during task
-                 * resolution in the task provider.  Raising an error would
-                 * prevent the task from appear in the list of provided tasks.
-                 * For this reason we use the acceptable fallback of lineNumber
-                 * and rely on SPARK tooling to provide an explanatory message.
-                 */
-                return [`--limit-subp=\${fileBasename}:\${lineNumber}`];
+                throw Error('No enclosing subprogram found');
             }
         },
     );
@@ -990,10 +1029,16 @@ function getLimitSubpArg(filename: string, range: vscode.Range): string {
  * @returns the gnatprove `--limit-region=file:from:to` argument corresponding
  * to the current editor's selection.
  */
-export const sparkLimitRegionArg = (): Promise<string[]> => {
-    return Promise.resolve([
-        `--limit-region=\${fileBasename}:${getSelectedRegion(vscode.window.activeTextEditor)}`,
-    ]);
+export const sparkLimitRegionArg = async (): Promise<string[]> => {
+    if (!vscode.window.activeTextEditor) {
+        throw Error('No active editor');
+    } else {
+        return Promise.resolve([
+            `--limit-region=${path.basename(
+                vscode.window.activeTextEditor.document.fileName,
+            )}:${getSelectedRegion(vscode.window.activeTextEditor)}`,
+        ]);
+    }
 };
 
 /**
@@ -1135,7 +1180,7 @@ async function sparkProveSubprogram(
     /**
      * Resolve the task.
      */
-    const resolvedTask = await adaExtState.getSparkTaskProvider()?.resolveTask(newTask);
+    const resolvedTask = adaExtState.getSparkTaskProvider()?.resolveTask(newTask);
     assert(resolvedTask);
 
     /**

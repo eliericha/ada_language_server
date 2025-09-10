@@ -13,6 +13,7 @@ import {
     findTaskByName,
     getConventionalTaskLabel,
     isFromWorkspace,
+    ExecutionWithCustomCommands,
 } from '../../src/taskProviders';
 import {
     activate,
@@ -69,13 +70,13 @@ ada: Build and run main - src/test.adb
     test('Ada task command lines', async function () {
         const expectedCmdLines = `
 ada: Clean current project - gprclean -P ${projectPath}
-ada: Build current project - gprbuild -P ${projectPath} '-cargs:ada' -gnatef
-ada: Check current file - gprbuild -q -f -c -u -gnatc -P ${projectPath} \${fileBasename} '-cargs:ada' -gnatef
-ada: Compile current file - gprbuild -q -f -c -u -P ${projectPath} \${fileBasename} '-cargs:ada' -gnatef
+ada: Build current project - gprbuild -P ${projectPath} -cargs:ada -gnatef
+ada: Check current file - gprbuild -q -f -c -u -gnatc -P ${projectPath} \${fileBasename} -cargs:ada -gnatef
+ada: Compile current file - gprbuild -q -f -c -u -P ${projectPath} \${fileBasename} -cargs:ada -gnatef
 ada: Generate documentation from the project - gnatdoc -P ${projectPath}
-ada: Build main - src/main1.adb - gprbuild -P ${projectPath} src/main1.adb '-cargs:ada' -gnatef
+ada: Build main - src/main1.adb - gprbuild -P ${projectPath} src/main1.adb -cargs:ada -gnatef
 ada: Run main - src/main1.adb - .${path.sep}obj${path.sep}main1exec${exe}
-ada: Build main - src/test.adb - gprbuild -P ${projectPath} src/test.adb '-cargs:ada' -gnatef
+ada: Build main - src/test.adb - gprbuild -P ${projectPath} src/test.adb -cargs:ada -gnatef
 ada: Run main - src/test.adb - .${path.sep}obj${path.sep}test${exe}
 `.trim();
 
@@ -84,7 +85,7 @@ ada: Run main - src/test.adb - .${path.sep}obj${path.sep}test${exe}
          * Exclude GNAT SAS tasks because they are tested in integration-testsuite.
          */
         const actualCommandLines = await getCommandLines(prov, isCoreTask);
-        assert.equal(actualCommandLines, expectedCmdLines);
+        assert.strictEqual(actualCommandLines, expectedCmdLines);
     });
 
     /**
@@ -100,14 +101,14 @@ ada: Run main - src/test.adb - .${path.sep}obj${path.sep}test${exe}
             args: ['${command:ada.gprProjectArgs}', '-d'],
         };
         const task = new vscode.Task(def, vscode.TaskScope.Workspace, 'My Task', 'ada');
-        const resolved = await prov.resolveTask(task);
+        const resolved = prov.resolveTask(task);
 
         assert(resolved);
         assert(resolved.execution);
 
-        const exec = resolved.execution as vscode.ShellExecution;
+        const exec = resolved.execution as ExecutionWithCustomCommands;
 
-        const actualCmd = getCmdLine(exec);
+        const actualCmd = await getCmdLine(exec);
 
         /**
          * The workspace doesn't have the ada.projectFile setting set, so the
@@ -169,7 +170,7 @@ ada: Run main - src/test.adb - .${path.sep}obj${path.sep}test${exe}
                 args: [
                     '${command:ada.gprProjectArgs}',
                     '--no-object-check',
-                    "'-cargs:ada'",
+                    '-cargs:ada',
                     '-gnatef',
                 ],
                 label: 'ada: Build current project',
@@ -183,7 +184,7 @@ ada: Run main - src/test.adb - .${path.sep}obj${path.sep}test${exe}
             const prov = createAdaTaskProvider();
             const adaTasks = await vscode.tasks.fetchTasks({ type: TASK_TYPE_ADA });
             const buildTask = await findTaskByName('ada: Build current project', adaTasks);
-            const resolved = await prov.resolveTask(buildTask);
+            const resolved = prov.resolveTask(buildTask);
             assert(resolved);
             assert(resolved.execution);
             assert(
@@ -192,12 +193,12 @@ ada: Run main - src/test.adb - .${path.sep}obj${path.sep}test${exe}
             );
 
             const exec = buildTask.execution as vscode.ShellExecution;
-            const actualCmd = getCmdLine(exec);
+            const actualCmd = await getCmdLine(exec);
 
             // The '--no-object-check' switch has been added to the 'ada: Build current project'
             // predefined task in the workspace's tasks.json file: check that it's indeed present
             // in the returned task's command line.
-            const expectedCmd = `gprbuild -P ${projectPath} --no-object-check '-cargs:ada' -gnatef`;
+            const expectedCmd = `gprbuild -P ${projectPath} --no-object-check -cargs:ada -gnatef`;
 
             assert.strictEqual(actualCmd, expectedCmd);
         } finally {
@@ -209,7 +210,7 @@ ada: Run main - src/test.adb - .${path.sep}obj${path.sep}test${exe}
         }
     });
 
-    test('Obsolete task definition causes error', async function () {
+    test('Obsolete task definition causes error', function () {
         const obsoleteTaskDef: vscode.TaskDefinition = {
             type: 'ada',
             configuration: {},
@@ -226,10 +227,10 @@ ada: Run main - src/test.adb - .${path.sep}obj${path.sep}test${exe}
         /**
          * Assert that an Error is thrown with the word 'obsolete' in the message.
          */
-        await assert.rejects(prov.resolveTask(obsoleteTask), /obsolete/);
+        assert.throws(() => prov.resolveTask(obsoleteTask), /obsolete/);
     });
 
-    test('Invalid task defs', async function () {
+    test('Invalid task defs', function () {
         const invalidTaskDefs: SimpleTaskDef[] = [
             {
                 type: 'ada',
@@ -268,7 +269,7 @@ ada: Run main - src/test.adb - .${path.sep}obj${path.sep}test${exe}
             /**
              * Assert that an Error is thrown
              */
-            await assert.rejects(prov.resolveTask(invalidTask));
+            assert.throws(() => prov.resolveTask(invalidTask));
         }
     });
 
@@ -290,11 +291,16 @@ ada: Run main - src/test.adb - .${path.sep}obj${path.sep}test${exe}
             'ada',
         );
         task.problemMatchers = DEFAULT_PROBLEM_MATCHERS;
-        const resolved = await prov.resolveTask(task);
+        const resolved = prov.resolveTask(task);
         assert(resolved);
         assert(resolved.execution);
 
         const execStatus: number | undefined = await runTaskAndGetResult(resolved);
+
+        assert(
+            execStatus === 0,
+            `Task exited with code ${execStatus}:\n${(resolved.execution as ExecutionWithCustomCommands).getTaskOutput()}`,
+        );
 
         /**
          * Wait for the problemMatchers
@@ -394,8 +400,8 @@ suite('Task Execution', function () {
             const runTask = (await vscode.tasks.fetchTasks({ type: 'ada' })).find((t) =>
                 t.name.includes('Run main'),
             );
-            assert(runTask?.execution instanceof vscode.ShellExecution);
-            const cmdLine = getCmdLine(runTask.execution);
+            assert(runTask?.execution instanceof ExecutionWithCustomCommands);
+            const cmdLine = await getCmdLine(runTask.execution);
             assert(
                 cmdLine.startsWith('.' + path.sep),
                 `Task command doesn't start with './': ${cmdLine}`,
@@ -435,7 +441,7 @@ suite('Task Execution', function () {
             compound: ['non existing task'],
         };
         let task = new vscode.Task(def, vscode.TaskScope.Workspace, 'Task 1', 'ada');
-        let resolved = await prov.resolveTask(task);
+        let resolved = prov.resolveTask(task);
         assert(resolved);
         /**
          * The expected code when errors occur before the invocation of the
@@ -452,7 +458,7 @@ suite('Task Execution', function () {
             ],
         };
         task = new vscode.Task(def, vscode.TaskScope.Workspace, 'Task 2', 'ada');
-        resolved = await prov.resolveTask(task);
+        resolved = prov.resolveTask(task);
         assert(resolved);
         assert.equal(await runTaskAndGetResult(resolved), 2);
     });
