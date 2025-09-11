@@ -7,7 +7,7 @@ vscode_qual = {
 
 def build_(qualifier={}):
     with defaults(qualifier=qualifier):
-        anod_build("als")
+        anod_install("als")
         anod_build("vscode-extension", qualifier=vscode_qual | qualifier)
 
 
