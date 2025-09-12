@@ -741,7 +741,7 @@ export class SimpleTaskProvider implements vscode.TaskProvider {
              * This is allows us to keep `resolveTask` efficient and defer
              * command evaluation to the moment a task is actually run.
              */
-            execution = new CustomExecutionWithCommandEval(task, taskDef);
+            execution = new CustomExecutionWithCommandEval(taskDef, task.scope);
         }
 
         return new vscode.Task(
@@ -823,8 +823,12 @@ export class CustomExecutionWithCommandEval extends vscode.CustomExecution {
     private taskOutput: string[] = [];
 
     constructor(
-        private origTask: vscode.Task,
         private taskDef: SimpleTaskDef,
+        private scope:
+            | vscode.TaskScope.Global
+            | vscode.TaskScope.Workspace
+            | vscode.WorkspaceFolder
+            | undefined,
     ) {
         super((resolvedTaskDef) => this.callback(resolvedTaskDef));
     }
@@ -963,49 +967,53 @@ export class CustomExecutionWithCommandEval extends vscode.CustomExecution {
             writeLine(`Executing: ${commandStr} ${argsStr}`);
 
             let cwd;
-            if (typeof this.origTask.scope === 'object') {
-                cwd = this.origTask.scope.uri.fsPath;
-            } else if (this.origTask.scope === vscode.TaskScope.Workspace) {
+            if (typeof this.scope === 'object') {
+                cwd = this.scope.uri.fsPath;
+            } else if (this.scope === vscode.TaskScope.Workspace) {
                 cwd = vscode.workspace.workspaceFolders![0].uri.fsPath;
             } else {
                 cwd = undefined;
             }
 
-            let child: ChildProcessWithoutNullStreams | undefined;
-            try {
-                child = spawn(evaluatedCommand, evaluatedArgs, {
+            const child: ChildProcessWithoutNullStreams | undefined = spawn(
+                evaluatedCommand,
+                evaluatedArgs,
+                {
                     env: getFullTerminalEnv(),
                     cwd: cwd,
-                });
-                const spawnResult: number = await new Promise<number>((resolve) => {
-                    if (child) {
-                        child.on('error', (err) => {
-                            writeLine(`Error spawning subprocess: ${err.message}`);
-                            resolve(-1);
-                        });
-                        child.stdout.pipe(split()).on('data', writeLine);
-                        child.stderr.pipe(split()).on('data', writeLine);
-                        child.on('close', (result) => {
-                            writeEmitter.fire('\r\n');
-                            if (result === null) {
-                                writeLine('Task was terminated');
-                                resolve(-1);
-                            } else {
-                                resolve(result);
-                            }
-                        });
-                    } else {
-                        writeLine('Error spawning subprocess');
+                },
+            );
+            const spawnResult: number = await new Promise<number>((resolve) => {
+                if (child) {
+                    child.on('error', (err) => {
+                        const errorMsg = `Error spawning subprocess: ${err.message}`;
+                        logger.error(errorMsg);
+                        writeLine(errorMsg);
                         resolve(-1);
-                    }
-                });
-                closeEmitter.fire(spawnResult);
-            } catch {
-                closeEmitter.fire(-1);
-            }
+                    });
+                    child.stdout.pipe(split()).on('data', writeLine);
+                    child.stderr.pipe(split()).on('data', writeLine);
+                    child.on('close', (result) => {
+                        writeEmitter.fire('\r\n');
+                        if (result === null) {
+                            writeLine('Task was terminated');
+                            resolve(-1);
+                        } else {
+                            resolve(result);
+                        }
+                    });
+                } else {
+                    const errorMsg = `Error spawning subprocess`;
+                    logger.error(errorMsg);
+                    writeLine(errorMsg);
+                    resolve(-1);
+                }
+            });
+            closeEmitter.fire(spawnResult);
         } catch (error) {
             const errorMsg = `Error executing task: ${error instanceof Error ? error.message : String(error)}`;
             writeLine(errorMsg);
+            logger.error(errorMsg);
             /**
              * Also show a popup message in the UI to get the User's attention.
              */
@@ -1607,45 +1615,61 @@ function isAlire(command: string | vscode.ShellQuotedString): boolean {
  * @returns a Promise that resolves to the underlying process exit code when the
  * task finishes execution.
  */
-export async function runTaskAndGetResult(task: vscode.Task): Promise<number | undefined> {
+export async function runTaskAndGetResult(
+    task: vscode.Task,
+): Promise<{ status: number | undefined; output: string | undefined }> {
     // We can only run resolved tasks
     assert(task.execution, 'Task must be resolved before it can be executed');
 
-    return new Promise<number | undefined>((resolve, reject) => {
-        const timer = setTimeout(() => {
-            /**
-             * If the task has not started within the timeout below, it means an
-             * error occured during startup. Reject the promise.
-             */
-            const msg = `The task '${getConventionalTaskLabel(
-                task,
-            )}' was not started, likely due to an error.\n`;
-            reject(Error(msg));
-        }, 20000);
-
-        const startDisposable = vscode.tasks.onDidStartTask((e) => {
-            if (e.execution.task == task) {
-                /**
-                 * Task was started, let's listen to the end.
-                 */
-                clearTimeout(timer);
+    return new Promise<{ status: number | undefined; output: string | undefined }>(
+        (resolve, reject) => {
+            const timer = setTimeout(() => {
                 startDisposable.dispose();
-            }
-        });
-
-        const endDisposable = vscode.tasks.onDidEndTaskProcess((e) => {
-            if (e.execution.task == task) {
                 endDisposable.dispose();
-                resolve(e.exitCode);
-            }
-        });
 
-        void vscode.tasks.executeTask(task).then(
-            () => {},
-            // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
-            (err) => reject(err),
-        );
-    }).catch(async (reason) => {
+                /**
+                 * If the task has not started within the timeout below, it means an
+                 * error occured during startup. Reject the promise.
+                 */
+                const msg = `The task '${getConventionalTaskLabel(
+                    task,
+                )}' was not started, likely due to an error.\n`;
+                reject(Error(msg));
+            }, 20000);
+
+            const startDisposable = vscode.tasks.onDidStartTask((e) => {
+                if (e.execution.task == task) {
+                    /**
+                     * Task was started, clear the timer.
+                     */
+                    clearTimeout(timer);
+                    startDisposable.dispose();
+                }
+            });
+
+            const endDisposable = vscode.tasks.onDidEndTaskProcess((e) => {
+                if (e.execution.task == task) {
+                    endDisposable.dispose();
+                    resolve({
+                        status: e.exitCode,
+                        output:
+                            (e.execution.task.execution instanceof CustomExecutionWithCommandEval
+                                ? e.execution.task.execution.getTaskOutput()
+                                : undefined) ||
+                            (task.execution instanceof CustomExecutionWithCommandEval
+                                ? task.execution.getTaskOutput()
+                                : undefined),
+                    });
+                }
+            });
+
+            void vscode.tasks.executeTask(task).then(
+                () => {},
+                // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
+                (err) => reject(err),
+            );
+        },
+    ).catch(async (reason) => {
         if (reason instanceof Error) {
             let msg = 'The current list of tasks is:\n';
             msg += await vscode.tasks.fetchTasks({ type: task.definition.type }).then(

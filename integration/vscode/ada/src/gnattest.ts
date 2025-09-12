@@ -11,6 +11,7 @@ import { addCoverageData, GnatcovFileCoverage } from './gnatcov';
 import { getScenarioArgs } from './gnatTaskProvider';
 import { escapeRegExp, exe, setTerminalEnvironment, slugify } from './helpers';
 import {
+    CustomExecutionWithCommandEval,
     findTaskByName,
     getOrCreateTask,
     runTaskSequence,
@@ -888,6 +889,17 @@ async function buildTestDriverAndReportErrors(
             `Failed to build the test harness project.` +
             ` Check the [Problems](command:workbench.panel.markers.view.focus) view` +
             ` and the [Terminal](command:terminal.focus) view for more information.`;
+
+        /**
+         * Collect potential output from the build tasks
+         */
+        const buildOutput = buildTasks
+            .filter((t) => t.execution instanceof CustomExecutionWithCommandEval)
+            .map((t) => (t.execution as CustomExecutionWithCommandEval).getTaskOutput())
+            .join('\n\n');
+        if (buildOutput.length > 0) {
+            markdownMsg += '\n\n' + buildOutput;
+        }
 
         if (coverage) {
             const taskName = `${TASK_TYPE_ADA}: ${TASK_GNATCOV_SETUP.label}`;

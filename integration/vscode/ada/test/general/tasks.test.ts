@@ -295,11 +295,11 @@ ada: Run main - src/test.adb - .${path.sep}obj${path.sep}test${exe}
         assert(resolved);
         assert(resolved.execution);
 
-        const execStatus: number | undefined = await runTaskAndGetResult(resolved);
+        const { status } = await runTaskAndGetResult(resolved);
 
         assert(
-            execStatus === 0,
-            `Task exited with code ${execStatus}:\n${(resolved.execution as CustomExecutionWithCommandEval).getTaskOutput()}`,
+            status === 0,
+            `Task exited with code ${status}:\n${(resolved.execution as CustomExecutionWithCommandEval).getTaskOutput()}`,
         );
 
         /**

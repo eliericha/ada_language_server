@@ -156,10 +156,10 @@ export async function testTask(
     assert(task);
     testedTasks?.add(getConventionalTaskLabel(task));
 
-    const execStatus: number | undefined = await runTaskAndGetResult(task);
+    const { status, output } = await runTaskAndGetResult(task);
 
-    if (execStatus != 0) {
-        let msg = `Got status ${execStatus ?? "'undefined'"} for task '${taskName}'`;
+    if (status != 0) {
+        let msg = `Got status ${status ?? "'undefined'"} for task '${taskName}'`;
         if (task.execution instanceof vscode.ShellExecution) {
             const cmdLine = [task.execution.command].concat(task.execution.args).map((arg) => {
                 return getArgValue(arg);
@@ -193,8 +193,8 @@ export async function testTask(
                     msg += '\nIt is likely that the executable is not on PATH';
                 }
             }
-        } else if (task.execution instanceof CustomExecutionWithCommandEval) {
-            msg += `\nOutput:\n${task.execution.getTaskOutput()}`;
+        } else if (output) {
+            msg += `\nOutput:\n${output}`;
         }
 
         assert.fail(msg);

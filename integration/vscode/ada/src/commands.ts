@@ -890,8 +890,8 @@ async function buildAndDebugSpecifiedMain(
                 const buildTaskName = getBuildTaskName(adaMain);
                 const buildTasks = await getTasksWithPrefix(buildTaskName);
                 if (buildTasks.length === 1) {
-                    const execStatus: number | undefined = await runTaskAndGetResult(buildTasks[0]);
-                    if (execStatus != 0) {
+                    const { status } = await runTaskAndGetResult(buildTasks[0]);
+                    if (status != 0) {
                         const errorMsg = `Failed to build executable before launching GNATemulator`;
                         logger.error(errorMsg);
                         return;

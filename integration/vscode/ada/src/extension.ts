@@ -29,6 +29,7 @@ import {
     TERMINAL_ENV_SETTING_NAME,
     assertSupportedEnvironments,
     getEvaluatedTerminalEnv,
+    inTesting,
     startedInDebugMode,
 } from './helpers';
 /**
@@ -241,7 +242,7 @@ function setUpLogging(context: vscode.ExtensionContext) {
         }),
     );
 
-    if (startedInDebugMode()) {
+    if (startedInDebugMode() || inTesting) {
         // In debug mode, print log messages to the console with colors. Use
         // level 'debug' for more verbosity.
         logger.add(
