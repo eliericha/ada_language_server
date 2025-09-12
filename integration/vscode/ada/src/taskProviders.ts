@@ -444,6 +444,8 @@ const predefinedTasks: PredefinedTask[] = adaTasks.concat(sparkTasks, gnatCovTas
  * both 'ada' and 'spark' tasks.
  */
 export class SimpleTaskProvider implements vscode.TaskProvider {
+    cache: vscode.Task[] | undefined = undefined;
+
     constructor(
         public taskType: string,
         private taskDecls: PredefinedTask[],
@@ -454,7 +456,12 @@ export class SimpleTaskProvider implements vscode.TaskProvider {
             throw new vscode.CancellationError();
         }
 
-        const result: vscode.Task[] = [];
+        if (this.cache) {
+            return this.cache;
+        }
+
+        const result: vscode.Task[] = (this.cache = []);
+
         const targetPrefix = await adaExtState.getTargetPrefix().catch((err) => {
             logger.error('Error in task provider:\n' + err);
             return '';
