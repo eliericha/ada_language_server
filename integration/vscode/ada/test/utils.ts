@@ -7,7 +7,7 @@ import { CodeLens, Uri, window, workspace } from 'vscode';
 import { adaExtState } from '../src/extension';
 import { getArgValue, setTerminalEnvironment } from '../src/helpers';
 import {
-    ExecutionWithCustomCommands,
+    CustomExecutionWithCommandEval,
     SimpleTaskProvider,
     findTaskByName,
     getConventionalTaskLabel,
@@ -101,10 +101,10 @@ export async function getCommandLines(
                 return { task: t, execution: prov.resolveTask(t)?.execution };
             })
             .filter(function ({ execution }) {
-                return execution instanceof ExecutionWithCustomCommands;
+                return execution instanceof CustomExecutionWithCommandEval;
             })
             .map(async function ({ task, execution }) {
-                assert(execution instanceof ExecutionWithCustomCommands);
+                assert(execution instanceof CustomExecutionWithCommandEval);
                 return `${task.source}: ${task.name} - ${await getCmdLine(execution)}`;
             }),
     ).then((lines) => lines.join('\n'));
@@ -117,7 +117,7 @@ export async function getCommandLines(
  * @returns the command line of the ShellExecution as a string
  */
 export async function getCmdLine(
-    exec: vscode.ShellExecution | ExecutionWithCustomCommands,
+    exec: vscode.ShellExecution | CustomExecutionWithCommandEval,
 ): Promise<string> {
     if (exec instanceof vscode.ShellExecution) {
         return exec.command
@@ -193,7 +193,7 @@ export async function testTask(
                     msg += '\nIt is likely that the executable is not on PATH';
                 }
             }
-        } else if (task.execution instanceof ExecutionWithCustomCommands) {
+        } else if (task.execution instanceof CustomExecutionWithCommandEval) {
             msg += `\nOutput:\n${task.execution.getTaskOutput()}`;
         }
 

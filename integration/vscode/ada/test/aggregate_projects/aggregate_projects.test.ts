@@ -24,15 +24,15 @@ suite('Aggregate Projects Support', function () {
     test('Ada tasks for aggregate projects', async () => {
         const expectedCmdLines = `
 ada: Clean current project - gprclean -P ${projectPath}
-ada: Build current project - gprbuild -P ${projectPath} '-cargs:ada' -gnatef
-ada: Check current file - gprbuild -q -f -c -u -gnatc -P ${projectPath} \${fileBasename} '-cargs:ada' -gnatef
-ada: Compile current file - gprbuild -q -f -c -u -P ${projectPath} \${fileBasename} '-cargs:ada' -gnatef
+ada: Build current project - gprbuild -P ${projectPath} -cargs:ada -gnatef
+ada: Check current file - gprbuild -q -f -c -u -gnatc -P ${projectPath} \${fileBasename} -cargs:ada -gnatef
+ada: Compile current file - gprbuild -q -f -c -u -P ${projectPath} \${fileBasename} -cargs:ada -gnatef
 ada: Generate documentation from the project - gnatdoc -P ${projectPath}
-ada: Build main - src/main_1.adb - gprbuild -P ${projectPath} src/main_1.adb '-cargs:ada' -gnatef
+ada: Build main - src/main_1.adb - gprbuild -P ${projectPath} src/main_1.adb -cargs:ada -gnatef
 ada: Run main - src/main_1.adb - .${path.sep}main1exec${exe}
-ada: Build main - src/main_2.adb - gprbuild -P ${projectPath} src/main_2.adb '-cargs:ada' -gnatef
+ada: Build main - src/main_2.adb - gprbuild -P ${projectPath} src/main_2.adb -cargs:ada -gnatef
 ada: Run main - src/main_2.adb - .${path.sep}main2exec${exe}
-ada: Build main - src/main_3.adb - gprbuild -P ${projectPath} src/main_3.adb '-cargs:ada' -gnatef
+ada: Build main - src/main_3.adb - gprbuild -P ${projectPath} src/main_3.adb -cargs:ada -gnatef
 ada: Run main - src/main_3.adb - .${path.sep}main3exec${exe}
 `.trim();
 
@@ -41,6 +41,6 @@ ada: Run main - src/main_3.adb - .${path.sep}main3exec${exe}
          * Exclude GNAT SAS tasks because they are tested in integration-testsuite.
          */
         const actualCommandLines = await getCommandLines(prov, isCoreTask);
-        assert.equal(actualCommandLines, expectedCmdLines);
+        assert.strictEqual(actualCommandLines, expectedCmdLines);
     });
 });

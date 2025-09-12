@@ -13,7 +13,7 @@ import {
     findTaskByName,
     getConventionalTaskLabel,
     isFromWorkspace,
-    ExecutionWithCustomCommands,
+    CustomExecutionWithCommandEval,
 } from '../../src/taskProviders';
 import {
     activate,
@@ -106,7 +106,7 @@ ada: Run main - src/test.adb - .${path.sep}obj${path.sep}test${exe}
         assert(resolved);
         assert(resolved.execution);
 
-        const exec = resolved.execution as ExecutionWithCustomCommands;
+        const exec = resolved.execution as CustomExecutionWithCommandEval;
 
         const actualCmd = await getCmdLine(exec);
 
@@ -299,7 +299,7 @@ ada: Run main - src/test.adb - .${path.sep}obj${path.sep}test${exe}
 
         assert(
             execStatus === 0,
-            `Task exited with code ${execStatus}:\n${(resolved.execution as ExecutionWithCustomCommands).getTaskOutput()}`,
+            `Task exited with code ${execStatus}:\n${(resolved.execution as CustomExecutionWithCommandEval).getTaskOutput()}`,
         );
 
         /**
@@ -400,7 +400,7 @@ suite('Task Execution', function () {
             const runTask = (await vscode.tasks.fetchTasks({ type: 'ada' })).find((t) =>
                 t.name.includes('Run main'),
             );
-            assert(runTask?.execution instanceof ExecutionWithCustomCommands);
+            assert(runTask?.execution instanceof CustomExecutionWithCommandEval);
             const cmdLine = await getCmdLine(runTask.execution);
             assert(
                 cmdLine.startsWith('.' + path.sep),
