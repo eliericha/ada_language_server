@@ -848,6 +848,12 @@ export class CustomExecutionWithCommandEval extends vscode.CustomExecution {
      * @returns a Pseudoterminal object that controls a Terminal in the VS Code UI.
      */
     private callback(resolvedTaskDef: SimpleTaskDef): Thenable<vscode.Pseudoterminal> {
+        /**
+         * The same execution object may be reused if the same task is called
+         * multiple times. So we need to clear the output before each run.
+         */
+        this.taskOutput = [];
+
         return new Promise((resolve) => {
             const writeEmitter = new vscode.EventEmitter<string>();
             const closeEmitter = new vscode.EventEmitter<number>();
