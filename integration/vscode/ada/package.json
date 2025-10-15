@@ -790,7 +790,7 @@
                 "severity": "error",
                 "pattern": [
                     {
-                        "regexp": "^([^:]:?[^:]*):(\\d+):(\\d+):\\s+[\\(:]?(error)[\\):]?\\s+(.*)$",
+                        "regexp": "^([^:]:?[^:]*):(\\d+):(\\d+):\\s+[\\(:]?(error|rule violation)[\\):]?\\s+(.*)$",
                         "file": 1,
                         "line": 2,
                         "column": 3,

@@ -269,6 +269,24 @@ const adaTasks: PredefinedTask[] = [
         },
         problemMatchers: [],
     },
+    {
+        label: 'Run GNATcheck on the project',
+        taskDef: {
+            type: TASK_TYPE_ADA,
+            command: 'gnatcheck',
+            args: ['-l', `\${command:${CMD_GPR_PROJECT_ARGS}}`],
+        },
+        problemMatchers: DEFAULT_PROBLEM_MATCHERS,
+    },
+    {
+        label: 'Run GNATcheck on the current file',
+        taskDef: {
+            type: TASK_TYPE_ADA,
+            command: 'gnatcheck',
+            args: ['-l', `\${command:${CMD_GPR_PROJECT_ARGS}}`, '${fileBasename}'],
+        },
+        problemMatchers: DEFAULT_PROBLEM_MATCHERS,
+    },
 ];
 
 export const sparkTasks: SPARKPredefinedTask[] = [

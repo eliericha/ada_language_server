@@ -28,6 +28,8 @@ ada: Build current project - gprbuild -P ${projectPath} '-cargs:ada' -gnatef
 ada: Check current file - gprbuild -q -f -c -u -gnatc -P ${projectPath} \${fileBasename} '-cargs:ada' -gnatef
 ada: Compile current file - gprbuild -q -f -c -u -P ${projectPath} \${fileBasename} '-cargs:ada' -gnatef
 ada: Generate documentation from the project - gnatdoc -P ${projectPath}
+ada: Run GNATcheck on the project - gnatcheck -l -P ${projectPath}
+ada: Run GNATcheck on the current file - gnatcheck -l -P ${projectPath} \${fileBasename}
 ada: Build main - src/main_1.adb - gprbuild -P ${projectPath} src/main_1.adb '-cargs:ada' -gnatef
 ada: Run main - src/main_1.adb - .${path.sep}main1exec${exe}
 ada: Build main - src/main_2.adb - gprbuild -P ${projectPath} src/main_2.adb '-cargs:ada' -gnatef

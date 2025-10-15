@@ -27,6 +27,8 @@ This extension **does not include a compiler nor additional tools**. Nonetheless
 | | Code Coverage       | ✅ |
 | **GNAT SAS** | | |
 | | Static Analysis     |       ✅            |
+| **GNATcheck** | | |
+| | Coding Standard Verification | ✅ |
 | **SPARK** | | |
 | | Formal Proof        |       ✅          |
 
