@@ -1440,7 +1440,7 @@
                     {
                         "id": "als-get-started-build",
                         "title": "Build your project",
-                        "description": "Use automatically provided `ada` tasks to build your project.\n[Run Build Task](command:workbench.action.tasks.build)",
+                        "description": "Use automatically provided `ada` tasks to build your project.\n[Run Build Task](command:workbench.action.tasks.build).\nFix the warning that is displayed in the [Problems](command:workbench.actions.view.problems) panel.",
                         "media": {
                             "markdown": "media/build.md"
                         },
