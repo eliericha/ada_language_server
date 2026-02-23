@@ -702,6 +702,7 @@ export class ExtensionState {
 
 const currentlyOpenedSASSarifs: Set<vscode.Uri> = new Set();
 const currentlyOpenedGnatproveSarifs: Set<vscode.Uri> = new Set();
+const currentlyOpenedGnatSarifs: Set<vscode.Uri> = new Set();
 
 async function closeSARIFViewerIfNeeded(e: vscode.TaskStartEvent) {
     /**
@@ -732,14 +733,17 @@ async function closeSARIFViewerIfNeeded(e: vscode.TaskStartEvent) {
          * Consequently, we close the report also when the GNAT SAS
          * analyze+report compound task is started.
          */
-        isGnatSASCompoundSarifTask(task)
+        isGnatSASCompoundSarifTask(task) ||
+        isGnatSarifTask(task)
     ) {
         const sarif = await getSarifExtAPI();
         if (sarif) {
             const current =
                 task.definition.type == TASK_TYPE_SPARK
                     ? currentlyOpenedGnatproveSarifs
-                    : currentlyOpenedSASSarifs;
+                    : isGnatSASSarifTask(task) || isGnatSASCompoundSarifTask(task)
+                      ? currentlyOpenedSASSarifs
+                      : currentlyOpenedGnatSarifs;
 
             await sarif.closeLogs([...current]);
             current.clear();
@@ -750,6 +754,9 @@ async function closeSARIFViewerIfNeeded(e: vscode.TaskStartEvent) {
 function isGnatSASSarifTask(task: vscode.Task): boolean {
     return (
         task.definition.type == TASK_TYPE_ADA &&
+        !!(task.definition as SimpleTaskDef).args?.some((arg) =>
+            getArgValue(arg).includes('gnatsas'),
+        ) &&
         !!(task.definition as SimpleTaskDef).args?.some((arg) => getArgValue(arg).includes('sarif'))
     );
 }
@@ -759,6 +766,15 @@ function isGnatSASCompoundSarifTask(task: vscode.Task): boolean {
         task.definition.type == TASK_TYPE_ADA &&
         !!(task.definition as SimpleTaskDef).compound?.some((t) =>
             t.includes(TASK_GNATSAS_REPORT.label),
+        )
+    );
+}
+
+function isGnatSarifTask(task: vscode.Task): boolean {
+    return (
+        task.definition.type == TASK_TYPE_ADA &&
+        !!(task.definition as SimpleTaskDef).args?.some((arg) =>
+            getArgValue(arg).includes('-fdiagnostics-format=sarif-file'),
         )
     );
 }
@@ -773,12 +789,17 @@ async function openSARIFViewerIfNeeded(e: vscode.TaskProcessEndEvent) {
     const definition: SimpleTaskDef = task.definition;
 
     /**
-     * Open the SARIF Viewer only if the task executed successfully.
+     * Open the SARIF Viewer only if the task executed successfully, except for
+     * GNAT tasks with SARIF output.
      */
-    if (definition && e.exitCode === 0) {
+    if (definition && (e.exitCode === 0 || isGnatSarifTask(task))) {
         const args = definition.args;
 
-        if (definition.type == TASK_TYPE_SPARK || isGnatSASSarifTask(task)) {
+        if (
+            definition.type == TASK_TYPE_SPARK ||
+            isGnatSASSarifTask(task) ||
+            isGnatSarifTask(task)
+        ) {
             const sarifExtAPI = await getSarifExtAPI();
 
             if (!sarifExtAPI) {
@@ -808,7 +829,7 @@ async function openSARIFViewerIfNeeded(e: vscode.TaskProcessEndEvent) {
                     await sarifExtAPI.openLogs(sarifUris);
                     sarifUris.forEach((v) => currentlyOpenedGnatproveSarifs.add(v));
                 }
-            } else {
+            } else if (isGnatSASSarifTask(task)) {
                 const execution = task.execution;
                 let cwd = undefined;
 
@@ -854,6 +875,37 @@ async function openSARIFViewerIfNeeded(e: vscode.TaskProcessEndEvent) {
                         }
                     }
                 }
+            } else {
+                /**
+                 * It's a GNAT task with SARIF output. SARIF reports are
+                 * produced in the source directories. As a sibling of each
+                 * source file, a <file>.gnat.sarif file is produced.
+                 *
+                 * Collect those files from the source directories of the
+                 * project.
+                 */
+                const sarifFiles = new Set(
+                    await adaExtState
+                        .getSourceDirs()
+                        .then((sourceDirs) =>
+                            Promise.all(
+                                sourceDirs
+                                    .map((v) => vscode.Uri.parse(v.uri))
+                                    .map((uri) =>
+                                        vscode.workspace.findFiles(
+                                            new vscode.RelativePattern(uri, '*.gnat.sarif'),
+                                        ),
+                                    ),
+                            ),
+                        )
+                        .then((arraysOfUris) => arraysOfUris.flat()),
+                );
+
+                /**
+                 * Open the SARIF reports with the SARIF Viewer.
+                 */
+                sarifFiles.forEach((v) => currentlyOpenedGnatSarifs.add(v));
+                return sarifExtAPI.openLogs([...sarifFiles]);
             }
         }
     }
