@@ -10,6 +10,7 @@ import * as yaml from 'yaml';
 import { NotificationType, TestsuiteNotification } from './e3TestsuiteNotifications';
 import { logger } from './extension';
 import { setTerminalEnvironment } from './helpers';
+import { setEnvFileEnvironment } from './env';
 
 interface Testsuite {
     uri: vscode.Uri;
@@ -107,6 +108,7 @@ export function activateE3TestsuiteIntegration(context: vscode.ExtensionContext)
 
         logger.info(`Loading tests from: ${ts.uri.fsPath}`);
         rootItem.busy = true;
+        const env = await getEnv();
         await new Promise<TestInfo[]>((resolve, reject) => {
             const output: Buffer[] = [];
             const fullOutput: Buffer[] = [];
@@ -118,7 +120,7 @@ export function activateE3TestsuiteIntegration(context: vscode.ExtensionContext)
                  * variable in the environment given by getEnv() will decide
                  * which Python gets used.
                  */
-                env: getEnv(),
+                env: env,
             });
             p.stdout.on('data', (chunk) => {
                 // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
@@ -221,7 +223,7 @@ export function activateE3TestsuiteIntegration(context: vscode.ExtensionContext)
 
         const run = controller.createTestRun(request, 'e3-testsuite');
 
-        const env = getEnv();
+        const env = await getEnv();
         if (enableEventSystem) {
             const modulePath = context.asAbsolutePath('media');
             const module = 'e3_notify_vscode';
@@ -613,9 +615,10 @@ export function getTestsuite() {
     return ts;
 }
 
-function getEnv(): NodeJS.ProcessEnv {
+async function getEnv(): Promise<NodeJS.ProcessEnv> {
     const env = { ...process.env };
     setTerminalEnvironment(env);
+    await setEnvFileEnvironment(env);
     return env;
 }
 

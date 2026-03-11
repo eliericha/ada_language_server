@@ -134,7 +134,6 @@ export async function askSPARKOptions(): Promise<string[]> {
 function getSavedPickerState() {
     const savedState: SavedPickerState | undefined =
         adaExtState.context.workspaceState.get(WS_STATE_KEY_PICKER);
-    logger.debug('Retrieved saved SPARK picker state: %j', savedState);
     const pickerState: PickerState = savedState
         ? {
               proofLevel:
