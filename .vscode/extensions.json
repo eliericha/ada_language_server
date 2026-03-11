@@ -8,6 +8,8 @@
       "esbenp.prettier-vscode",
       "dbaeumer.vscode-eslint",
       "adacore.ada",
-      "ms-vscode.extension-test-runner"
+      "ms-vscode.extension-test-runner",
+      // Recommend the Python Environment extension to apply .env files in terminals
+      "ms-python.vscode-python-envs"
    ]
 }
